@@ -22,7 +22,7 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       searchMembers(query);
-    }, 300);
+    }, 200); // Reduced delay for faster response
 
     return () => clearTimeout(timeoutId);
   }, [query, searchMembers]);
@@ -111,7 +111,7 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
         </Card>
       )}
 
-      {isOpen && query.length >= 2 && suggestions.length === 0 && !loading && (
+      {isOpen && query.length >= 1 && suggestions.length === 0 && !loading && (
         <Card className="absolute z-50 w-full mt-1">
           <CardContent className="p-3 text-sm text-gray-500 text-center">
             Inga ledamöter hittades

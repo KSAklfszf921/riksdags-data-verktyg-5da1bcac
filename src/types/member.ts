@@ -1,4 +1,3 @@
-
 export interface Member {
   id: string;
   firstName: string;
@@ -17,6 +16,9 @@ export interface Member {
   activityScore: number;
   documents?: RiksdagDocumentSummary[];
   calendarEvents?: CalendarEvent[];
+  motions?: number;
+  interpellations?: number;
+  writtenQuestions?: number;
 }
 
 export interface Speech {

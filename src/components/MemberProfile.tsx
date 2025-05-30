@@ -1,4 +1,3 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -19,10 +18,9 @@ import {
   Star,
   Clock,
   ExternalLink,
-  X
+  X,
+  BarChart3
 } from 'lucide-react';
-import DocumentSearch from './DocumentSearch';
-import SpeechSearch from './SpeechSearch';
 
 interface MemberProfileProps {
   member: Member;
@@ -59,7 +57,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
 
   const formatTime = (timeString?: string) => {
     if (!timeString) return '';
-    return timeString.substring(0, 5); // Format HH:MM
+    return timeString.substring(0, 5);
   };
 
   return (
@@ -145,6 +143,32 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
+          {/* Aktivitetsstatistik */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <BarChart3 className="w-5 h-5" />
+                <span>Aktivitetsstatistik</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-blue-600">{member.motions || 0}</div>
+                  <div className="text-sm text-blue-800">Motioner</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">{member.interpellations || 0}</div>
+                  <div className="text-sm text-green-800">Interpellationer</div>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-orange-600">{member.writtenQuestions || 0}</div>
+                  <div className="text-sm text-orange-800">Skriftliga frågor</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Anföranden från API */}
           <Card>
             <CardHeader>
@@ -209,22 +233,6 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Avancerad anförandesökning för denna ledamot */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MessageSquare className="w-5 h-5" />
-                <span>Sök alla anföranden från {member.firstName} {member.lastName}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SpeechSearch 
-                initialMemberId={member.id} 
-                showMemberFilter={false}
-              />
-            </CardContent>
-          </Card>
-
           {/* Dokument från ledamoten */}
           {member.documents && member.documents.length > 0 && (
             <Card>
@@ -276,22 +284,6 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               </CardContent>
             </Card>
           )}
-
-          {/* Avancerad dokumentsökning för denna ledamot */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="w-5 h-5" />
-                <span>Sök alla dokument från {member.firstName} {member.lastName}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DocumentSearch 
-                initialMemberId={member.id} 
-                showMemberFilter={false}
-              />
-            </CardContent>
-          </Card>
 
           {/* Röstningar */}
           <Card>

@@ -9,6 +9,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+  PaginationEllipsis,
 } from './ui/pagination';
 import { FileText, ExternalLink, Loader2 } from 'lucide-react';
 import { RiksdagDocument, DocumentSearchParams } from '../services/riksdagApi';
@@ -77,9 +78,31 @@ const DocumentResultsTable = ({
     return docType ? docType.label : type;
   };
 
-  const totalPages = Math.ceil(totalCount / 20);
-  const startIndex = (currentPage - 1) * 20 + 1;
-  const endIndex = Math.min(currentPage * 20, totalCount);
+  const pageSize = 10; // Set to 10 results per page
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const startIndex = (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(currentPage * pageSize, totalCount);
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      const startPage = Math.max(1, currentPage - 2);
+      const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        pages.push(i);
+      }
+    }
+    
+    return pages;
+  };
 
   if (error) {
     return (
@@ -182,7 +205,7 @@ const DocumentResultsTable = ({
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="mt-4">
+              <div className="mt-6">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -192,23 +215,53 @@ const DocumentResultsTable = ({
                       />
                     </PaginationItem>
                     
-                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                      const pageNum = i + 1;
-                      if (totalPages <= 5) {
-                        return (
-                          <PaginationItem key={pageNum}>
-                            <PaginationLink
-                              onClick={() => onPageChange(pageNum)}
-                              isActive={currentPage === pageNum}
-                              className="cursor-pointer"
-                            >
-                              {pageNum}
-                            </PaginationLink>
+                    {currentPage > 3 && (
+                      <>
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => onPageChange(1)}
+                            className="cursor-pointer"
+                          >
+                            1
+                          </PaginationLink>
+                        </PaginationItem>
+                        {currentPage > 4 && (
+                          <PaginationItem>
+                            <PaginationEllipsis />
                           </PaginationItem>
-                        );
-                      }
-                      return null;
-                    })}
+                        )}
+                      </>
+                    )}
+                    
+                    {getPageNumbers().map((pageNum) => (
+                      <PaginationItem key={pageNum}>
+                        <PaginationLink
+                          onClick={() => onPageChange(pageNum)}
+                          isActive={currentPage === pageNum}
+                          className="cursor-pointer"
+                        >
+                          {pageNum}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    
+                    {currentPage < totalPages - 2 && (
+                      <>
+                        {currentPage < totalPages - 3 && (
+                          <PaginationItem>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        )}
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => onPageChange(totalPages)}
+                            className="cursor-pointer"
+                          >
+                            {totalPages}
+                          </PaginationLink>
+                        </PaginationItem>
+                      </>
+                    )}
                     
                     <PaginationItem>
                       <PaginationNext 

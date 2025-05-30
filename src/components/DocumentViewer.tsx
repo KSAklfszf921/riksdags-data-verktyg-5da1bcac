@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Button } from './ui/button';
@@ -21,14 +20,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     setError(null);
     
     try {
-      // Show summary if available, otherwise try to fetch full content
-      if (document.summary || document.notis) {
-        setDocumentContent(document.summary || document.notis || '');
-        setLoading(false);
-        return;
-      }
-
-      // Try to fetch full document if URL is available
+      // Try to fetch full document content
       const url = document.dokument_url_text || document.dokument_url_html;
       if (!url) {
         throw new Error('Ingen dokument-URL tillgänglig');
@@ -44,15 +36,25 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       
       // Process content based on format
       if (content.includes('<dokumentstatus>') || content.includes('<?xml')) {
-        // Extract relevant content from XML
+        // Extract full content from XML - look for main text sections
         const textMatch = content.match(/<text>(.*?)<\/text>/s) ||
                          content.match(/<summary>(.*?)<\/summary>/s) ||
-                         content.match(/<notis>(.*?)<\/notis>/s);
+                         content.match(/<notis>(.*?)<\/notis>/s) ||
+                         content.match(/<dokinttext>(.*?)<\/dokinttext>/s) ||
+                         content.match(/<dokument>(.*?)<\/dokument>/s);
         
         if (textMatch) {
           content = textMatch[1];
         } else {
-          content = 'Dokumentinnehåll kunde inte extraheras. Använd länken för att öppna i ny flik.';
+          // Try to extract any meaningful text content
+          content = content
+            .replace(/<dokumentstatus>.*?<\/dokumentstatus>/gs, '')
+            .replace(/<titel>.*?<\/titel>/gs, '')
+            .replace(/<subtitle>.*?<\/subtitle>/gs, '')
+            .replace(/<rubrik>.*?<\/rubrik>/gs, '')
+            .replace(/<(?!\/?(p|br|div|span|h[1-6]|ul|ol|li|table|tr|td|th|strong|em|b|i)\b)[^>]*>/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
         }
       }
       
@@ -68,13 +70,25 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
         .replace(/&Ouml;/g, 'Ö')
         .replace(/&Auml;/g, 'Ä')
         .replace(/&Aring;/g, 'Å')
-        .replace(/<BR\/>/g, '\n')
-        .replace(/<br>/g, '\n')
+        .replace(/&eacute;/g, 'é')
+        .replace(/&aacute;/g, 'á')
+        .replace(/&iacute;/g, 'í')
+        .replace(/&oacute;/g, 'ó')
+        .replace(/&uacute;/g, 'ú')
+        .replace(/&ntilde;/g, 'ñ')
+        .replace(/<BR\/>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<p>/gi, '\n\n')
+        .replace(/<\/p>/gi, '')
+        .replace(/<h[1-6]>/gi, '\n\n')
+        .replace(/<\/h[1-6]>/gi, '\n')
         .replace(/<[^>]*>/g, '')
+        .replace(/\n\s*\n\s*\n/g, '\n\n')
         .trim();
 
-      if (!content || content.length < 20) {
-        throw new Error('Dokumentet verkar vara tomt eller innehåller endast metadata');
+      if (!content || content.length < 50) {
+        // If still no meaningful content, show summary/notis if available
+        content = document.summary || document.notis || 'Dokumentinnehåll kunde inte extraheras fullständigt.';
       }
       
       setDocumentContent(content);
@@ -195,10 +209,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
           {documentContent && (
             <div className="prose max-w-none">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-gray-800">
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-gray-800 max-h-96 overflow-y-auto">
                   {documentContent}
-                </pre>
+                </div>
               </div>
             </div>
           )}

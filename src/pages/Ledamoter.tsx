@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,9 +40,8 @@ const Ledamoter = () => {
         return member.id === autocompleteFilter.intressent_id;
       }
 
-      const matchesSearch = 
-        member.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        member.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+      const fullName = `${member.firstName} ${member.lastName}`.toLowerCase();
+      const matchesSearch = searchTerm === "" || fullName.includes(searchTerm.toLowerCase());
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
       
@@ -187,7 +185,7 @@ const Ledamoter = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sök ledamot (autocomplete)
+                      Sök ledamot
                     </label>
                     <MemberAutocomplete 
                       onSelectMember={handleAutocompleteSelect}

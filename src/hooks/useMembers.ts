@@ -55,6 +55,11 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     url: event.url
   }));
 
+  // Count specific document types for stats
+  const motions = documents.filter(doc => doc.typ === 'mot').length;
+  const interpellations = documents.filter(doc => doc.typ === 'ip').length;
+  const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
+
   return {
     id: riksdagMember.intressent_id,
     firstName: riksdagMember.tilltalsnamn,
@@ -71,7 +76,10 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     proposals: [],
     documents: mappedDocuments,
     calendarEvents: mappedCalendarEvents,
-    activityScore: Math.random() * 10
+    activityScore: Math.random() * 10,
+    motions,
+    interpellations,
+    writtenQuestions
   };
 };
 
@@ -142,7 +150,7 @@ export const useMemberSuggestions = () => {
   const [loading, setLoading] = useState(false);
 
   const searchMembers = async (query: string) => {
-    if (query.length < 2) {
+    if (query.length < 1) { // Changed from 2 to 1
       setSuggestions([]);
       return;
     }

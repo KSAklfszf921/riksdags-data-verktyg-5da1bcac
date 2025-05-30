@@ -192,7 +192,7 @@ export interface CalendarSearchParams {
 const BASE_URL = 'https://data.riksdagen.se';
 
 export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
-  if (query.length < 2) return [];
+  if (query.length < 1) return [];
   
   const url = `${BASE_URL}/personlista/?fnamn=${encodeURIComponent(query)}&utformat=json`;
   
@@ -228,12 +228,10 @@ export const fetchMembers = async (
     
     console.log(`Initial fetch returned ${allMembers.length} members`);
     
-    // Filter members based on status
     const currentDate = new Date();
     
     if (status === 'current') {
       allMembers = allMembers.filter(member => {
-        // Current members have either no end date or end date in the future
         if (!member.datum_tom || member.datum_tom.trim() === '') {
           return true;
         }
@@ -241,12 +239,11 @@ export const fetchMembers = async (
           const endDate = new Date(member.datum_tom);
           return endDate > currentDate;
         } catch {
-          return true; // If date parsing fails, assume current
+          return true;
         }
       });
     } else if (status === 'former') {
       allMembers = allMembers.filter(member => {
-        // Former members have an end date in the past
         if (!member.datum_tom || member.datum_tom.trim() === '') {
           return false;
         }
@@ -258,11 +255,9 @@ export const fetchMembers = async (
         }
       });
     }
-    // For 'all' status, we don't filter
     
     console.log(`After filtering for ${status}: ${allMembers.length} members`);
     
-    // Implement client-side pagination
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedMembers = allMembers.slice(startIndex, endIndex);
@@ -290,7 +285,6 @@ export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
     const data: RiksdagPersonResponse = await response.json();
     let members = data.personlista?.person || [];
     
-    // Extra filtrering för nuvarande ledamöter
     const currentDate = new Date();
     members = members.filter(member => {
       if (!member.datum_tom || member.datum_tom.trim() === '') {
@@ -310,14 +304,13 @@ export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
 export const searchDocuments = async (params: DocumentSearchParams): Promise<{documents: RiksdagDocument[], totalCount: number}> => {
   let url = `${BASE_URL}/dokumentlista/?utformat=json`;
   
-  // Add page size
+  // Use 10 results per page for pagination
   if (params.sz) {
     url += `&sz=${params.sz}`;
   } else {
-    url += '&sz=20';
+    url += '&sz=10';
   }
   
-  // Add search parameters - using correct API parameter names
   if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
   if (params.doktyp) url += `&doktyp=${params.doktyp}`;
   if (params.fromDate) url += `&from=${params.fromDate}`;
@@ -338,14 +331,12 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
   if (params.avd) url += `&avd=${params.avd}`;
   if (params.webbtv) url += `&webbtv=${params.webbtv}`;
   
-  // Add party filters - correct parameter name
   if (params.parti && params.parti.length > 0) {
     params.parti.forEach(p => {
       url += `&parti=${p}`;
     });
   }
   
-  // Add sorting
   if (params.sort) url += `&sort=${params.sort}`;
   if (params.sortorder) url += `&sortorder=${params.sortorder}`;
   
@@ -372,14 +363,12 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
 export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speeches: RiksdagSpeech[], totalCount: number}> => {
   let url = `${BASE_URL}/anforandelista/?utformat=json`;
   
-  // Add page size
   if (params.pageSize) {
     url += `&sz=${params.pageSize}`;
   } else {
     url += '&sz=50';
   }
   
-  // Add search parameters
   if (params.rm) url += `&rm=${encodeURIComponent(params.rm)}`;
   if (params.anftyp) url += `&anftyp=${params.anftyp}`;
   if (params.date) url += `&d=${params.date}`;
@@ -406,14 +395,12 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speec
 export const searchVotes = async (params: VoteSearchParams): Promise<{votes: RiksdagVote[], totalCount: number}> => {
   let url = `${BASE_URL}/voteringlista/?utformat=json`;
   
-  // Add page size
   if (params.pageSize) {
     url += `&sz=${params.pageSize}`;
   } else {
     url += '&sz=50';
   }
   
-  // Add search parameters
   if (params.rm && params.rm.length > 0) {
     params.rm.forEach(rm => {
       url += `&rm=${encodeURIComponent(rm)}`;
@@ -426,7 +413,6 @@ export const searchVotes = async (params: VoteSearchParams): Promise<{votes: Rik
   if (params.intressentId) url += `&iid=${params.intressentId}`;
   if (params.gruppering) url += `&gruppering=${params.gruppering}`;
   
-  // Add party filters
   if (params.party && params.party.length > 0) {
     params.party.forEach(p => {
       url += `&parti=${p}`;
@@ -452,14 +438,12 @@ export const searchVotes = async (params: VoteSearchParams): Promise<{votes: Rik
 export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<{events: RiksdagCalendarEvent[], totalCount: number}> => {
   let url = `${BASE_URL}/kalender/?utformat=json`;
   
-  // Add page size
   if (params.pageSize) {
     url += `&sz=${params.pageSize}`;
   } else {
     url += '&sz=50';
   }
   
-  // Add search parameters
   if (params.org && params.org.length > 0) {
     params.org.forEach(org => {
       url += `&org=${encodeURIComponent(org)}`;
@@ -518,8 +502,6 @@ export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVot
 };
 
 export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
-  // Calendar events are not directly linked to members in the API,
-  // but we can try to search for events where the member might be involved
   const { events } = await searchCalendarEvents({
     pageSize: 100
   });
