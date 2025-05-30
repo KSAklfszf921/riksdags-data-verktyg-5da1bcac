@@ -127,14 +127,14 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
                 Dokumenttyp
               </label>
               <Select 
-                value={searchParams.docType || ''} 
-                onValueChange={(value) => updateSearchParams('docType', value || undefined)}
+                value={searchParams.docType || 'all'} 
+                onValueChange={(value) => updateSearchParams('docType', value === 'all' ? undefined : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Välj dokumenttyp" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alla typer</SelectItem>
+                  <SelectItem value="all">Alla typer</SelectItem>
                   {DOCUMENT_TYPES.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
@@ -149,14 +149,14 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
                 Utskott/Organ
               </label>
               <Select 
-                value={searchParams.organ || ''} 
-                onValueChange={(value) => updateSearchParams('organ', value || undefined)}
+                value={searchParams.organ || 'all'} 
+                onValueChange={(value) => updateSearchParams('organ', value === 'all' ? undefined : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Välj utskott" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Alla utskott</SelectItem>
+                  <SelectItem value="all">Alla utskott</SelectItem>
                   {COMMITTEES.map((committee) => (
                     <SelectItem key={committee.value} value={committee.value}>
                       {committee.label}
