@@ -29,14 +29,44 @@ interface CacheEntry {
   timestamp: number;
 }
 
-// Helper function to fetch all speeches for a member
-const fetchAllMemberSpeeches = async (memberId: string) => {
+// Helper function to calculate months between two dates
+const getMonthsDifference = (startDate: Date, endDate: Date): number => {
+  const months = (endDate.getFullYear() - startDate.getFullYear()) * 12 + 
+                 (endDate.getMonth() - startDate.getMonth()) + 1;
+  return Math.max(1, months); // Minimum 1 month
+};
+
+// Helper function to fetch all speeches for a member and calculate average per month
+const fetchMemberSpeechesAverage = async (memberId: string, riksdagsYear: string) => {
   try {
     const speeches = await fetchMemberSpeeches(memberId);
-    return speeches;
+    
+    if (!speeches || speeches.length === 0) {
+      return 0;
+    }
+
+    // Calculate the period for the riksdag year
+    const [startYear, endYear] = riksdagsYear.split('/').map(year => {
+      if (year.length === 2) {
+        return parseInt('20' + year);
+      }
+      return parseInt(year);
+    });
+
+    const periodStart = new Date(startYear, 8, 1); // September 1st
+    const periodEnd = new Date(endYear, 5, 30); // June 30th
+    const currentDate = new Date();
+    
+    // Use current date if we're still in the period, otherwise use period end
+    const actualEndDate = currentDate < periodEnd ? currentDate : periodEnd;
+    
+    const monthsInPeriod = getMonthsDifference(periodStart, actualEndDate);
+    const averagePerMonth = speeches.length / monthsInPeriod;
+    
+    return Math.round(averagePerMonth * 10) / 10; // Round to 1 decimal place
   } catch (error) {
     console.error(`Error fetching speeches for member ${memberId}:`, error);
-    return [];
+    return 0;
   }
 };
 
@@ -120,17 +150,16 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
       const memberStats = await Promise.all(
         members.map(async (member) => {
           try {
-            const [documents, speeches] = await Promise.all([
+            const [documents, speechesAverage] = await Promise.all([
               fetchAllMemberDocuments(member.intressent_id).catch(() => []),
-              fetchAllMemberSpeeches(member.intressent_id).catch(() => [])
+              fetchMemberSpeechesAverage(member.intressent_id, riksdagsYear).catch(() => 0)
             ]);
 
             const motions = documents.filter(doc => doc.typ === 'mot').length;
             const interpellations = documents.filter(doc => doc.typ === 'ip').length;
             const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
-            const speechCount = speeches.length;
 
-            console.log(`Member ${member.efternamn}: ${speechCount} speeches, ${motions} motions, ${interpellations} interpellations, ${writtenQuestions} written questions`);
+            console.log(`Member ${member.efternamn}: ${speechesAverage} speeches/month, ${motions} motions, ${interpellations} interpellations, ${writtenQuestions} written questions`);
 
             return {
               id: member.intressent_id,
@@ -141,7 +170,7 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
               motions,
               interpellations,
               writtenQuestions,
-              speeches: speechCount
+              speeches: speechesAverage
             };
           } catch (error) {
             console.error(`Error processing member ${member.efternamn}:`, error);

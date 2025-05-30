@@ -11,9 +11,10 @@ interface TopListCardProps {
   icon: React.ReactNode;
   unit: string;
   loading?: boolean;
+  onMemberClick?: (memberId: string) => void;
 }
 
-const TopListCard = ({ title, members, icon, unit, loading }: TopListCardProps) => {
+const TopListCard = ({ title, members, icon, unit, loading, onMemberClick }: TopListCardProps) => {
   if (loading) {
     return (
       <Card>
@@ -59,6 +60,12 @@ const TopListCard = ({ title, members, icon, unit, loading }: TopListCardProps) 
     }
   };
 
+  const handleMemberClick = (memberId: string) => {
+    if (onMemberClick) {
+      onMemberClick(memberId);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -72,7 +79,13 @@ const TopListCard = ({ title, members, icon, unit, loading }: TopListCardProps) 
           {members.map((member, index) => {
             const party = partyInfo[member.party];
             return (
-              <div key={member.id} className="flex items-center space-x-3 p-2 rounded hover:bg-gray-50">
+              <div 
+                key={member.id} 
+                className={`flex items-center space-x-3 p-2 rounded transition-colors ${
+                  onMemberClick ? 'hover:bg-gray-100 cursor-pointer' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => handleMemberClick(member.id)}
+              >
                 <div className={`text-lg w-8 text-center ${getRankColor(index)}`}>
                   {getRankIcon(index)}
                 </div>
@@ -92,7 +105,9 @@ const TopListCard = ({ title, members, icon, unit, loading }: TopListCardProps) 
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-bold text-lg text-blue-600">{member.count}</div>
+                  <div className="font-bold text-lg text-blue-600">
+                    {unit === 'anföranden/mån' ? member.count.toFixed(1) : member.count}
+                  </div>
                   <div className="text-xs text-gray-500">{unit}</div>
                 </div>
               </div>

@@ -1,7 +1,9 @@
 
 import { useState } from 'react';
 import { useTopListsData } from '../hooks/useTopListsData';
+import { useMembers } from '../hooks/useMembers';
 import TopListCard from '../components/TopListCard';
+import MemberProfile from '../components/MemberProfile';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -20,6 +22,7 @@ import {
 const Topplistor = () => {
   const [selectedYear, setSelectedYear] = useState('2024/25');
   const [topCount, setTopCount] = useState(10);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   
   const { 
     motions, 
@@ -32,6 +35,10 @@ const Topplistor = () => {
     refreshData 
   } = useTopListsData(selectedYear, topCount);
 
+  const { members } = useMembers(1, 1000, 'current');
+  
+  const selectedMember = selectedMemberId ? members.find(m => m.id === selectedMemberId) : null;
+
   const availableYears = [
     '2024/25',
     '2023/24',
@@ -41,6 +48,14 @@ const Topplistor = () => {
   ];
 
   const topCounts = [5, 10, 15, 20];
+
+  const handleMemberClick = (memberId: string) => {
+    setSelectedMemberId(memberId);
+  };
+
+  const handleCloseMemberProfile = () => {
+    setSelectedMemberId(null);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -68,7 +83,7 @@ const Topplistor = () => {
                 <h4 className="font-semibold mb-2">Datakällor:</h4>
                 <ul className="space-y-1 text-xs">
                   <li>• Motioner: Förslag från riksdagsledamöter</li>
-                  <li>• Anföranden: Tal i riksdagens kammare</li>
+                  <li>• Anföranden: Genomsnitt per månad (aktuellt riksdagsår)</li>
                   <li>• Interpellationer: Frågor till ministrar</li>
                   <li>• Skriftliga frågor: Frågor till regeringen</li>
                 </ul>
@@ -152,14 +167,16 @@ const Topplistor = () => {
           icon={<FileText className="w-5 h-5 text-blue-600" />}
           unit="motioner"
           loading={loading}
+          onMemberClick={handleMemberClick}
         />
 
         <TopListCard
-          title="Flest Anföranden"
+          title="Flest Anföranden per månad"
           members={speeches}
           icon={<MessageSquare className="w-5 h-5 text-green-600" />}
-          unit="anföranden"
+          unit="anföranden/mån"
           loading={loading}
+          onMemberClick={handleMemberClick}
         />
 
         <TopListCard
@@ -168,6 +185,7 @@ const Topplistor = () => {
           icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
           unit="interpellationer"
           loading={loading}
+          onMemberClick={handleMemberClick}
         />
 
         <TopListCard
@@ -176,6 +194,7 @@ const Topplistor = () => {
           icon={<Edit3 className="w-5 h-5 text-orange-600" />}
           unit="frågor"
           loading={loading}
+          onMemberClick={handleMemberClick}
         />
       </div>
 
@@ -195,9 +214,9 @@ const Topplistor = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-600">
-                  {speeches.reduce((sum, m) => sum + m.count, 0)}
+                  {speeches.reduce((sum, m) => sum + m.count, 0).toFixed(1)}
                 </div>
-                <div className="text-sm text-gray-600">Totalt anföranden</div>
+                <div className="text-sm text-gray-600">Snitt anföranden/mån</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-purple-600">
@@ -214,6 +233,14 @@ const Topplistor = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Member Profile Modal */}
+      {selectedMember && (
+        <MemberProfile 
+          member={selectedMember} 
+          onClose={handleCloseMemberProfile}
+        />
       )}
     </div>
   );
