@@ -6,6 +6,8 @@ import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import DocumentViewer from './DocumentViewer';
+import RecentSpeeches from './RecentSpeeches';
 import { 
   MapPin, 
   Mail, 
@@ -43,7 +45,12 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
       'kam-ip': 'Interpellationsdebatt',
       'kam-sf': 'Statsministerns frågestund',
       'rskr': 'Riksdagsskrivelse',
-      'votering': 'Votering'
+      'votering': 'Votering',
+      'sou': 'Statens offentliga utredning',
+      'ds': 'Departementsserien',
+      'dir': 'Kommittédirektiv',
+      'yttr': 'Yttrande',
+      'fpm': 'Faktapromemoria'
     };
     return typeMap[type] || type;
   };
@@ -61,10 +68,30 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
     return timeString.substring(0, 5);
   };
 
+  // Konvertera dokument till RiksdagDocument format för DocumentViewer
+  const convertToRiksdagDocument = (doc: any) => ({
+    id: doc.id,
+    titel: doc.title,
+    undertitel: '',
+    typ: doc.type,
+    datum: doc.date,
+    beteckning: doc.beteckning || '',
+    organ: '',
+    dokument_url_html: doc.url || '',
+    dokument_url_text: ''
+  });
+
   // Filtrera dokument för motioner och förslag
   const motionsAndProposals = member.documents?.filter(doc => 
     ['mot', 'prop', 'ip', 'fr'].includes(doc.type)
   ) || [];
+
+  // Hitta svar på skriftliga frågor
+  const getAnswersForQuestion = (questionId: string) => {
+    return member.documents?.filter(doc => 
+      doc.type === 'frs' && doc.title.includes(questionId)
+    ) || [];
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -157,7 +184,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Förbättrad aktivitetsstatistik */}
+          {/* Förbättrad aktivitetsstatistik med klickbara anföranden */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -180,7 +207,12 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   <div className="text-sm text-orange-800">Skriftliga frågor</div>
                 </div>
                 <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-purple-600">{member.speeches.length}</div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    <RecentSpeeches 
+                      speeches={member.speeches} 
+                      memberName={`${member.firstName} ${member.lastName}`}
+                    />
+                  </div>
                   <div className="text-sm text-purple-800">Anföranden</div>
                 </div>
                 <div className="bg-red-50 p-4 rounded-lg text-center">
@@ -195,77 +227,13 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Anföranden från API */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MessageSquare className="w-5 h-5" />
-                <span>Senaste anföranden ({member.speeches.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {member.speeches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Typ</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Tid</TableHead>
-                      <TableHead>Text (utdrag)</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.speeches.map((speech) => (
-                      <TableRow key={speech.id}>
-                        <TableCell className="font-medium">
-                          <div className="max-w-sm">
-                            <p className="truncate">{speech.title}</p>
-                            <p className="text-sm text-gray-500 truncate">{speech.debate}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {speech.type || 'Anförande'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(speech.date)}</TableCell>
-                        <TableCell>
-                          {speech.time && (
-                            <div className="flex items-center space-x-1">
-                              <Clock className="w-3 h-3" />
-                              <span>{formatTime(speech.time)}</span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-md">
-                          <p className="text-sm line-clamp-2">{speech.text}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={speech.url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-gray-500 text-center py-4">Inga anföranden registrerade</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Dokument från ledamoten */}
+          {/* Alla dokument med DocumentViewer */}
           {member.documents && member.documents.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <FileText className="w-5 h-5" />
-                  <span>Senaste dokument ({member.documents.length})</span>
+                  <span>Alla dokument ({member.documents.length})</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -276,35 +244,67 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                       <TableHead>Typ</TableHead>
                       <TableHead>Datum</TableHead>
                       <TableHead>Beteckning</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead>Svar</TableHead>
+                      <TableHead>Åtgärder</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {member.documents.map((doc) => (
-                      <TableRow key={doc.id}>
-                        <TableCell className="font-medium">
-                          <div className="max-w-sm">
-                            <p className="truncate">{doc.title}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getDocumentTypeLabel(doc.type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(doc.date)}</TableCell>
-                        <TableCell className="font-mono text-sm">{doc.beteckning}</TableCell>
-                        <TableCell>
-                          {doc.url && (
-                            <Button variant="ghost" size="sm" asChild>
-                              <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {member.documents.map((doc) => {
+                      const answers = doc.type === 'fr' ? getAnswersForQuestion(doc.beteckning || doc.id) : [];
+                      return (
+                        <TableRow key={doc.id}>
+                          <TableCell className="font-medium">
+                            <div className="max-w-sm">
+                              <p className="truncate">{doc.title}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              className={
+                                doc.type === 'mot' ? 'bg-blue-100 text-blue-800' :
+                                doc.type === 'prop' ? 'bg-green-100 text-green-800' :
+                                doc.type === 'ip' ? 'bg-orange-100 text-orange-800' :
+                                doc.type === 'fr' ? 'bg-purple-100 text-purple-800' :
+                                doc.type === 'frs' ? 'bg-purple-200 text-purple-900' :
+                                doc.type === 'sou' ? 'bg-yellow-100 text-yellow-800' :
+                                doc.type === 'ds' ? 'bg-cyan-100 text-cyan-800' :
+                                'bg-gray-100 text-gray-800'
+                              }
+                            >
+                              {getDocumentTypeLabel(doc.type)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatDate(doc.date)}</TableCell>
+                          <TableCell className="font-mono text-sm">{doc.beteckning}</TableCell>
+                          <TableCell>
+                            {answers.length > 0 && (
+                              <div className="space-y-1">
+                                {answers.map((answer) => (
+                                  <div key={answer.id} className="flex items-center space-x-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      Svar: {answer.beteckning}
+                                    </Badge>
+                                    <DocumentViewer document={convertToRiksdagDocument(answer)} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <DocumentViewer document={convertToRiksdagDocument(doc)} />
+                              {doc.url && (
+                                <Button variant="ghost" size="sm" asChild>
+                                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -354,68 +354,6 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                 </Table>
               ) : (
                 <p className="text-gray-500 text-center py-4">Inga röstningar registrerade</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Motioner och förslag - NU MED RIKTIG DATA */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <FileText className="w-5 h-5" />
-                <span>Motioner och förslag ({motionsAndProposals.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {motionsAndProposals.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Typ</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Beteckning</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {motionsAndProposals.map((document) => (
-                      <TableRow key={document.id}>
-                        <TableCell className="font-medium">
-                          <div className="max-w-sm">
-                            <p className="truncate">{document.title}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            className={
-                              document.type === 'mot' ? 'bg-blue-100 text-blue-800' :
-                              document.type === 'prop' ? 'bg-green-100 text-green-800' :
-                              document.type === 'ip' ? 'bg-orange-100 text-orange-800' :
-                              document.type === 'fr' ? 'bg-purple-100 text-purple-800' :
-                              'bg-gray-100 text-gray-800'
-                            }
-                          >
-                            {getDocumentTypeLabel(document.type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(document.date)}</TableCell>
-                        <TableCell className="font-mono text-sm">{document.beteckning}</TableCell>
-                        <TableCell>
-                          {document.url && (
-                            <Button variant="ghost" size="sm" asChild>
-                              <a href={document.url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-gray-500 text-center py-4">Inga motioner eller förslag registrerade</p>
               )}
             </CardContent>
           </Card>

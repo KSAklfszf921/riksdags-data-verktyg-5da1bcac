@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Button } from './ui/button';
@@ -66,7 +65,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
             extractedContent = rawContent;
           }
           
-          // Formatera innehållet för Riksdag-stil
+          // Formatera innehållet för Riksdag-stil baserat på dokumenttyp
           const formattedContent = formatAsRiksdagDocument(extractedContent, document);
           console.log('Formatted content length:', formattedContent.length);
           
@@ -99,24 +98,36 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     // Hitta huvud-innehållsområdet baserat på Riksdagens HTML-struktur
     let content = '';
     
-    // Försök hitta huvudinnehåll i ordning av prioritet
+    // Förbättrade selektorer för olika dokumenttyper
     const contentSelectors = [
-      // Specifika innehållsområden för olika dokumenttyper
-      /<div[^>]*class="[^"]*dokument[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*main-content[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<main[^>]*>(.*?)<\/main>/s,
+      // SOU-specifika selektorer
+      /<div[^>]*class="[^"]*sou[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*id="[^"]*sou[^"]*"[^>]*>(.*?)<\/div>/si,
+      
+      // Proposition-specifika selektorer
+      /<div[^>]*class="[^"]*prop[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*id="[^"]*prop[^"]*"[^>]*>(.*?)<\/div>/si,
+      
+      // Departementsserie-specifika selektorer
+      /<div[^>]*class="[^"]*ds[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*id="[^"]*ds[^"]*"[^>]*>(.*?)<\/div>/si,
+      
+      // Allmänna innehållsområden
+      /<div[^>]*class="[^"]*dokument[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*class="[^"]*main-content[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<main[^>]*>(.*?)<\/main>/si,
       
       // Betänkanden och propositioner
-      /<div[^>]*id="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*document-content[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*id="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*class="[^"]*document-content[^"]*"[^>]*>(.*?)<\/div>/si,
       
       // Specifik Riksdag struktur
-      /<div[^>]*class="[^"]*pconf[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*Section1[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*pconf[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<div[^>]*class="[^"]*Section1[^"]*"[^>]*>(.*?)<\/div>/si,
       
       // Fallback: hela body minus navigation
-      /<body[^>]*>(.*?)<\/body>/s
+      /<body[^>]*>(.*?)<\/body>/si
     ];
     
     for (const regex of contentSelectors) {
@@ -182,14 +193,14 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     // Rensa innehållet först
     let cleanedContent = cleanAndFormatContent(content);
     
-    // Strukturera innehållet som ett Riksdagsdokument
+    // Strukturera innehållet som ett Riksdagsdokument baserat på typ
     let formattedContent = '';
     
     // Lägg till dokumenthuvud
     formattedContent += createDocumentHeader(documentInfo);
     
     // Bearbeta innehållet för att identifiera och formatera strukturelement
-    formattedContent += processContentStructure(cleanedContent);
+    formattedContent += processContentStructureByType(cleanedContent, documentInfo.typ);
     
     return formattedContent;
   };
@@ -217,13 +228,137 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     return titleMatch?.[1]?.trim() || subtitleMatch?.[1]?.trim() || '';
   };
 
-  const processContentStructure = (content: string): string => {
+  const processContentStructureByType = (content: string, docType: string): string => {
+    let processedContent = content;
+
+    // Anpassa formatering baserat på dokumenttyp
+    switch (docType) {
+      case 'sou':
+        processedContent = formatSOUDocument(content);
+        break;
+      case 'prop':
+        processedContent = formatPropositionDocument(content);
+        break;
+      case 'ds':
+        processedContent = formatDSDocument(content);
+        break;
+      case 'mot':
+        processedContent = formatMotionDocument(content);
+        break;
+      case 'bet':
+        processedContent = formatBetankandeDocument(content);
+        break;
+      default:
+        processedContent = formatGenericDocument(content);
+    }
+
+    return processedContent;
+  };
+
+  const formatSOUDocument = (content: string): string => {
     return content
-      // Identifiera och formatera förslag till riksdagsbeslut
+      // SOU-specifik formatering
+      .replace(/(Statens offentliga utredningar|SOU \d{4}:\d+)/gi, 
+        '<h1 class="sou-header">$1</h1>')
+      
+      // Kapitelrubriker
+      .replace(/^(\d+\.?\s+[A-ZÅÄÖ][^\.]*?)$/gm, '<h2>$1</h2>')
+      
+      // Underkapitel
+      .replace(/^(\d+\.\d+\.?\s+[A-ZÅÄÖ][^\.]*?)$/gm, '<h3>$1</h3>')
+      
+      // Förslagens konsekvenser
+      .replace(/(Förslagens konsekvenser|FÖRSLAGENS KONSEKVENSER)/gi, 
+        '<h2 class="consequences-header">Förslagens konsekvenser</h2>')
+      
+      // Sammanfattning
+      .replace(/(Sammanfattning|SAMMANFATTNING)/gi, 
+        '<h2 class="summary-header">Sammanfattning</h2>')
+      
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
+      
+      // Rensa upp extra taggar
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '');
+  };
+
+  const formatPropositionDocument = (content: string): string => {
+    return content
+      // Proposition-specifik formatering
+      .replace(/(Proposition \d{4}\/\d{2}:\d+|Prop\. \d{4}\/\d{2}:\d+)/gi, 
+        '<h1 class="proposition-header">$1</h1>')
+      
+      // Regeringens förslag
+      .replace(/(Regeringens förslag|REGERINGENS FÖRSLAG)/gi, 
+        '<h2 class="government-proposal">Regeringens förslag</h2>')
+      
+      // Bedömningar
+      .replace(/(Regeringens bedömning|REGERINGENS BEDÖMNING)/gi, 
+        '<h2 class="government-assessment">Regeringens bedömning</h2>')
+      
+      // Skäl för regeringens förslag
+      .replace(/(Skäl för regeringens förslag|SKÄL FÖR REGERINGENS FÖRSLAG)/gi, 
+        '<h2 class="government-reasons">Skäl för regeringens förslag</h2>')
+      
+      // Formatera numrerade förslag
+      .replace(/(\d+\.\s*Riksdagen[^.]+\.)/g, 
+        '<div class="numbered-proposal">$1</div>')
+      
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
+      
+      // Rensa upp
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '');
+  };
+
+  const formatDSDocument = (content: string): string => {
+    return content
+      // DS-specifik formatering
+      .replace(/(Departementsserien \d{4}:\d+|Ds \d{4}:\d+)/gi, 
+        '<h1 class="ds-header">$1</h1>')
+      
+      // Inledning
+      .replace(/(Inledning|INLEDNING)/gi, 
+        '<h2 class="introduction-header">Inledning</h2>')
+      
+      // Bakgrund
+      .replace(/(Bakgrund|BAKGRUND)/gi, 
+        '<h2 class="background-header">Bakgrund</h2>')
+      
+      // Analys
+      .replace(/(Analys|ANALYS)/gi, 
+        '<h2 class="analysis-header">Analys</h2>')
+      
+      // Slutsatser
+      .replace(/(Slutsatser|SLUTSATSER)/gi, 
+        '<h2 class="conclusions-header">Slutsatser</h2>')
+      
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
+      
+      // Rensa upp
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '');
+  };
+
+  const formatMotionDocument = (content: string): string => {
+    return content
+      // Motion-specifik formatering (behåll befintlig)
       .replace(/(Förslag\s+till\s+riksdagsbeslut|FÖRSLAG\s+TILL\s+RIKSDAGSBESLUT)/gi, 
         '<h1 class="proposal-header">Förslag till riksdagsbeslut</h1>')
       
-      // Identifiera motivering
+      // Motivering
       .replace(/(Motivering|MOTIVERING)/gi, 
         '<h1 class="motivation-header">Motivering</h1>')
       
@@ -231,10 +366,50 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       .replace(/(\d+\.\s*Riksdagen[^.]+\.)/g, 
         '<div class="numbered-list-item">$1</div>')
       
-      // Formatera vanliga rubriker
-      .replace(/^([A-ZÅÄÖ][A-ZÅÄÖ\s]{5,})\s*$/gm, '<h2>$1</h2>')
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
       
-      // Formatera underrubriker
+      // Rensa upp
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '');
+  };
+
+  const formatBetankandeDocument = (content: string): string => {
+    return content
+      // Betänkande-specifik formatering
+      .replace(/(Betänkande \d{4}\/\d{2}:[A-Z]+\d+)/gi, 
+        '<h1 class="betankande-header">$1</h1>')
+      
+      // Utskottets förslag
+      .replace(/(Utskottets förslag|UTSKOTTETS FÖRSLAG)/gi, 
+        '<h2 class="committee-proposal">Utskottets förslag</h2>')
+      
+      // Ärendet och dess beredning
+      .replace(/(Ärendet och dess beredning|ÄRENDET OCH DESS BEREDNING)/gi, 
+        '<h2 class="case-preparation">Ärendet och dess beredning</h2>')
+      
+      // Utskottets överväganden
+      .replace(/(Utskottets överväganden|UTSKOTTETS ÖVERVÄGANDEN)/gi, 
+        '<h2 class="committee-considerations">Utskottets överväganden</h2>')
+      
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
+      
+      // Rensa upp
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '');
+  };
+
+  const formatGenericDocument = (content: string): string => {
+    return content
+      // Allmän formatering för andra dokumenttyper
+      .replace(/^([A-ZÅÄÖ][A-ZÅÄÖ\s]{5,})\s*$/gm, '<h2>$1</h2>')
       .replace(/^([A-ZÅÄÖ][a-zåäö\s]{10,})\s*$/gm, '<h3>$1</h3>')
       
       // Formatera paragrafer
@@ -249,13 +424,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       // Rensa upp extra taggar
       .replace(/<\/p><p><h/g, '</p><h')
       .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
-      .replace(/<p><\/p>/g, '')
-      .replace(/(<p>)*(<\/p>)*/g, (match, start, end) => {
-        if (start && end) return '<p></p>';
-        if (start) return '<p>';
-        if (end) return '</p>';
-        return match;
-      });
+      .replace(/<p><\/p>/g, '');
   };
 
   const cleanAndFormatContent = (content: string): string => {
