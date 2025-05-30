@@ -1,4 +1,3 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,6 +7,7 @@ import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import DocumentViewer from './DocumentViewer';
 import RecentSpeeches from './RecentSpeeches';
+import MemberNewsField from './MemberNewsField';
 import { 
   MapPin, 
   Mail, 
@@ -225,6 +225,9 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               )}
             </CardContent>
           </Card>
+
+          {/* Nyhetsflöde - nytt avsnitt */}
+          <MemberNewsField memberName={`${member.firstName} ${member.lastName}`} />
 
           {/* Aktuella uppdrag */}
           {activeAssignments.length > 0 && (
