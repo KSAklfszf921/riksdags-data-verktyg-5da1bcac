@@ -26,8 +26,8 @@ const CalendarSearch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedOrgan, setSelectedOrgan] = useState<string>("");
-  const [selectedType, setSelectedType] = useState<string>("");
+  const [selectedOrgan, setSelectedOrgan] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
@@ -62,9 +62,9 @@ const CalendarSearch = () => {
         result = await searchEvents(searchQuery);
       } else if (fromDate && toDate) {
         result = await fetchEventsByDateRange(fromDate, toDate);
-      } else if (selectedOrgan) {
+      } else if (selectedOrgan && selectedOrgan !== "all") {
         result = await fetchEventsByOrgan(selectedOrgan);
-      } else if (selectedType) {
+      } else if (selectedType && selectedType !== "all") {
         result = await fetchEventsByType(selectedType);
       } else {
         result = await fetchCachedCalendarData(100);
@@ -96,8 +96,8 @@ const CalendarSearch = () => {
 
   const clearFilters = () => {
     setSearchQuery("");
-    setSelectedOrgan("");
-    setSelectedType("");
+    setSelectedOrgan("all");
+    setSelectedType("all");
     setFromDate("");
     setToDate("");
     loadLatestEvents();
@@ -145,7 +145,7 @@ const CalendarSearch = () => {
                       <SelectValue placeholder="Välj organ" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Alla organ</SelectItem>
+                      <SelectItem value="all">Alla organ</SelectItem>
                       {uniqueOrgans.map((organ) => (
                         <SelectItem key={organ} value={organ}>{organ}</SelectItem>
                       ))}
@@ -162,7 +162,7 @@ const CalendarSearch = () => {
                       <SelectValue placeholder="Välj typ" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Alla typer</SelectItem>
+                      <SelectItem value="all">Alla typer</SelectItem>
                       {uniqueTypes.map((type) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
