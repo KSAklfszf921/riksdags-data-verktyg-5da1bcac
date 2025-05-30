@@ -1,7 +1,7 @@
 
 import { Users } from "lucide-react";
 import OptimizedPartyAnalysis from "../components/OptimizedPartyAnalysis";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useResponsive } from "../hooks/use-responsive";
 
 const Partianalys = () => {

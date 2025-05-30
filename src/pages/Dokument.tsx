@@ -1,7 +1,7 @@
 
 import { FileText } from "lucide-react";
 import DocumentSearch from "../components/DocumentSearch";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useResponsive } from "../hooks/use-responsive";
 
 const Dokument = () => {

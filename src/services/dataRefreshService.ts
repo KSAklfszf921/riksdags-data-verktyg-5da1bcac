@@ -26,6 +26,81 @@ export interface RefreshResult {
   errors?: string[];
 }
 
+// Helper function to get record count for a table
+const getTableRecordCount = async (tableName: string): Promise<number> => {
+  try {
+    let query;
+    switch (tableName) {
+      case 'party_data':
+        query = supabase.from('party_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'member_data':
+        query = supabase.from('member_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'vote_data':
+        query = supabase.from('vote_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'document_data':
+        query = supabase.from('document_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'speech_data':
+        query = supabase.from('speech_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'calendar_data':
+        query = supabase.from('calendar_data').select('*', { count: 'exact', head: true });
+        break;
+      case 'member_news':
+        query = supabase.from('member_news').select('*', { count: 'exact', head: true });
+        break;
+      default:
+        return 0;
+    }
+    
+    const { count } = await query;
+    return count || 0;
+  } catch (error) {
+    console.warn(`Could not get count for ${tableName}:`, error);
+    return 0;
+  }
+};
+
+// Helper function to get latest created_at for a table
+const getLatestCreatedAt = async (tableName: string): Promise<string | null> => {
+  try {
+    let query;
+    switch (tableName) {
+      case 'party_data':
+        query = supabase.from('party_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'member_data':
+        query = supabase.from('member_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'vote_data':
+        query = supabase.from('vote_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'document_data':
+        query = supabase.from('document_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'speech_data':
+        query = supabase.from('speech_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'calendar_data':
+        query = supabase.from('calendar_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      case 'member_news':
+        query = supabase.from('member_news').select('created_at').order('created_at', { ascending: false }).limit(1).single();
+        break;
+      default:
+        return null;
+    }
+    
+    const { data } = await query;
+    return data?.created_at || null;
+  } catch (error) {
+    return null;
+  }
+};
+
 export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> => {
   console.log('Checking freshness of all data types...');
   
@@ -46,31 +121,19 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
       let freshness = { lastUpdated: null, isStale: true };
       let recordCount = 0;
 
-      // Get record count
-      try {
-        const { count } = await supabase
-          .from(check.countTable)
-          .select('*', { count: 'exact', head: true });
-        recordCount = count || 0;
-      } catch (countError) {
-        console.warn(`Could not get count for ${check.countTable}:`, countError);
-      }
+      // Get record count using helper function
+      recordCount = await getTableRecordCount(check.countTable);
 
       // Check freshness if function available
       if (check.checkFunction) {
         freshness = await check.checkFunction();
       } else {
         // For tables without specific freshness check, check if we have recent data
-        const { data } = await supabase
-          .from(check.countTable)
-          .select('created_at')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+        const latestCreatedAt = await getLatestCreatedAt(check.countTable);
         
-        if (data) {
-          freshness.lastUpdated = data.created_at;
-          const lastUpdateTime = new Date(data.created_at);
+        if (latestCreatedAt) {
+          freshness.lastUpdated = latestCreatedAt;
+          const lastUpdateTime = new Date(latestCreatedAt);
           const now = new Date();
           const hoursSinceUpdate = (now.getTime() - lastUpdateTime.getTime()) / (1000 * 60 * 60);
           freshness.isStale = hoursSinceUpdate > 24;

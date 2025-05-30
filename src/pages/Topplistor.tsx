@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
-import ResponsiveHeader from '../components/ResponsiveHeader';
+import { ResponsiveHeader } from '../components/ResponsiveHeader';
 import { useResponsive } from '../hooks/use-responsive';
 import { 
   FileText, 

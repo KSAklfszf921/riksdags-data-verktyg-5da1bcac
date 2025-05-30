@@ -1,7 +1,7 @@
 
 import { Vote } from "lucide-react";
 import VoteSearch from "../components/VoteSearch";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useResponsive } from "../hooks/use-responsive";
 
 const Voteringar = () => {

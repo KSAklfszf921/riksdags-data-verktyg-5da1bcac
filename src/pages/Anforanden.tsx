@@ -1,7 +1,7 @@
 
 import { MessageSquare } from "lucide-react";
 import SpeechSearch from "../components/SpeechSearch";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useResponsive } from "../hooks/use-responsive";
 
 const Anforanden = () => {

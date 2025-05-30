@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
 import MemberProfile from "../components/MemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useMembers, useCommittees, getCommitteeName, getCommitteeCode } from "../hooks/useMembers";
 import { useResponsive } from "../hooks/use-responsive";
 import { RiksdagMember } from "../services/riksdagApi";

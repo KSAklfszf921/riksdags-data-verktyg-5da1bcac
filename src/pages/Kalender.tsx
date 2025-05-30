@@ -1,7 +1,7 @@
 
 import { Calendar } from "lucide-react";
 import RiksdagCalendarSearch from "../components/RiksdagCalendarSearch";
-import ResponsiveHeader from "../components/ResponsiveHeader";
+import { ResponsiveHeader } from "../components/ResponsiveHeader";
 import { useResponsive } from "../hooks/use-responsive";
 
 const Kalender = () => {
