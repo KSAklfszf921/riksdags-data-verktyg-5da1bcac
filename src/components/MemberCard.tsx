@@ -1,10 +1,10 @@
 
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
-import { Card, CardContent } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { MapPin, Users, MessageSquare, FileText, Building } from 'lucide-react';
+import { MapPin, Star, Users, Building2, Briefcase } from 'lucide-react';
 import { getCommitteeName } from '../hooks/useMembers';
 
 interface MemberCardProps {
@@ -15,116 +15,164 @@ interface MemberCardProps {
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const party = partyInfo[member.party];
 
-  // Filter current assignments
+  // Improved active assignment filtering
   const currentDate = new Date();
   const activeAssignments = member.assignments?.filter(assignment => {
-    const endDate = assignment.tom ? new Date(assignment.tom) : null;
-    return !endDate || endDate > currentDate;
+    // Parse end date more carefully
+    let endDate: Date | null = null;
+    if (assignment.tom) {
+      const tomString = assignment.tom.toString().trim();
+      if (tomString && tomString !== '') {
+        try {
+          if (tomString.includes('T')) {
+            endDate = new Date(tomString);
+          } else {
+            endDate = new Date(tomString + 'T23:59:59');
+          }
+          if (isNaN(endDate.getTime())) {
+            endDate = null;
+          }
+        } catch (e) {
+          endDate = null;
+        }
+      }
+    }
+    
+    // Assignment is active if no end date or end date is in the future
+    const isActive = !endDate || endDate > currentDate;
+    
+    // Improved filtering - exclude chamber assignments and focus on committees
+    const isNotChamber = assignment.organ_kod !== 'Kammaren' && 
+                        assignment.organ_kod !== 'kam' && 
+                        !assignment.organ_kod.toLowerCase().includes('kammar');
+    
+    // Include committee and important assignments only
+    const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
+                                  assignment.typ === 'Riksdagsorgan' || 
+                                  assignment.typ === 'Departement';
+    
+    console.log(`Assignment ${assignment.organ_kod}: active=${isActive}, notChamber=${isNotChamber}, important=${isCommitteeOrImportant}`);
+    
+    return isActive && isNotChamber && isCommitteeOrImportant;
   }) || [];
 
-  // Get committee assignments specifically
-  const committeeAssignments = activeAssignments.filter(assignment => 
-    assignment.typ === 'utskott' || 
-    assignment.typ === 'Riksdagsnämnd' ||
-    (!assignment.typ && assignment.organ_kod && 
-     assignment.organ_kod !== 'kam' && 
-     assignment.organ_kod !== 'Kammaren' &&
-     !assignment.organ_kod.toLowerCase().includes('kammar'))
+  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`, activeAssignments);
+
+  // Get priority role (prioritize committee leadership roles)
+  const getPriorityRole = (assignment: any) => {
+    if (assignment.roll === 'Ordförande' || assignment.roll === 'ordförande') return 1;
+    if (assignment.roll === 'Vice ordförande' || assignment.roll === 'vice ordförande') return 2;
+    if (assignment.roll === 'Ledamot' || assignment.roll === 'ledamot') return 3;
+    if (assignment.roll === 'Suppleant' || assignment.roll === 'suppleant') return 4;
+    return 5;
+  };
+
+  // Sort assignments by priority (leadership roles first)
+  const sortedAssignments = activeAssignments.sort((a, b) => 
+    getPriorityRole(a) - getPriorityRole(b)
   );
 
-  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`, activeAssignments.map(a => a.organ_kod));
+  // Display up to 2 most important assignments
+  const displayAssignments = sortedAssignments.slice(0, 2);
 
   return (
     <Card 
-      className="cursor-pointer hover:shadow-lg transition-all duration-200 border-l-4 hover:scale-[1.02]"
-      style={{ borderLeftColor: party?.color || '#6B7280' }}
+      className="hover:shadow-lg transition-shadow duration-200 cursor-pointer hover:border-blue-300"
       onClick={onClick}
     >
-      <CardContent className="p-6">
-        <div className="flex items-start space-x-4">
-          <Avatar className="w-16 h-16 ring-2 ring-white shadow-md">
+      <CardHeader className="pb-3">
+        <div className="flex items-start space-x-3">
+          <Avatar className="w-16 h-16">
             <AvatarImage src={member.imageUrl} alt={`${member.firstName} ${member.lastName}`} />
-            <AvatarFallback className="text-lg font-medium">
+            <AvatarFallback className="text-lg">
               {member.firstName.charAt(0)}{member.lastName.charAt(0)}
             </AvatarFallback>
           </Avatar>
-          
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-gray-900 truncate">
+            <CardTitle className="text-lg font-semibold text-gray-900 truncate">
               {member.firstName} {member.lastName}
-            </h3>
-            
+            </CardTitle>
             <div className="flex items-center space-x-2 mt-1">
-              <Badge 
-                className="text-white text-xs"
-                style={{ backgroundColor: party?.color || '#6B7280' }}
-              >
+              <Badge className={`${party?.color || 'bg-gray-500'} text-white text-xs`}>
                 {party?.name || member.party}
               </Badge>
-            </div>
-            
-            <div className="flex items-center space-x-1 mt-2 text-sm text-gray-600">
-              <MapPin className="w-3 h-3" />
-              <span className="truncate">{member.constituency}</span>
-            </div>
-
-            {/* Committee assignments */}
-            {committeeAssignments.length > 0 && (
-              <div className="mt-3">
-                <div className="flex items-center space-x-1 mb-2">
-                  <Building className="w-3 h-3 text-gray-500" />
-                  <span className="text-xs text-gray-500">Utskott & uppdrag:</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {committeeAssignments.slice(0, 3).map((assignment, index) => (
-                    <Badge 
-                      key={index}
-                      variant="outline" 
-                      className="text-xs"
-                      title={`${assignment.uppgift || assignment.organ_kod} - ${assignment.roll}`}
-                    >
-                      {assignment.organ_kod}
-                      {assignment.roll && assignment.roll !== 'Ledamot' && (
-                        <span className="ml-1 text-orange-600">({assignment.roll})</span>
-                      )}
-                    </Badge>
-                  ))}
-                  {committeeAssignments.length > 3 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{committeeAssignments.length - 3}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            {/* Activity statistics */}
-            <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-              <div className="bg-blue-50 px-2 py-1 rounded">
-                <div className="flex items-center justify-center space-x-1">
-                  <MessageSquare className="w-3 h-3 text-blue-600" />
-                  <span className="text-xs font-medium text-blue-600">{member.speeches.length}</span>
-                </div>
-                <div className="text-xs text-blue-800">Anföranden</div>
-              </div>
-              
-              <div className="bg-green-50 px-2 py-1 rounded">
-                <div className="flex items-center justify-center space-x-1">
-                  <FileText className="w-3 h-3 text-green-600" />
-                  <span className="text-xs font-medium text-green-600">{member.motions || 0}</span>
-                </div>
-                <div className="text-xs text-green-800">Motioner</div>
-              </div>
-              
-              <div className="bg-purple-50 px-2 py-1 rounded">
-                <div className="flex items-center justify-center space-x-1">
-                  <Users className="w-3 h-3 text-purple-600" />
-                  <span className="text-xs font-medium text-purple-600">{activeAssignments.length}</span>
-                </div>
-                <div className="text-xs text-purple-800">Uppdrag</div>
+              <div className="flex items-center space-x-1">
+                <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                <span className="text-xs text-gray-600">{member.activityScore.toFixed(1)}</span>
               </div>
             </div>
           </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-3">
+        <div className="flex items-center space-x-2 text-sm text-gray-600">
+          <MapPin className="w-4 h-4" />
+          <span className="truncate">{member.constituency}</span>
+        </div>
+
+        {/* Display active assignments with improved formatting */}
+        {displayAssignments.map((assignment, index) => (
+          <div key={index} className="flex items-center space-x-2 text-sm">
+            <Building2 className="w-4 h-4 text-blue-600" />
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-blue-800 truncate block">
+                {assignment.uppgift || getCommitteeName(assignment.organ_kod)}
+              </span>
+              <span className="text-xs text-gray-600 capitalize">
+                {assignment.roll.toLowerCase()}
+              </span>
+            </div>
+          </div>
+        ))}
+
+        {activeAssignments.length > 2 && (
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <Users className="w-4 h-4" />
+            <span className="text-xs">
+              +{activeAssignments.length - 2} andra uppdrag
+            </span>
+          </div>
+        )}
+
+        {activeAssignments.length === 0 && (
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <Building2 className="w-4 h-4" />
+            <span className="text-xs italic">
+              Inga aktiva utskottsuppdrag
+            </span>
+          </div>
+        )}
+
+        {member.profession && (
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <Briefcase className="w-4 h-4" />
+            <span className="text-xs truncate">{member.profession}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+          <div className="text-center">
+            <div className="text-lg font-semibold text-blue-600">{member.motions || 0}</div>
+            <div className="text-xs text-gray-500">Motioner</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-green-600">{member.speeches.length}</div>
+            <div className="text-xs text-gray-500">Anföranden</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-orange-600">{member.interpellations || 0}</div>
+            <div className="text-xs text-gray-500">Interpellationer</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-purple-600">{member.writtenQuestions || 0}</div>
+            <div className="text-xs text-gray-500">Skriftliga frågor</div>
+          </div>
+        </div>
+
+        {/* Enhanced debug info */}
+        <div className="text-xs text-gray-400 border-t pt-2">
+          {activeAssignments.length} aktiva uppdrag | Komm. koder: {member.committees.join(', ') || 'Inga'}
         </div>
       </CardContent>
     </Card>

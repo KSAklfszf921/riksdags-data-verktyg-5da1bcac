@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments, COMMITTEE_MAPPING } from '../services/riksdagApi';
-import { fetchMemberAssignments, getCurrentCommitteeAssignments, getEnhancedMemberDetails } from '../services/memberAssignmentApi';
 import { Member } from '../types/member';
 
 // Reverse mapping from full names to codes
@@ -22,19 +21,12 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Mapping member: ${riksdagMember.tilltalsnamn} ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
   
-  // Fetch enhanced member details including assignments
-  const enhancedDetails = await getEnhancedMemberDetails(riksdagMember.intressent_id);
-  const assignments = enhancedDetails?.assignments || [];
-  
-  // Get current committee codes
-  const currentCommitteeCodes = await getCurrentCommitteeAssignments(riksdagMember.intressent_id);
-  
   const [documents, speeches] = await Promise.all([
     fetchMemberDocuments(riksdagMember.intressent_id).then(docs => docs.slice(0, 10)).catch(() => []),
     fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 10)).catch(() => [])
   ]);
 
-  console.log(`Member ${riksdagMember.efternamn}: ${documents.length} documents, ${speeches.length} speeches, ${assignments.length} assignments, ${currentCommitteeCodes.length} current committees`);
+  console.log(`Member ${riksdagMember.efternamn}: ${documents.length} documents, ${speeches.length} speeches`);
 
   const mappedDocuments = documents.map(doc => ({
     id: doc.id,
@@ -63,6 +55,17 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
   const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
+
+  // Extract committee codes from member details assignments with improved filtering
+  const currentCommitteeCodes = memberDetails?.assignments
+    ?.filter(assignment => {
+      // Only include committee assignments (exclude chamber assignments)
+      return assignment.organ_kod !== 'Kammaren' && 
+             assignment.organ_kod !== 'kam' && 
+             !assignment.organ_kod.toLowerCase().includes('kammar');
+    })
+    ?.map(assignment => assignment.organ_kod) || [];
+  
   console.log(`Committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
 
   // Generate email address
@@ -86,7 +89,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     party: riksdagMember.parti,
     constituency: riksdagMember.valkrets,
     imageUrl,
-    email: enhancedDetails?.email || generateEmail(riksdagMember.tilltalsnamn, riksdagMember.efternamn),
+    email: memberDetails?.email || generateEmail(riksdagMember.tilltalsnamn, riksdagMember.efternamn),
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
     profession: 'Riksdagsledamot',
     committees: currentCommitteeCodes,
@@ -99,7 +102,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     motions,
     interpellations,
     writtenQuestions,
-    assignments: assignments.map(assignment => ({
+    assignments: memberDetails?.assignments?.map(assignment => ({
       organ_kod: assignment.organ_kod,
       roll: assignment.roll,
       status: assignment.status,
@@ -108,7 +111,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
       typ: assignment.typ,
       ordning: assignment.ordning,
       uppgift: assignment.uppgift
-    }))
+    })) || []
   };
 };
 
@@ -183,7 +186,8 @@ export const useMembers = (
           
           const mappedMembers = await Promise.all(
             memberResult.members.map(async member => {
-              return mapRiksdagMemberToMember(member);
+              const memberDetails = await fetchMemberDetails(member.intressent_id);
+              return mapRiksdagMemberToMember(member, memberDetails);
             })
           );
           
