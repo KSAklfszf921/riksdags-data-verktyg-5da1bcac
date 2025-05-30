@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp, FileText, Calendar } from "lucide-react";
@@ -35,11 +36,11 @@ const Index = () => {
     color: "bg-orange-500",
     href: "/kalender"
   }, {
-    title: "Topplistor",
-    description: "Se aktivaste ledamöter",
-    icon: Trophy,
-    color: "bg-yellow-500",
-    href: "/topplistor"
+    title: "Partianalys",
+    description: "Analysera partiers demografi och aktivitet",
+    icon: BarChart3,
+    color: "bg-red-500",
+    href: "/partianalys"
   }];
   const features = [{
     icon: Database,
@@ -82,6 +83,9 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Button variant="ghost" className="text-gray-600 hover:text-blue-600" onClick={() => navigate('/topplistor')}>
+                Topplistor
+              </Button>
               <Button variant="ghost" className="text-gray-600 hover:text-blue-600">
                 Om oss
               </Button>
