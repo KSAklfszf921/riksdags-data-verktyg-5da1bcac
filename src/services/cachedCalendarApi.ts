@@ -156,7 +156,7 @@ export const getCalendarDataFreshness = async (): Promise<{ lastUpdated: string 
 // Utility functions for working with calendar data
 export const extractParticipants = (participants: Json): string[] => {
   if (Array.isArray(participants)) {
-    return participants;
+    return participants.filter((item): item is string => typeof item === 'string');
   }
   return [];
 };
