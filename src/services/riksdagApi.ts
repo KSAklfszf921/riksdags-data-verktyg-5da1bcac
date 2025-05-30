@@ -1,3 +1,4 @@
+
 import { Member } from '../types/member';
 
 const API_BASE_URL = 'https://data.riksdagen.se';
@@ -11,19 +12,19 @@ export interface RiksdagSearchResult {
 
 export interface RiksdagMember {
   hangar_guid: string;
-  sourceid: string;
+  sourceid?: string;
   intressent_id: string;
-  hangar_id: string;
+  hangar_id?: string;
   fodd_ar: string;
   kon: string;
   efternamn: string;
   tilltalsnamn: string;
-  sorteringsnamn: string;
-  iort: string;
+  sorteringsnamn?: string;
+  iort?: string;
   parti: string;
   valkrets: string;
   status: string;
-  person_url_xml: string;
+  person_url_xml?: string;
   bild_url_80: string;
   bild_url_192: string;
   bild_url_max: string;
@@ -205,18 +206,25 @@ export interface RiksdagMemberBiography {
   hangar_id?: string;
 }
 
-// Vote interface for VoteSearch
+// Vote interface for VoteSearch - updated to match VoteSearch.tsx expectations
 export interface RiksdagVote {
   id: string;
   titel: string;
   datum: string;
   typ: string;
   beteckning: string;
+  punkt: string;
   utfall: string;
   ja: number;
   nej: number;
   frånvarande: number;
   avstår: number;
+  namn: string;
+  parti: string;
+  valkrets: string;
+  rm: string;
+  avser: string;
+  rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
 }
 
 // Updated search parameter interfaces to match component usage
@@ -258,13 +266,19 @@ export interface CalendarSearchParams {
 }
 
 export interface VoteSearchParams {
-  rm?: string;
+  rm?: string[];
   org?: string;
   typ?: string;
   fromDate?: string;
   toDate?: string;
   pageSize?: number;
   page?: number;
+  beteckning?: string;
+  punkt?: string;
+  valkrets?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  party?: string[];
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet';
 }
 
 // Search result interfaces
@@ -367,8 +381,8 @@ export const searchVotes = async (params: VoteSearchParams): Promise<VoteSearchR
   try {
     let url = `${API_BASE_URL}/voteringlista/?utformat=json`;
     
-    if (params.rm) {
-      url += `&rm=${params.rm}`;
+    if (params.rm && params.rm.length > 0) {
+      url += `&rm=${params.rm.join(',')}`;
     }
     if (params.org) {
       url += `&org=${params.org}`;
@@ -384,6 +398,24 @@ export const searchVotes = async (params: VoteSearchParams): Promise<VoteSearchR
     }
     if (params.pageSize) {
       url += `&sz=${params.pageSize}`;
+    }
+    if (params.beteckning) {
+      url += `&bet=${params.beteckning}`;
+    }
+    if (params.punkt) {
+      url += `&punkt=${params.punkt}`;
+    }
+    if (params.valkrets) {
+      url += `&valkrets=${params.valkrets}`;
+    }
+    if (params.rost) {
+      url += `&rost=${params.rost}`;
+    }
+    if (params.party && params.party.length > 0) {
+      url += `&parti=${params.party.join(',')}`;
+    }
+    if (params.gruppering) {
+      url += `&gruppering=${params.gruppering}`;
     }
 
     const response = await fetch(url);
@@ -401,11 +433,18 @@ export const searchVotes = async (params: VoteSearchParams): Promise<VoteSearchR
       datum: vote.datum,
       typ: vote.typ,
       beteckning: vote.beteckning || '',
+      punkt: vote.punkt || '1',
       utfall: vote.utfall || 'Okänt',
       ja: parseInt(vote.ja) || 0,
       nej: parseInt(vote.nej) || 0,
       frånvarande: parseInt(vote.franvarande) || 0,
-      avstår: parseInt(vote.avstar) || 0
+      avstår: parseInt(vote.avstar) || 0,
+      namn: vote.namn || 'Okänd ledamot',
+      parti: vote.parti || '',
+      valkrets: vote.valkrets || '',
+      rm: vote.rm || '',
+      avser: vote.avser || '',
+      rost: vote.rost || 'Frånvarande'
     }));
 
     return { votes, totalCount };
@@ -684,11 +723,35 @@ export const fetchMemberDetails = async (intressent_id: string): Promise<Riksdag
     return {
       assignments: mappedAssignments,
       email: email,
-      biography: biographyData
+      biography: biographyData,
+      intressent_id: person.intressent_id,
+      tilltalsnamn: person.tilltalsnamn,
+      efternamn: person.efternamn,
+      parti: person.parti,
+      valkrets: person.valkrets,
+      kon: person.kon,
+      fodd_ar: person.fodd_ar,
+      bild_url_80: person.bild_url_80,
+      bild_url_192: person.bild_url_192,
+      bild_url_max: person.bild_url_max
     };
   } catch (error) {
     console.error(`Error fetching member details for ${intressent_id}:`, error);
-    return { assignments: [], email: null, biography: [] };
+    return { 
+      assignments: [], 
+      email: null, 
+      biography: [],
+      intressent_id: intressent_id,
+      tilltalsnamn: '',
+      efternamn: '',
+      parti: '',
+      valkrets: '',
+      kon: '',
+      fodd_ar: '',
+      bild_url_80: '',
+      bild_url_192: '',
+      bild_url_max: ''
+    };
   }
 };
 
