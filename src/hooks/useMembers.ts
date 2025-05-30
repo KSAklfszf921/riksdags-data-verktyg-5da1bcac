@@ -1,28 +1,6 @@
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments, COMMITTEE_MAPPING } from '../services/riksdagApi';
 import { Member } from '../types/member';
-
-// Updated committee mapping with corrected codes
-const COMMITTEE_MAPPING: { [key: string]: string } = {
-  'AU': 'Arbetsmarknadsutskottet',
-  'CU': 'Civilutskottet', 
-  'FiU': 'Finansutskottet',
-  'FöU': 'Försvarsutskottet',
-  'JuU': 'Justitieutskottet',
-  'KU': 'Konstitutionsutskottet',
-  'KrU': 'Kulturutskottet',
-  'MjU': 'Miljö- och jordbruksutskottet',
-  'NU': 'Näringsutskottet',
-  'SkU': 'Skatteutskottet',
-  'SfU': 'Socialförsäkringsutskottet',
-  'SoU': 'Socialutskottet',
-  'TU': 'Trafikutskottet',
-  'UbU': 'Utbildningsutskottet',
-  'UU': 'Utrikesutskottet',
-  'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
-  'EUN': 'EU-nämnden',
-  'SäU': 'Säkerhetsutskottet'
-};
 
 // Reverse mapping from full names to codes
 const COMMITTEE_CODE_MAPPING: { [key: string]: string } = Object.fromEntries(
@@ -78,8 +56,15 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Extract committee codes from member details assignments
-  const currentCommitteeCodes = memberDetails?.assignments?.map(assignment => assignment.organ_kod) || [];
+  // Extract committee codes from member details assignments with improved filtering
+  const currentCommitteeCodes = memberDetails?.assignments
+    ?.filter(assignment => {
+      // Only include committee assignments (exclude chamber assignments)
+      return assignment.organ_kod !== 'Kammaren' && 
+             assignment.organ_kod !== 'kam' && 
+             !assignment.organ_kod.toLowerCase().includes('kammar');
+    })
+    ?.map(assignment => assignment.organ_kod) || [];
   
   console.log(`Committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
 
@@ -150,7 +135,7 @@ export const useMembers = (
         
         let result;
         
-        // Use optimized committee filtering when committee is specified
+        // Improved committee filtering logic
         if (committee && committee !== 'all') {
           const committeeCode = COMMITTEE_CODE_MAPPING[committee] || committee;
           
@@ -189,7 +174,7 @@ export const useMembers = (
             setTotalCount(result.totalCount);
             setHasMore(page * pageSize < result.totalCount);
           } else {
-            console.log(`Invalid committee code: ${committeeCode}`);
+            console.log(`Invalid committee code: ${committeeCode}, showing no results`);
             setMembers([]);
             setTotalCount(0);
             setHasMore(false);

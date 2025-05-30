@@ -15,7 +15,7 @@ interface MemberCardProps {
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const party = partyInfo[member.party];
 
-  // Get current active assignments with improved filtering
+  // Improved active assignment filtering
   const currentDate = new Date();
   const activeAssignments = member.assignments?.filter(assignment => {
     // Parse end date more carefully
@@ -41,36 +41,36 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
     // Assignment is active if no end date or end date is in the future
     const isActive = !endDate || endDate > currentDate;
     
-    // Filter out chamber assignments (Kammaren/kam)
+    // Improved filtering - exclude chamber assignments and focus on committees
     const isNotChamber = assignment.organ_kod !== 'Kammaren' && 
                         assignment.organ_kod !== 'kam' && 
                         !assignment.organ_kod.toLowerCase().includes('kammar');
     
-    // Include committee and important assignments
+    // Include committee and important assignments only
     const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
                                   assignment.typ === 'Riksdagsorgan' || 
                                   assignment.typ === 'Departement';
     
+    console.log(`Assignment ${assignment.organ_kod}: active=${isActive}, notChamber=${isNotChamber}, important=${isCommitteeOrImportant}`);
+    
     return isActive && isNotChamber && isCommitteeOrImportant;
   }) || [];
 
-  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`);
+  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`, activeAssignments);
 
-  // Get primary role (prioritize committee leadership roles)
+  // Get priority role (prioritize committee leadership roles)
   const getPriorityRole = (assignment: any) => {
-    if (assignment.roll === 'Ordförande') return 1;
-    if (assignment.roll === 'Vice ordförande') return 2;
-    if (assignment.roll === 'Ledamot') return 3;
-    if (assignment.roll === 'Suppleant') return 4;
+    if (assignment.roll === 'Ordförande' || assignment.roll === 'ordförande') return 1;
+    if (assignment.roll === 'Vice ordförande' || assignment.roll === 'vice ordförande') return 2;
+    if (assignment.roll === 'Ledamot' || assignment.roll === 'ledamot') return 3;
+    if (assignment.roll === 'Suppleant' || assignment.roll === 'suppleant') return 4;
     return 5;
   };
 
-  // Sort assignments by priority
+  // Sort assignments by priority (leadership roles first)
   const sortedAssignments = activeAssignments.sort((a, b) => 
     getPriorityRole(a) - getPriorityRole(b)
   );
-
-  const primaryRole = sortedAssignments[0];
 
   // Display up to 2 most important assignments
   const displayAssignments = sortedAssignments.slice(0, 2);
@@ -111,7 +111,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           <span className="truncate">{member.constituency}</span>
         </div>
 
-        {/* Display active assignments */}
+        {/* Display active assignments with improved formatting */}
         {displayAssignments.map((assignment, index) => (
           <div key={index} className="flex items-center space-x-2 text-sm">
             <Building2 className="w-4 h-4 text-blue-600" />
@@ -119,8 +119,8 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
               <span className="font-medium text-blue-800 truncate block">
                 {assignment.uppgift || getCommitteeName(assignment.organ_kod)}
               </span>
-              <span className="text-xs text-gray-600">
-                {assignment.roll}
+              <span className="text-xs text-gray-600 capitalize">
+                {assignment.roll.toLowerCase()}
               </span>
             </div>
           </div>
@@ -170,9 +170,9 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           </div>
         </div>
 
-        {/* Debug info - show active assignments count */}
+        {/* Enhanced debug info */}
         <div className="text-xs text-gray-400 border-t pt-2">
-          {activeAssignments.length} aktiva uppdrag | Utskott: {member.committees.map(code => getCommitteeName(code)).join(', ') || 'Inga'}
+          {activeAssignments.length} aktiva uppdrag | Komm. koder: {member.committees.join(', ') || 'Inga'}
         </div>
       </CardContent>
     </Card>
