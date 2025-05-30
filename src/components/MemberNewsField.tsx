@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 
 interface NewsItem {
@@ -25,7 +25,9 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<'database' | 'live'>('database');
+  const [dataSource, setDataSource] = useState<'database' | 'live' | 'cache'>('database');
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Hämta nyheter från databasen
   const fetchNewsFromDatabase = async () => {
@@ -56,6 +58,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         }));
         setNewsItems(formattedNews);
         setDataSource('database');
+        setLastFetchTime(new Date(data[0].created_at));
         return true;
       } else {
         console.log('No news found in database');
@@ -83,6 +86,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
 
       if (data?.newsItems && data.newsItems.length > 0) {
         console.log(`Successfully fetched ${data.newsItems.length} news items via API`);
+        
         const formattedNews = data.newsItems.map((item: any) => ({
           title: item.title,
           link: item.link,
@@ -90,11 +94,15 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           description: item.description || '',
           image_url: item.imageUrl
         }));
-        setNewsItems(formattedNews);
-        setDataSource('live');
         
-        // Refresh database data after successful API fetch
-        setTimeout(() => fetchNewsFromDatabase(), 1000);
+        setNewsItems(formattedNews);
+        setDataSource(data.source === 'cache' ? 'cache' : 'live');
+        setLastFetchTime(new Date());
+        
+        // Refresh database data after successful API fetch if it was live data
+        if (data.source !== 'cache') {
+          setTimeout(() => fetchNewsFromDatabase(), 2000);
+        }
         
         return true;
       } else {
@@ -118,20 +126,27 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         const dbSuccess = await fetchNewsFromDatabase();
         if (dbSuccess) {
           setLoading(false);
+          setRetryCount(0);
           return;
         }
       }
       
       // Om inget i databasen eller force refresh, hämta via API
       await fetchNewsFromAPI();
+      setRetryCount(0);
       
     } catch (err) {
       console.error('Error in fetchNews:', err);
+      
       let errorMessage = 'Okänt fel uppstod';
       
       if (err instanceof Error) {
-        if (err.message.includes('403')) {
+        if (err.message.includes('403') || err.message.includes('Forbidden')) {
           errorMessage = 'Åtkomst nekad - Google News blockerar förfrågningar för tillfället';
+        } else if (err.message.includes('429') || err.message.includes('Rate limit')) {
+          errorMessage = 'För många förfrågningar - vänta en stund innan du försöker igen';
+        } else if (err.message.includes('timeout')) {
+          errorMessage = 'Tidsgräns överskreds - Google News svarar långsamt';
         } else if (err.message.includes('CORS')) {
           errorMessage = 'CORS-fel - kan inte komma åt nyheterna från denna webbläsare';
         } else if (err.message.includes('Network')) {
@@ -142,17 +157,21 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       }
       
       setError(`Kunde inte hämta nyheter: ${errorMessage}`);
+      setRetryCount(prev => prev + 1);
       
-      // Visa mockdata som fallback
-      const mockNews: NewsItem[] = [
-        {
-          title: `Senaste nyheterna om ${memberName} kommer snart`,
-          link: '#',
-          pub_date: new Date().toISOString(),
-          description: 'Nyhetsflödet är tillfälligt otillgängligt. Försök igen senare.',
-        }
-      ];
-      setNewsItems(mockNews);
+      // Visa mockdata som fallback vid upprepade fel
+      if (retryCount >= 2) {
+        const mockNews: NewsItem[] = [
+          {
+            title: `Senaste nyheterna om ${memberName} kommer snart`,
+            link: '#',
+            pub_date: new Date().toISOString(),
+            description: 'Nyhetsflödet är tillfälligt otillgängligt. Försök igen senare.',
+          }
+        ];
+        setNewsItems(mockNews);
+        setDataSource('database');
+      }
     } finally {
       setLoading(false);
     }
@@ -173,6 +192,30 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
+  // Få rätt ikon för datakälla
+  const getSourceIcon = () => {
+    switch (dataSource) {
+      case 'cache':
+        return <WifiOff className="w-3 h-3 mr-1" />;
+      case 'live':
+        return <Wifi className="w-3 h-3 mr-1" />;
+      default:
+        return <Database className="w-3 h-3 mr-1" />;
+    }
+  };
+
+  // Få rätt text för datakälla
+  const getSourceText = () => {
+    switch (dataSource) {
+      case 'cache':
+        return 'Cache';
+      case 'live':
+        return 'Live RSS';
+      default:
+        return 'Databas';
+    }
+  };
+
   // Hämta nyheter när komponenten laddas
   useEffect(() => {
     if (memberName && memberId) {
@@ -188,12 +231,15 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
             <Newspaper className="w-5 h-5" />
             <span>Senaste nyheterna</span>
             <Badge variant="outline" className="text-xs">
-              {dataSource === 'database' ? (
-                <><Database className="w-3 h-3 mr-1" />Databas</>
-              ) : (
-                'Live RSS'
-              )}
+              {getSourceIcon()}
+              {getSourceText()}
             </Badge>
+            {lastFetchTime && (
+              <Badge variant="secondary" className="text-xs">
+                <Clock className="w-3 h-3 mr-1" />
+                {formatDate(lastFetchTime.toISOString())}
+              </Badge>
+            )}
           </div>
           <div className="flex space-x-2">
             <Button
@@ -220,8 +266,9 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <span className="text-sm">Uppdatera</span>
+                <Wifi className="w-4 h-4" />
               )}
+              <span className="text-sm">Uppdatera</span>
             </Button>
           </div>
         </CardTitle>
@@ -231,6 +278,11 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           <div className="text-center py-8">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
             <p className="text-gray-600">Hämtar senaste nyheterna...</p>
+            {retryCount > 0 && (
+              <p className="text-sm text-orange-500 mt-2">
+                Försök {retryCount + 1} - detta kan ta lite tid...
+              </p>
+            )}
           </div>
         ) : error && newsItems.length === 0 ? (
           <div className="text-center py-8">
@@ -238,11 +290,13 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
             <p className="text-orange-600 text-sm mb-4">{error}</p>
             <div className="text-xs text-gray-500 mb-4">
               Tips: Nyhetsflödet kan vara tillfälligt otillgängligt på grund av Google News begränsningar.
+              {retryCount > 0 && ` (${retryCount} misslyckade försök)`}
             </div>
             <Button
               variant="outline"
               size="sm"
               onClick={() => fetchNews(true)}
+              disabled={loading}
               className="mt-2"
             >
               Försök igen
@@ -255,6 +309,11 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           </div>
         ) : (
           <div className="space-y-4">
+            {error && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                <p className="text-orange-700 text-sm">{error}</p>
+              </div>
+            )}
             {newsItems.map((item, index) => (
               <div
                 key={index}

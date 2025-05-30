@@ -191,23 +191,25 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
       }
     }
 
-    // 2. Trigger news refresh för aktiva medlemmar (endast vid behov)
+    // 2. Förbättrad trigger för news refresh för aktiva medlemmar
     if (errors.length === 0) {
-      console.log('Step 2: Triggering selective news refresh...');
+      console.log('Step 2: Triggering optimized selective news refresh...');
       try {
         const { data: members } = await supabase
           .from('member_data')
           .select('member_id, first_name, last_name')
           .eq('is_active', true)
-          .limit(5); // Minska till 5 för att undvika överbelastning
+          .limit(3); // Minska till 3 för att undvika rate limiting
 
         if (members && members.length > 0) {
-          console.log(`Starting news refresh for ${members.length} members...`);
+          console.log(`Starting optimized news refresh for ${members.length} members...`);
           
-          // Bearbeta en i taget för att undvika överbelastning
+          // Bearbeta en i taget med längre paus för att undvika rate limiting
           for (const member of members) {
             try {
-              const { error: newsError } = await supabase.functions.invoke('fetch-member-news', {
+              console.log(`Fetching news for ${member.first_name} ${member.last_name}...`);
+              
+              const { data: newsResult, error: newsError } = await supabase.functions.invoke('fetch-member-news', {
                 body: { 
                   memberName: `${member.first_name} ${member.last_name}`,
                   memberId: member.member_id 
@@ -216,21 +218,26 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
               
               if (newsError) {
                 console.warn(`News fetch failed for ${member.first_name} ${member.last_name}:`, newsError);
-                warnings.push(`News fetch failed for ${member.first_name} ${member.last_name}`);
+                warnings.push(`News fetch failed for ${member.first_name} ${member.last_name}: ${newsError.message}`);
+              } else if (newsResult?.source === 'cache') {
+                console.log(`Used cached news for ${member.first_name} ${member.last_name}`);
+              } else {
+                console.log(`Fresh news fetched for ${member.first_name} ${member.last_name}`);
               }
               
-              // Paus mellan förfrågningar
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Längre paus mellan förfrågningar för att undvika rate limiting
+              await new Promise(resolve => setTimeout(resolve, 5000)); // 5 sekunder
             } catch (err) {
-              console.warn(`News fetch error for ${member.first_name} ${member.last_name}:`, err);
-              warnings.push(`News fetch error for ${member.first_name} ${member.last_name}`);
+              const errorMsg = `News fetch error for ${member.first_name} ${member.last_name}: ${err instanceof Error ? err.message : 'Unknown error'}`;
+              console.warn(errorMsg);
+              warnings.push(errorMsg);
             }
           }
           
           totalStats = { ...totalStats, news_refresh_attempted: members.length };
         }
       } catch (newsError) {
-        const errorMsg = `Member news refresh failed: ${newsError}`;
+        const errorMsg = `Member news refresh setup failed: ${newsError instanceof Error ? newsError.message : 'Unknown error'}`;
         console.error(errorMsg);
         warnings.push(errorMsg); // Inte en kritisk error
       }
@@ -245,7 +252,7 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
       await supabase
         .from('data_sync_log')
         .insert({
-          sync_type: 'enhanced_all_data_refresh',
+          sync_type: 'enhanced_all_data_refresh_v2',
           status: hasErrors ? 'partial_success' : (hasWarnings ? 'success_with_warnings' : 'success'),
           sync_duration_ms: duration,
           error_details: { 
