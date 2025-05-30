@@ -1,21 +1,20 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, ArrowLeft, Search, Filter, Loader2, AlertCircle, Plus } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Users, Search, Filter, Loader2, AlertCircle, Plus } from "lucide-react";
 import { partyInfo } from "../data/mockMembers";
 import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
 import MemberProfile from "../components/MemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
+import ResponsiveHeader from "../components/ResponsiveHeader";
 import { useMembers, useCommittees, getCommitteeName, getCommitteeCode } from "../hooks/useMembers";
+import { useResponsive } from "../hooks/use-responsive";
 import { RiksdagMember } from "../services/riksdagApi";
 
 const Ledamoter = () => {
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedParty, setSelectedParty] = useState<string>("all");
   const [selectedConstituency, setSelectedConstituency] = useState<string>("all");
@@ -25,6 +24,8 @@ const Ledamoter = () => {
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
   const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
   const [currentPage, setCurrentPage] = useState(1);
+
+  const { isMobile, isTablet } = useResponsive();
 
   const { members, loading, error, totalCount, hasMore } = useMembers(
     currentPage, 
@@ -144,233 +145,237 @@ const Ledamoter = () => {
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <Button 
-              variant="ghost" 
-              onClick={() => navigate('/')}
-              className="mb-4"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Tillbaka till startsidan
-            </Button>
-            
-            <div className="flex items-center space-x-4 mb-6">
-              <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Ledamöter</h1>
-                <p className="text-gray-600">Utforska riksdagsledamöter och deras aktuella uppdrag</p>
-              </div>
-            </div>
+        <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'} ${isMobile ? 'py-0' : 'py-8'}`}>
+          <ResponsiveHeader
+            title="Ledamöter"
+            description="Utforska riksdagsledamöter och deras aktuella uppdrag"
+            icon={<Users className="w-6 h-6 text-white" />}
+          />
 
-            {/* Status väljare */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Filter className="w-5 h-5" />
-                  <span>Ledamotstyp</span>
-                </CardTitle>
+          {/* Status väljare - Mobile optimized */}
+          <Card className={`mb-6 ${isMobile ? 'mx-0' : ''}`}>
+            <CardHeader className={isMobile ? 'pb-3' : ''}>
+              <CardTitle className="flex items-center space-x-2 text-lg">
+                <Filter className="w-5 h-5" />
+                <span>Ledamotstyp</span>
+              </CardTitle>
+              {!isMobile && (
                 <CardDescription>
                   Välj vilken kategori av ledamöter du vill visa
                 </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  <Button
-                    variant={memberStatus === 'current' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange('current')}
-                  >
-                    Nuvarande ledamöter
-                  </Button>
-                  <Button
-                    variant={memberStatus === 'all' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange('all')}
-                  >
-                    Alla ledamöter
-                  </Button>
-                  <Button
-                    variant={memberStatus === 'former' ? 'default' : 'outline'}
-                    onClick={() => handleStatusChange('former')}
-                  >
-                    Tidigare ledamöter
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`flex ${isMobile ? 'flex-col space-y-2' : 'flex-wrap gap-4'}`}>
+                <Button
+                  variant={memberStatus === 'current' ? 'default' : 'outline'}
+                  onClick={() => handleStatusChange('current')}
+                  className={isMobile ? 'w-full justify-start' : ''}
+                  size={isMobile ? 'default' : 'default'}
+                >
+                  Nuvarande ledamöter
+                </Button>
+                <Button
+                  variant={memberStatus === 'all' ? 'default' : 'outline'}
+                  onClick={() => handleStatusChange('all')}
+                  className={isMobile ? 'w-full justify-start' : ''}
+                  size={isMobile ? 'default' : 'default'}
+                >
+                  Alla ledamöter
+                </Button>
+                <Button
+                  variant={memberStatus === 'former' ? 'default' : 'outline'}
+                  onClick={() => handleStatusChange('former')}
+                  className={isMobile ? 'w-full justify-start' : ''}
+                  size={isMobile ? 'default' : 'default'}
+                >
+                  Tidigare ledamöter
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Sök- och filtersektion */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Search className="w-5 h-5" />
-                  <span>Sök och filtrera</span>
-                </CardTitle>
+          {/* Search and filter section - Mobile optimized */}
+          <Card className={`mb-6 ${isMobile ? 'mx-0' : ''}`}>
+            <CardHeader className={isMobile ? 'pb-3' : ''}>
+              <CardTitle className="flex items-center space-x-2 text-lg">
+                <Search className="w-5 h-5" />
+                <span>Sök och filtrera</span>
+              </CardTitle>
+              {!isMobile && (
                 <CardDescription>
                   Hitta specifika ledamöter eller filtrera efter parti, valkrets och utskott
                 </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sök ledamot
-                    </label>
-                    <MemberAutocomplete 
-                      onSelectMember={handleAutocompleteSelect}
-                      placeholder="Skriv namn för att söka..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sök efter namn
-                    </label>
-                    <Input
-                      placeholder="Skriv namn..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      disabled={!!autocompleteFilter}
-                      className="w-full"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Parti
-                    </label>
-                    <Select 
-                      value={selectedParty} 
-                      onValueChange={setSelectedParty}
-                      disabled={!!autocompleteFilter}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Välj parti" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alla partier</SelectItem>
-                        {actualParties.map((party) => (
-                          <SelectItem key={party} value={party}>
-                            {partyInfo[party] ? `${partyInfo[party].fullName} (${partyInfo[party].name})` : party}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Valkrets
-                    </label>
-                    <Select 
-                      value={selectedConstituency} 
-                      onValueChange={setSelectedConstituency}
-                      disabled={!!autocompleteFilter}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Välj valkrets" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alla valkretsar</SelectItem>
-                        {constituencies.filter(constituency => constituency && constituency.trim() !== "").map((constituency) => (
-                          <SelectItem key={constituency} value={constituency}>
-                            {constituency}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Utskott/Organ
-                    </label>
-                    <Select 
-                      value={selectedCommittee} 
-                      onValueChange={handleCommitteeChange}
-                      disabled={!!autocompleteFilter}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Välj utskott" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        <SelectItem value="all">Alla utskott/organ</SelectItem>
-                        {committees.map((committee) => (
-                          <SelectItem key={committee} value={committee}>
-                            {committee}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Sortera efter
-                    </label>
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sortera efter" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="name">Namn</SelectItem>
-                        <SelectItem value="party">Parti</SelectItem>
-                        <SelectItem value="constituency">Valkrets</SelectItem>
-                        <SelectItem value="activity">Aktivitetspoäng</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-2 gap-4' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4'}`}>
+                <div className={isMobile ? 'col-span-1' : ''}>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sök ledamot
+                  </label>
+                  <MemberAutocomplete 
+                    onSelectMember={handleAutocompleteSelect}
+                    placeholder="Skriv namn för att söka..."
+                  />
                 </div>
 
-                {autocompleteFilter && (
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
-                    <span className="text-sm text-blue-700">
-                      Visar resultat för: <strong>{autocompleteFilter.tilltalsnamn} {autocompleteFilter.efternamn}</strong>
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleAutocompleteSelect(null)}
-                      className="text-blue-700 hover:text-blue-800"
-                    >
-                      Rensa filter
-                    </Button>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sök efter namn
+                  </label>
+                  <Input
+                    placeholder="Skriv namn..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    disabled={!!autocompleteFilter}
+                    className="w-full"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Parti
+                  </label>
+                  <Select 
+                    value={selectedParty} 
+                    onValueChange={setSelectedParty}
+                    disabled={!!autocompleteFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj parti" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alla partier</SelectItem>
+                      {actualParties.map((party) => (
+                        <SelectItem key={party} value={party}>
+                          {partyInfo[party] ? `${partyInfo[party].fullName} (${partyInfo[party].name})` : party}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valkrets
+                  </label>
+                  <Select 
+                    value={selectedConstituency} 
+                    onValueChange={setSelectedConstituency}
+                    disabled={!!autocompleteFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj valkrets" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alla valkretsar</SelectItem>
+                      {constituencies.filter(constituency => constituency && constituency.trim() !== "").map((constituency) => (
+                        <SelectItem key={constituency} value={constituency}>
+                          {constituency}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                {selectedCommittee !== "all" && !autocompleteFilter && (
-                  <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center justify-between">
-                    <span className="text-sm text-green-700">
-                      Visar ledamöter från: <strong>{selectedCommittee}</strong>
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleCommitteeChange("all")}
-                      className="text-green-700 hover:text-green-800"
-                    >
-                      Rensa filter
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Utskott/Organ
+                  </label>
+                  <Select 
+                    value={selectedCommittee} 
+                    onValueChange={handleCommitteeChange}
+                    disabled={!!autocompleteFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj utskott" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      <SelectItem value="all">Alla utskott/organ</SelectItem>
+                      {committees.map((committee) => (
+                        <SelectItem key={committee} value={committee}>
+                          {committee}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Sortera efter
+                  </label>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sortera efter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name">Namn</SelectItem>
+                      <SelectItem value="party">Parti</SelectItem>
+                      <SelectItem value="constituency">Valkrets</SelectItem>
+                      <SelectItem value="activity">Aktivitetspoäng</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-            {/* Resultaträknare */}
-            <div className="mb-4">
-              <p className="text-gray-600">
-                Visar {filteredAndSortedMembers.length} av {totalCount} ledamöter
-                {memberStatus === 'current' && ' (nuvarande)'}
-                {memberStatus === 'former' && ' (tidigare)'}
-                {memberStatus === 'all' && ' (alla)'}
-                {selectedCommittee !== "all" && ` i ${selectedCommittee}`}
-              </p>
-            </div>
+              {/* Filter status indicators */}
+              {autocompleteFilter && (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
+                  <span className="text-sm text-blue-700">
+                    Visar resultat för: <strong>{autocompleteFilter.tilltalsnamn} {autocompleteFilter.efternamn}</strong>
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleAutocompleteSelect(null)}
+                    className="text-blue-700 hover:text-blue-800"
+                  >
+                    Rensa filter
+                  </Button>
+                </div>
+              )}
+
+              {selectedCommittee !== "all" && !autocompleteFilter && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center justify-between">
+                  <span className="text-sm text-green-700">
+                    Visar ledamöter från: <strong>{selectedCommittee}</strong>
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleCommitteeChange("all")}
+                    className="text-green-700 hover:text-green-800"
+                  >
+                    Rensa filter
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Results counter */}
+          <div className={`mb-4 ${isMobile ? 'px-0' : ''}`}>
+            <p className="text-gray-600 text-sm">
+              Visar {filteredAndSortedMembers.length} av {totalCount} ledamöter
+              {memberStatus === 'current' && ' (nuvarande)'}
+              {memberStatus === 'former' && ' (tidigare)'}
+              {memberStatus === 'all' && ' (alla)'}
+              {selectedCommittee !== "all" && ` i ${selectedCommittee}`}
+            </p>
           </div>
+        </div>
 
-          {/* Ledamötslista */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Member grid - Responsive */}
+        <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'}`}>
+          <div className={`grid ${
+            isMobile 
+              ? 'grid-cols-1 gap-4' 
+              : isTablet 
+                ? 'grid-cols-2 gap-4' 
+                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+          }`}>
             {filteredAndSortedMembers.map((member) => (
               <MemberCard
                 key={member.id}
@@ -380,13 +385,14 @@ const Ledamoter = () => {
             ))}
           </div>
 
-          {/* Ladda fler knapp */}
+          {/* Load more button */}
           {hasMore && !autocompleteFilter && (
-            <div className="mt-8 text-center">
+            <div className="mt-8 text-center pb-8">
               <Button 
                 onClick={handleLoadMore}
                 disabled={loading}
                 className="flex items-center space-x-2"
+                size={isMobile ? 'lg' : 'default'}
               >
                 {loading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -395,18 +401,19 @@ const Ledamoter = () => {
                 )}
                 <span>{loading ? 'Laddar...' : 'Ladda fler ledamöter'}</span>
               </Button>
-              {error && <p className="text-red-500 mt-2">{error}</p>}
+              {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
             </div>
           )}
 
+          {/* No results */}
           {filteredAndSortedMembers.length === 0 && !loading && (
-            <Card className="mt-8">
+            <Card className="mt-8 mb-8">
               <CardContent className="text-center py-8">
                 <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Inga ledamöter hittades
                 </h3>
-                <p className="text-gray-600 mb-4">
+                <p className="text-gray-600 mb-4 text-sm">
                   Inga ledamöter matchar dina sökkriterier. Försök att rensa filter eller sök med ett annat namn.
                 </p>
                 <Button onClick={clearAllFilters} className="mt-4">
@@ -418,7 +425,7 @@ const Ledamoter = () => {
         </div>
       </div>
 
-      {/* Ledamotsprofil modal */}
+      {/* Member profile modal */}
       {selectedMember && (
         <MemberProfile
           member={selectedMember}

@@ -1,11 +1,11 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
-import { MapPin, Star, Users, Building2, Briefcase } from 'lucide-react';
+import { MapPin, Star, Users, Building2, Briefcase, ChevronRight } from 'lucide-react';
 import { getCommitteeName } from '../hooks/useMembers';
+import { useResponsive } from '../hooks/use-responsive';
 
 interface MemberCardProps {
   member: Member;
@@ -13,6 +13,7 @@ interface MemberCardProps {
 }
 
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
+  const { isMobile, isTablet } = useResponsive();
   const party = partyInfo[member.party];
 
   // Improved active assignment filtering
@@ -73,8 +74,86 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
   );
 
   // Display up to 2 most important assignments
-  const displayAssignments = sortedAssignments.slice(0, 2);
+  const displayAssignments = sortedAssignments.slice(0, isMobile ? 1 : 2);
 
+  if (isMobile) {
+    return (
+      <Card 
+        className="hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-300 active:scale-95"
+        onClick={onClick}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-center space-x-3 mb-3">
+            <Avatar className="w-12 h-12 flex-shrink-0">
+              <AvatarImage src={member.imageUrl} alt={`${member.firstName} ${member.lastName}`} />
+              <AvatarFallback className="text-sm font-medium">
+                {member.firstName.charAt(0)}{member.lastName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 truncate text-sm">
+                {member.firstName} {member.lastName}
+              </h3>
+              <div className="flex items-center space-x-2 mt-1">
+                <Badge className={`${party?.color || 'bg-gray-500'} text-white text-xs`}>
+                  {party?.name || member.party}
+                </Badge>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2 text-xs text-gray-600">
+              <MapPin className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{member.constituency}</span>
+            </div>
+
+            {displayAssignments.length > 0 && (
+              <div className="flex items-start space-x-2 text-xs">
+                <Building2 className="w-3 h-3 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-blue-800 truncate block">
+                    {displayAssignments[0].uppgift || getCommitteeName(displayAssignments[0].organ_kod)}
+                  </span>
+                  <span className="text-gray-600 capitalize">
+                    {displayAssignments[0].roll.toLowerCase()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {activeAssignments.length > 1 && (
+              <div className="text-xs text-gray-500">
+                +{activeAssignments.length - 1} andra uppdrag
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-4 gap-1 mt-3 pt-3 border-t">
+            <div className="text-center">
+              <div className="text-sm font-semibold text-blue-600">{member.motions || 0}</div>
+              <div className="text-xs text-gray-500">Mot.</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-semibold text-green-600">{member.speeches.length}</div>
+              <div className="text-xs text-gray-500">Anf.</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-semibold text-orange-600">{member.interpellations || 0}</div>
+              <div className="text-xs text-gray-500">Int.</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm font-semibold text-purple-600">{member.writtenQuestions || 0}</div>
+              <div className="text-xs text-gray-500">Fr.</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Tablet and desktop view (keep existing layout but with some optimizations)
   return (
     <Card 
       className="hover:shadow-lg transition-shadow duration-200 cursor-pointer hover:border-blue-300"
@@ -82,14 +161,14 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
     >
       <CardHeader className="pb-3">
         <div className="flex items-start space-x-3">
-          <Avatar className="w-16 h-16">
+          <Avatar className={`${isTablet ? 'w-14 h-14' : 'w-16 h-16'}`}>
             <AvatarImage src={member.imageUrl} alt={`${member.firstName} ${member.lastName}`} />
             <AvatarFallback className="text-lg">
               {member.firstName.charAt(0)}{member.lastName.charAt(0)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg font-semibold text-gray-900 truncate">
+            <CardTitle className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-gray-900 truncate`}>
               {member.firstName} {member.lastName}
             </CardTitle>
             <div className="flex items-center space-x-2 mt-1">
@@ -111,7 +190,6 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           <span className="truncate">{member.constituency}</span>
         </div>
 
-        {/* Display active assignments with improved formatting */}
         {displayAssignments.map((assignment, index) => (
           <div key={index} className="flex items-center space-x-2 text-sm">
             <Building2 className="w-4 h-4 text-blue-600" />
@@ -126,11 +204,11 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           </div>
         ))}
 
-        {activeAssignments.length > 2 && (
+        {activeAssignments.length > displayAssignments.length && (
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Users className="w-4 h-4" />
             <span className="text-xs">
-              +{activeAssignments.length - 2} andra uppdrag
+              +{activeAssignments.length - displayAssignments.length} andra uppdrag
             </span>
           </div>
         )}
@@ -153,27 +231,28 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
         <div className="grid grid-cols-4 gap-2 pt-2 border-t">
           <div className="text-center">
-            <div className="text-lg font-semibold text-blue-600">{member.motions || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-blue-600`}>{member.motions || 0}</div>
             <div className="text-xs text-gray-500">Motioner</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-semibold text-green-600">{member.speeches.length}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-green-600`}>{member.speeches.length}</div>
             <div className="text-xs text-gray-500">Anföranden</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-semibold text-orange-600">{member.interpellations || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-orange-600`}>{member.interpellations || 0}</div>
             <div className="text-xs text-gray-500">Interpellationer</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-semibold text-purple-600">{member.writtenQuestions || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-purple-600`}>{member.writtenQuestions || 0}</div>
             <div className="text-xs text-gray-500">Skriftliga frågor</div>
           </div>
         </div>
 
-        {/* Enhanced debug info */}
-        <div className="text-xs text-gray-400 border-t pt-2">
-          {activeAssignments.length} aktiva uppdrag | Komm. koder: {member.committees.join(', ') || 'Inga'}
-        </div>
+        {!isMobile && (
+          <div className="text-xs text-gray-400 border-t pt-2">
+            {activeAssignments.length} aktiva uppdrag | Komm. koder: {member.committees.join(', ') || 'Inga'}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
