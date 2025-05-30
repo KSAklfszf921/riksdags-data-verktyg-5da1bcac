@@ -44,24 +44,63 @@ const VoteSearch = () => {
     setLoading(true);
     setError(null);
     
+    console.log('=== VOTE SEARCH START ===');
     console.log('Starting search with params:', searchParams);
     
     try {
       const result = await searchVotes(searchParams);
-      console.log('Search result:', {
+      console.log('=== API RESPONSE ANALYSIS ===');
+      console.log('Search result summary:', {
         votesCount: result.votes.length,
         totalCount: result.totalCount,
-        sampleVotes: result.votes.slice(0, 3)
+        hasVotes: result.votes.length > 0
       });
+      
+      if (result.votes.length > 0) {
+        console.log('=== SAMPLE VOTES ANALYSIS ===');
+        result.votes.slice(0, 5).forEach((vote, index) => {
+          console.log(`Vote ${index + 1}:`, {
+            beteckning: vote.beteckning,
+            rm: vote.rm,
+            punkt: vote.punkt,
+            namn: vote.namn,
+            rost: vote.rost,
+            avser: vote.avser ? vote.avser.substring(0, 100) + '...' : 'No avser'
+          });
+        });
+        
+        // Check for AU10 specifically if searched
+        if (searchParams.beteckning?.includes('AU10') || searchParams.beteckning === 'AU10') {
+          console.log('=== AU10 SPECIFIC ANALYSIS ===');
+          const au10Votes = result.votes.filter(v => v.beteckning === 'AU10');
+          console.log(`Found ${au10Votes.length} AU10 votes`);
+          
+          const punktValues = au10Votes.map(v => v.punkt).filter(Boolean);
+          const uniquePunkts = [...new Set(punktValues)];
+          console.log('AU10 punkt values found:', punktValues);
+          console.log('AU10 unique punkts:', uniquePunkts);
+          console.log('AU10 punkt distribution:', punktValues.reduce((acc, punkt) => {
+            acc[punkt] = (acc[punkt] || 0) + 1;
+            return acc;
+          }, {} as any));
+        }
+        
+        // General analysis of all beteckningar found
+        console.log('=== ALL BETECKNINGAR ANALYSIS ===');
+        const beteckningar = [...new Set(result.votes.map(v => v.beteckning))];
+        console.log('All beteckningar found:', beteckningar);
+        
+        beteckningar.forEach(bet => {
+          const votesForBet = result.votes.filter(v => v.beteckning === bet);
+          const punktsForBet = [...new Set(votesForBet.map(v => v.punkt).filter(Boolean))];
+          console.log(`${bet}: ${votesForBet.length} votes, ${punktsForBet.length} unique punkts: [${punktsForBet.join(', ')}]`);
+        });
+      }
       
       setVotes(result.votes);
       setTotalCount(result.totalCount);
       
-      // Log unique combinations to verify we get different groups
-      const uniqueCombinations = new Set(
-        result.votes.map(vote => `${vote.beteckning}-${vote.rm}`)
-      );
-      console.log('Unique beteckning-riksmöte combinations found:', Array.from(uniqueCombinations));
+      console.log('=== VOTE SEARCH END ===');
       
     } catch (err) {
       setError('Kunde inte hämta voteringsdata');
