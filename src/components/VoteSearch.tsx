@@ -15,7 +15,10 @@ interface GroupedVotes {
 }
 
 const VoteSearch = () => {
-  const [searchParams, setSearchParams] = useState<VoteSearchParams>({});
+  // Set initial search params to AU10
+  const [searchParams, setSearchParams] = useState<VoteSearchParams>({
+    beteckning: "AU10"
+  });
   const [votes, setVotes] = useState<RiksdagVote[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -39,9 +42,9 @@ const VoteSearch = () => {
       });
 
       if (!hasSearchParams) {
-        console.log('No search parameters provided, using default');
-        // If no search params, search for recent votes with a basic parameter
-        searchParams.rm = ['2024/25'];
+        console.log('No search parameters provided, using AU10 as default');
+        // If no search params, search for AU10
+        searchParams.beteckning = 'AU10';
       }
 
       console.log('Final search params being sent:', searchParams);
@@ -127,7 +130,7 @@ const VoteSearch = () => {
               variant="outline" 
               onClick={() => {
                 console.log('Clearing search filters');
-                setSearchParams({});
+                setSearchParams({ beteckning: "AU10" });
                 setVotes([]);
                 setTotalCount(0);
                 setError(null);
