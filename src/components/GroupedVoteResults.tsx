@@ -59,9 +59,12 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     
     groups[groupKey].votes.push(vote);
     
-    // Add proposal point to the set if it exists
+    // Add proposal point to the set if it exists - DEBUG VERSION
     if (vote.punkt) {
+      console.log(`Adding punkt: "${vote.punkt}" to group ${groupKey}`);
       groups[groupKey].proposalPoints.add(vote.punkt);
+    } else {
+      console.log(`Vote missing punkt value:`, vote);
     }
     
     // Update vote statistics
@@ -88,13 +91,24 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
 
   const groupsArray = Object.values(groupedVotes);
   console.log('Created groups:', groupsArray.length);
-  console.log('Groups summary:', groupsArray.map(g => ({
-    key: `${g.beteckning}-${g.riksmote}`,
-    voteCount: g.votes.length,
-    beteckning: g.beteckning,
-    riksmote: g.riksmote,
-    proposalPoints: Array.from(g.proposalPoints)
-  })));
+  
+  // Enhanced logging for each group
+  groupsArray.forEach(group => {
+    const groupKey = `${group.beteckning}-${group.riksmote}`;
+    const proposalPointsArray = Array.from(group.proposalPoints);
+    console.log(`Group ${groupKey}:`, {
+      voteCount: group.votes.length,
+      proposalPointsCount: proposalPointsArray.length,
+      proposalPoints: proposalPointsArray,
+      uniquePunkts: [...new Set(group.votes.map(v => v.punkt).filter(Boolean))],
+      allPunkts: group.votes.map(v => v.punkt),
+      sampleVotes: group.votes.slice(0, 3).map(v => ({
+        namn: v.namn,
+        punkt: v.punkt,
+        rost: v.rost
+      }))
+    });
+  });
 
   const toggleGroup = (groupKey: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -177,7 +191,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                             {group.avser}
                           </p>
                           
-                          {/* Proposal points count */}
+                          {/* Proposal points count with debug info */}
                           {proposalPointsArray.length > 0 && (
                             <div className="mb-3">
                               <p className="text-sm text-gray-700">
@@ -185,6 +199,9 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                                 <Badge variant="outline" className="ml-2">
                                   {proposalPointsArray.length} punkter
                                 </Badge>
+                                <span className="text-xs text-gray-500 ml-2">
+                                  (API data: {proposalPointsArray.join(', ')})
+                                </span>
                               </p>
                             </div>
                           )}
