@@ -130,7 +130,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+        <div className="grid grid-cols-4 gap-2 pt-2 border-t">
           <div className="text-center">
             <div className="text-lg font-semibold text-blue-600">{member.motions || 0}</div>
             <div className="text-xs text-gray-500">Motioner</div>
@@ -142,6 +142,10 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           <div className="text-center">
             <div className="text-lg font-semibold text-orange-600">{member.interpellations || 0}</div>
             <div className="text-xs text-gray-500">Interpellationer</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold text-purple-600">{member.writtenQuestions || 0}</div>
+            <div className="text-xs text-gray-500">Skriftliga frågor</div>
           </div>
         </div>
 

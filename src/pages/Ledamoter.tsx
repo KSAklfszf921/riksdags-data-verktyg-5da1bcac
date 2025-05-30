@@ -203,7 +203,7 @@ const Ledamoter = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex flex-wrap gap-4">
                   <Button
                     variant={memberStatus === 'current' ? 'default' : 'outline'}
                     onClick={() => handleStatusChange('current')}
@@ -222,31 +222,6 @@ const Ledamoter = () => {
                   >
                     Tidigare ledamöter
                   </Button>
-                </div>
-
-                {/* Committee filter buttons */}
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Filtrera efter utskott/organ:</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant={selectedCommittee === 'all' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => handleCommitteeChange('all')}
-                    >
-                      Alla utskott/organ
-                    </Button>
-                    {ALL_COMMITTEES.map((committee) => (
-                      <Button
-                        key={committee}
-                        variant={selectedCommittee === committee ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => handleCommitteeChange(committee)}
-                        className="text-xs"
-                      >
-                        {committee}
-                      </Button>
-                    ))}
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -335,7 +310,7 @@ const Ledamoter = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Utskott/Organ (dropdown)
+                      Utskott/Organ
                     </label>
                     <Select 
                       value={selectedCommittee} 
@@ -345,7 +320,7 @@ const Ledamoter = () => {
                       <SelectTrigger>
                         <SelectValue placeholder="Välj utskott" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-60">
                         <SelectItem value="all">Alla utskott/organ</SelectItem>
                         {committees.map((committee) => (
                           <SelectItem key={committee} value={committee}>
