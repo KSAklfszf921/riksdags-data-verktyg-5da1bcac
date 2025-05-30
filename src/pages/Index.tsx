@@ -123,7 +123,7 @@ const Index = () => {
       </section>
 
       {/* Analysis Tools Grid */}
-      <section id="analysis-tools" className="py-16 px-4 sm:px-6 lg:px-8">
+      <section id="analysis-tools" className="px-4 sm:px-6 lg:px-8 py-[20px]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
