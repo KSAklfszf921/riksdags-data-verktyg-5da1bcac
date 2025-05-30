@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useTopListsData } from '../hooks/useTopListsData';
 import TopListCard from '../components/TopListCard';
+import LoadingProgress from '../components/LoadingProgress';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -14,12 +15,15 @@ import {
   RefreshCw,
   Info,
   Calendar,
-  Trophy
+  Trophy,
+  BarChart3,
+  Database
 } from 'lucide-react';
 
 const Topplistor = () => {
   const [selectedYear, setSelectedYear] = useState('2024/25');
   const [topCount, setTopCount] = useState(10);
+  const [showCacheStats, setShowCacheStats] = useState(false);
   
   const { 
     motions, 
@@ -29,7 +33,10 @@ const Topplistor = () => {
     loading, 
     error, 
     lastUpdated,
-    refreshData 
+    refreshData,
+    loadingSteps,
+    loadingProgress,
+    getCacheStats
   } = useTopListsData(selectedYear, topCount);
 
   const availableYears = [
@@ -41,6 +48,8 @@ const Topplistor = () => {
   ];
 
   const topCounts = [5, 10, 15, 20];
+
+  const cacheStats = getCacheStats();
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -130,7 +139,65 @@ const Topplistor = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Uppdatera</span>
           </Button>
+
+          <Button 
+            onClick={() => setShowCacheStats(!showCacheStats)} 
+            variant="ghost" 
+            size="sm"
+            className="flex items-center space-x-2"
+          >
+            <Database className="w-4 h-4" />
+            <span>Cache Stats</span>
+          </Button>
         </div>
+
+        {/* Cache Stats */}
+        {showCacheStats && (
+          <Card className="mb-6 border-gray-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center space-x-2 text-gray-800">
+                <BarChart3 className="w-5 h-5" />
+                <span>Cache Statistik</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-lg font-bold text-blue-600">{cacheStats.totalEntries}</div>
+                  <div className="text-sm text-gray-600">Cachade poster</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-green-600">{cacheStats.totalSize} KB</div>
+                  <div className="text-sm text-gray-600">Cache storlek</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-purple-600">
+                    {Math.round(cacheStats.hitRate * 100)}%
+                  </div>
+                  <div className="text-sm text-gray-600">Träfffrekvens</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-orange-600">
+                    {cacheStats.oldestEntry ? 
+                      Math.round((Date.now() - cacheStats.oldestEntry) / (1000 * 60 * 60)) : 0}h
+                  </div>
+                  <div className="text-sm text-gray-600">Äldsta post</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Loading Progress */}
+        {loading && (
+          <div className="mb-6 flex justify-center">
+            <LoadingProgress 
+              steps={loadingSteps} 
+              progress={loadingProgress}
+              title="Laddar topplistor..."
+            />
+          </div>
+        )}
 
         {error && (
           <Card className="border-red-200 bg-red-50 mb-6">
@@ -145,39 +212,41 @@ const Topplistor = () => {
       </div>
 
       {/* Top Lists Grid */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <TopListCard
-          title="Flest Motioner"
-          members={motions}
-          icon={<FileText className="w-5 h-5 text-blue-600" />}
-          unit="motioner"
-          loading={loading}
-        />
+      {!loading && (
+        <div className="grid lg:grid-cols-2 gap-6">
+          <TopListCard
+            title="Flest Motioner"
+            members={motions}
+            icon={<FileText className="w-5 h-5 text-blue-600" />}
+            unit="motioner"
+            loading={loading}
+          />
 
-        <TopListCard
-          title="Flest Anföranden"
-          members={speeches}
-          icon={<MessageSquare className="w-5 h-5 text-green-600" />}
-          unit="anföranden"
-          loading={loading}
-        />
+          <TopListCard
+            title="Flest Anföranden"
+            members={speeches}
+            icon={<MessageSquare className="w-5 h-5 text-green-600" />}
+            unit="anföranden"
+            loading={loading}
+          />
 
-        <TopListCard
-          title="Flest Interpellationer"
-          members={interpellations}
-          icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
-          unit="interpellationer"
-          loading={loading}
-        />
+          <TopListCard
+            title="Flest Interpellationer"
+            members={interpellations}
+            icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
+            unit="interpellationer"
+            loading={loading}
+          />
 
-        <TopListCard
-          title="Flest Skriftliga Frågor"
-          members={writtenQuestions}
-          icon={<Edit3 className="w-5 h-5 text-orange-600" />}
-          unit="frågor"
-          loading={loading}
-        />
-      </div>
+          <TopListCard
+            title="Flest Skriftliga Frågor"
+            members={writtenQuestions}
+            icon={<Edit3 className="w-5 h-5 text-orange-600" />}
+            unit="frågor"
+            loading={loading}
+          />
+        </div>
+      )}
 
       {/* Summary Stats */}
       {!loading && !error && (

@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberDocuments, fetchMemberSpeeches } from '../services/riksdagApi';
+import { useProgressTracker } from './useProgressTracker';
+import EnhancedCache from '../utils/enhancedCache';
 
 export interface TopListMember {
   id: string;
@@ -21,92 +23,66 @@ export interface TopListsData {
   lastUpdated: Date | null;
 }
 
-const CACHE_KEY = 'topListsCache';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const cache = EnhancedCache.getInstance();
 
-interface CacheEntry {
-  data: Omit<TopListsData, 'loading' | 'error'>;
-  timestamp: number;
-}
+const LOADING_STEPS = [
+  { id: 'fetch-members', label: 'Hämtar riksdagsledamöter' },
+  { id: 'process-batch-1', label: 'Bearbetar första gruppen' },
+  { id: 'process-batch-2', label: 'Bearbetar andra gruppen' },
+  { id: 'process-batch-3', label: 'Bearbetar tredje gruppen' },
+  { id: 'create-toplists', label: 'Skapar topplistor' },
+  { id: 'cache-results', label: 'Sparar resultat' }
+];
 
-// Improved function to fetch ALL documents for a member with proper pagination
-const fetchAllMemberDocuments = async (memberId: string) => {
-  let allDocuments = [];
-  let page = 1;
-  const pageSize = 500; // Smaller page size for more reliable requests
-  let hasMoreData = true;
-  
-  try {
-    console.log(`Fetching all documents for member: ${memberId}`);
-    
-    while (hasMoreData) {
-      console.log(`Fetching documents page ${page} for member ${memberId}`);
+// Optimized document fetching with retry logic
+const fetchAllMemberDocuments = async (memberId: string, retries = 2): Promise<any[]> => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      console.log(`Fetching documents for member: ${memberId} (attempt ${attempt + 1})`);
       
-      const documents = await fetchMemberDocuments(memberId, page, pageSize);
+      const documents = await fetchMemberDocuments(memberId, 1, 1000);
+      console.log(`Found ${documents.length} documents for member ${memberId}`);
+      return documents;
       
-      if (documents.length === 0) {
-        hasMoreData = false;
-      } else {
-        allDocuments.push(...documents);
-        page++;
-        
-        // If we got fewer documents than requested, we've reached the end
-        if (documents.length < pageSize) {
-          hasMoreData = false;
-        }
-        
-        // Add small delay to avoid overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed for member ${memberId}:`, error);
+      
+      if (attempt === retries) {
+        console.error(`All attempts failed for member ${memberId}`);
+        return [];
       }
+      
+      // Wait before retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
-    
-    console.log(`Total documents found for member ${memberId}: ${allDocuments.length}`);
-    return allDocuments;
-    
-  } catch (error) {
-    console.error(`Error fetching documents for member ${memberId}:`, error);
-    return [];
   }
+  return [];
 };
 
-// Improved function to fetch ALL speeches for a member with proper pagination
-const fetchAllMemberSpeeches = async (memberId: string) => {
-  let allSpeeches = [];
-  let page = 1;
-  const pageSize = 500; // Smaller page size for more reliable requests
-  let hasMoreData = true;
-  
-  try {
-    console.log(`Fetching all speeches for member: ${memberId}`);
-    
-    while (hasMoreData) {
-      console.log(`Fetching speeches page ${page} for member ${memberId}`);
+// Optimized speech fetching with retry logic
+const fetchAllMemberSpeeches = async (memberId: string, retries = 2): Promise<any[]> => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      console.log(`Fetching speeches for member: ${memberId} (attempt ${attempt + 1})`);
       
-      const speeches = await fetchMemberSpeeches(memberId, page, pageSize);
+      const speeches = await fetchMemberSpeeches(memberId, 1, 1000);
+      console.log(`Found ${speeches.length} speeches for member ${memberId}`);
+      return speeches;
       
-      if (speeches.length === 0) {
-        hasMoreData = false;
-      } else {
-        allSpeeches.push(...speeches);
-        page++;
-        
-        // If we got fewer speeches than requested, we've reached the end
-        if (speeches.length < pageSize) {
-          hasMoreData = false;
-        }
-        
-        // Add small delay to avoid overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} failed for member ${memberId}:`, error);
+      
+      if (attempt === retries) {
+        console.error(`All attempts failed for member ${memberId}`);
+        return [];
       }
+      
+      // Wait before retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
-    
-    console.log(`Total speeches found for member ${memberId}: ${allSpeeches.length}`);
-    return allSpeeches;
-    
-  } catch (error) {
-    console.error(`Error fetching speeches for member ${memberId}:`, error);
-    return [];
   }
+  return [];
 };
 
 export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number = 10) => {
@@ -120,130 +96,142 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
     lastUpdated: null
   });
 
-  const loadFromCache = (): CacheEntry | null => {
-    try {
-      const cached = localStorage.getItem(`${CACHE_KEY}_${riksdagsYear}`);
-      if (!cached) return null;
-      
-      const cacheEntry: CacheEntry = JSON.parse(cached);
-      const isExpired = Date.now() - cacheEntry.timestamp > CACHE_DURATION;
-      
-      if (isExpired) {
-        localStorage.removeItem(`${CACHE_KEY}_${riksdagsYear}`);
-        return null;
-      }
-      
-      return cacheEntry;
-    } catch (error) {
-      console.error('Error loading cache:', error);
-      return null;
+  const { steps, updateStep, resetSteps, progress } = useProgressTracker(LOADING_STEPS);
+
+  const loadFromCache = () => {
+    const cacheKey = cache.generateKey('topLists', { riksdagsYear, topN });
+    const cached = cache.get(cacheKey, CACHE_DURATION);
+    
+    if (cached) {
+      console.log('Using cached top lists data');
+      setTopListsData(prev => ({
+        ...prev,
+        ...cached,
+        loading: false
+      }));
+      return true;
     }
+    return false;
   };
 
   const saveToCache = (data: Omit<TopListsData, 'loading' | 'error'>) => {
-    try {
-      const cacheEntry: CacheEntry = {
-        data,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`${CACHE_KEY}_${riksdagsYear}`, JSON.stringify(cacheEntry));
-    } catch (error) {
-      console.error('Error saving cache:', error);
-    }
+    const cacheKey = cache.generateKey('topLists', { riksdagsYear, topN });
+    cache.set(cacheKey, data, CACHE_DURATION, '2.0');
   };
 
   const fetchTopListsData = async () => {
     try {
       setTopListsData(prev => ({ ...prev, loading: true, error: null }));
+      resetSteps();
 
       // Check cache first
-      const cached = loadFromCache();
-      if (cached) {
-        console.log('Using cached top lists data');
-        setTopListsData(prev => ({
-          ...prev,
-          ...cached.data,
-          loading: false
-        }));
+      if (loadFromCache()) {
         return;
       }
 
       console.log('Fetching fresh top lists data...');
 
-      // Fetch all current members
-      const membersResult = await fetchMembers(1, 500, 'current'); // Increased to get more members
-      const members = membersResult.members;
+      // Step 1: Fetch members
+      updateStep('fetch-members', false);
+      const membersResult = await fetchMembers(1, 500, 'current');
+      const members = membersResult.members.slice(0, 150); // Limit to 150 for better performance
+      updateStep('fetch-members', true);
 
       console.log(`Processing ${members.length} members for top lists`);
 
-      // Process members in smaller batches to avoid overwhelming the API
-      const batchSize = 3; // Reduced batch size for better reliability
+      // Process members in batches with progress tracking
+      const batchSize = Math.ceil(members.length / 3);
       const memberStats = [];
 
-      for (let i = 0; i < members.length; i += batchSize) {
-        const batch = members.slice(i, i + batchSize);
-        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(members.length/batchSize)}`);
+      for (let batchIndex = 0; batchIndex < 3; batchIndex++) {
+        const stepId = `process-batch-${batchIndex + 1}`;
+        updateStep(stepId, false);
+
+        const startIndex = batchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, members.length);
+        const batch = members.slice(startIndex, endIndex);
+
+        if (batch.length === 0) {
+          updateStep(stepId, true);
+          continue;
+        }
+
+        console.log(`Processing batch ${batchIndex + 1}: ${batch.length} members`);
         
-        const batchResults = await Promise.allSettled(
-          batch.map(async (member) => {
-            try {
-              console.log(`Processing member: ${member.tilltalsnamn} ${member.efternamn} (${member.intressent_id})`);
-              
-              const [documents, speeches] = await Promise.all([
-                fetchAllMemberDocuments(member.intressent_id),
-                fetchAllMemberSpeeches(member.intressent_id)
-              ]);
+        try {
+          // Process batch members with smaller sub-batches to avoid overwhelming API
+          const subBatchSize = 3;
+          for (let i = 0; i < batch.length; i += subBatchSize) {
+            const subBatch = batch.slice(i, i + subBatchSize);
+            
+            const batchResults = await Promise.allSettled(
+              subBatch.map(async (member) => {
+                try {
+                  const [documents, speeches] = await Promise.all([
+                    fetchAllMemberDocuments(member.intressent_id),
+                    fetchAllMemberSpeeches(member.intressent_id)
+                  ]);
 
-              // Count different document types
-              const motions = documents.filter(doc => doc.typ === 'mot').length;
-              const interpellations = documents.filter(doc => doc.typ === 'ip').length;
-              const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
-              const speechCount = speeches.length;
+                  const motions = documents.filter(doc => doc.typ === 'mot').length;
+                  const interpellations = documents.filter(doc => doc.typ === 'ip').length;
+                  const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
+                  const speechCount = speeches.length;
 
-              console.log(`Member ${member.efternamn}: ${speechCount} speeches, ${motions} motions, ${interpellations} interpellations, ${writtenQuestions} written questions`);
+                  return {
+                    id: member.intressent_id,
+                    name: `${member.tilltalsnamn} ${member.efternamn}`,
+                    party: member.parti,
+                    constituency: member.valkrets,
+                    imageUrl: member.bild_url_192 || member.bild_url_80,
+                    motions,
+                    interpellations,
+                    writtenQuestions,
+                    speeches: speechCount
+                  };
+                } catch (error) {
+                  console.error(`Error processing member ${member.efternamn}:`, error);
+                  return {
+                    id: member.intressent_id,
+                    name: `${member.tilltalsnamn} ${member.efternamn}`,
+                    party: member.parti,
+                    constituency: member.valkrets,
+                    imageUrl: member.bild_url_192 || member.bild_url_80,
+                    motions: 0,
+                    interpellations: 0,
+                    writtenQuestions: 0,
+                    speeches: 0
+                  };
+                }
+              })
+            );
 
-              return {
-                id: member.intressent_id,
-                name: `${member.tilltalsnamn} ${member.efternamn}`,
-                party: member.parti,
-                constituency: member.valkrets,
-                imageUrl: member.bild_url_192 || member.bild_url_80,
-                motions,
-                interpellations,
-                writtenQuestions,
-                speeches: speechCount
-              };
-            } catch (error) {
-              console.error(`Error processing member ${member.efternamn}:`, error);
-              return {
-                id: member.intressent_id,
-                name: `${member.tilltalsnamn} ${member.efternamn}`,
-                party: member.parti,
-                constituency: member.valkrets,
-                imageUrl: member.bild_url_192 || member.bild_url_80,
-                motions: 0,
-                interpellations: 0,
-                writtenQuestions: 0,
-                speeches: 0
-              };
+            // Add successful results
+            batchResults.forEach((result) => {
+              if (result.status === 'fulfilled') {
+                memberStats.push(result.value);
+              }
+            });
+
+            // Small delay between sub-batches
+            if (i + subBatchSize < batch.length) {
+              await new Promise(resolve => setTimeout(resolve, 200));
             }
-          })
-        );
-
-        // Add successful results to memberStats
-        batchResults.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            memberStats.push(result.value);
           }
-        });
 
-        // Add delay between batches to avoid rate limiting
-        if (i + batchSize < members.length) {
+          updateStep(stepId, true);
+        } catch (error) {
+          console.error(`Error processing batch ${batchIndex + 1}:`, error);
+          updateStep(stepId, false, `Fel vid bearbetning av grupp ${batchIndex + 1}`);
+        }
+
+        // Delay between batches
+        if (batchIndex < 2) {
           await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
-      // Create top lists with improved filtering and sorting
+      // Step 5: Create top lists
+      updateStep('create-toplists', false);
       const createTopList = (key: keyof typeof memberStats[0], count: number): TopListMember[] => {
         return memberStats
           .map(member => ({
@@ -254,9 +242,9 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
             imageUrl: member.imageUrl,
             count: member[key] as number
           }))
-          .filter(member => member.count > 0) // Only include members with activity
-          .sort((a, b) => b.count - a.count) // Sort by count descending
-          .slice(0, count); // Take top N
+          .filter(member => member.count > 0)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, count);
       };
 
       const newData = {
@@ -266,19 +254,14 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
         writtenQuestions: createTopList('writtenQuestions', topN),
         lastUpdated: new Date()
       };
+      updateStep('create-toplists', true);
 
-      console.log('Top lists created:', {
-        motions: newData.motions.length,
-        speeches: newData.speeches.length,
-        interpellations: newData.interpellations.length,
-        writtenQuestions: newData.writtenQuestions.length
-      });
-
-      // Log some sample data for verification
-      console.log('Sample speech counts:', newData.speeches.slice(0, 3).map(m => `${m.name}: ${m.count}`));
-
-      // Save to cache
+      // Step 6: Cache results
+      updateStep('cache-results', false);
       saveToCache(newData);
+      updateStep('cache-results', true);
+
+      console.log('Top lists created successfully');
 
       setTopListsData(prev => ({
         ...prev,
@@ -301,12 +284,18 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
   }, [riksdagsYear, topN]);
 
   const refreshData = () => {
-    localStorage.removeItem(`${CACHE_KEY}_${riksdagsYear}`);
+    const cacheKey = cache.generateKey('topLists', { riksdagsYear, topN });
+    cache.delete(cacheKey);
     fetchTopListsData();
   };
 
+  const getCacheStats = () => cache.getStats();
+
   return {
     ...topListsData,
-    refreshData
+    refreshData,
+    loadingSteps: steps,
+    loadingProgress: progress,
+    getCacheStats
   };
 };
