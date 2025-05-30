@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
 const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetails): Promise<Member> => {
@@ -117,21 +117,59 @@ export const useMembers = (
         setLoading(true);
         console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
-        const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
-        console.log(`Fetched ${riksdagMembers.length} members out of ${total} total`);
-        
-        // Filter by committee if specified
-        let filteredMembers = riksdagMembers;
+        let data;
         if (committee && committee !== 'all') {
-          // This is a simplified filtering - in a real app you'd want to fetch members by committee from the API
-          filteredMembers = riksdagMembers; // For now, show all members
+          // Use committee-specific API when filtering by committee
+          data = await fetchMembersWithCommittees(page, pageSize, status, committee);
+          console.log(`Fetched ${data.members.length} members from committee ${committee} out of ${data.totalCount} total`);
+        } else {
+          // Use regular member API for general queries
+          const result = await fetchMembers(page, pageSize, status);
+          data = {
+            members: await Promise.all(
+              result.members.map(async member => {
+                const memberDetails = await fetchMemberDetails(member.intressent_id);
+                return {
+                  intressent_id: member.intressent_id,
+                  tilltalsnamn: member.tilltalsnamn,
+                  efternamn: member.efternamn,
+                  parti: member.parti,
+                  valkrets: member.valkrets,
+                  kon: member.kon,
+                  fodd_ar: member.fodd_ar,
+                  bild_url_80: member.bild_url_80,
+                  bild_url_192: member.bild_url_192,
+                  bild_url_max: member.bild_url_max,
+                  assignments: memberDetails?.assignments || [],
+                  email: memberDetails?.email
+                };
+              })
+            ),
+            totalCount: result.totalCount
+          };
+          console.log(`Fetched ${data.members.length} members out of ${data.totalCount} total`);
         }
         
-        // Map members with limited data for better performance
+        // Map members with full data
         const mappedMembers = await Promise.all(
-          filteredMembers.map(async member => {
-            const memberDetails = await fetchMemberDetails(member.intressent_id);
-            return mapRiksdagMemberToMember(member, memberDetails || undefined);
+          data.members.map(async member => {
+            return mapRiksdagMemberToMember({
+              intressent_id: member.intressent_id,
+              tilltalsnamn: member.tilltalsnamn,
+              efternamn: member.efternamn,
+              parti: member.parti,
+              valkrets: member.valkrets,
+              kon: member.kon,
+              fodd_ar: member.fodd_ar,
+              hangar_guid: '',
+              status: '',
+              datum_fran: '',
+              datum_tom: '',
+              fodd_datum: '',
+              bild_url_80: member.bild_url_80,
+              bild_url_192: member.bild_url_192,
+              bild_url_max: member.bild_url_max
+            }, member);
           })
         );
         
@@ -141,8 +179,8 @@ export const useMembers = (
           setMembers(prev => [...prev, ...mappedMembers]);
         }
         
-        setTotalCount(total);
-        setHasMore(page * pageSize < total);
+        setTotalCount(data.totalCount);
+        setHasMore(page * pageSize < data.totalCount);
         setError(null);
       } catch (err) {
         setError('Kunde inte ladda ledamöter');

@@ -52,9 +52,14 @@ const Ledamoter = () => {
       const matchesSearch = searchTerm === "" || fullName.includes(searchTerm.toLowerCase());
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
-      const matchesCommittee = selectedCommittee === "all" || member.committees.some(committee => 
-        committee.toLowerCase().includes(selectedCommittee.toLowerCase())
-      );
+      
+      // Improved committee filtering - check if member has any assignment in the selected committee
+      const matchesCommittee = selectedCommittee === "all" || 
+        member.assignments?.some(assignment => {
+          const endDate = assignment.tom ? new Date(assignment.tom) : null;
+          const isActive = !endDate || endDate > new Date();
+          return isActive && assignment.organ.toLowerCase().includes(selectedCommittee.toLowerCase());
+        });
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
     })
@@ -86,6 +91,11 @@ const Ledamoter = () => {
 
   const handleStatusChange = (newStatus: 'current' | 'all' | 'former') => {
     setMemberStatus(newStatus);
+    setCurrentPage(1);
+  };
+
+  const handleCommitteeChange = (committee: string) => {
+    setSelectedCommittee(committee);
     setCurrentPage(1);
   };
 
@@ -143,7 +153,7 @@ const Ledamoter = () => {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Ledamöter</h1>
-                <p className="text-gray-600">Utforska riksdagsledamöter och deras aktiviteter</p>
+                <p className="text-gray-600">Utforska riksdagsledamöter och deras aktuella uppdrag</p>
               </div>
             </div>
 
@@ -266,18 +276,18 @@ const Ledamoter = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Utskott
+                      Utskott/Organ
                     </label>
                     <Select 
                       value={selectedCommittee} 
-                      onValueChange={setSelectedCommittee}
+                      onValueChange={handleCommitteeChange}
                       disabled={!!autocompleteFilter}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Välj utskott" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Alla utskott</SelectItem>
+                        <SelectItem value="all">Alla utskott/organ</SelectItem>
                         {committees.map((committee) => (
                           <SelectItem key={committee} value={committee}>
                             {committee}
@@ -320,6 +330,22 @@ const Ledamoter = () => {
                     </Button>
                   </div>
                 )}
+
+                {selectedCommittee !== "all" && !autocompleteFilter && (
+                  <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center justify-between">
+                    <span className="text-sm text-green-700">
+                      Visar ledamöter från: <strong>{selectedCommittee}</strong>
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleCommitteeChange("all")}
+                      className="text-green-700 hover:text-green-800"
+                    >
+                      Rensa filter
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -330,6 +356,7 @@ const Ledamoter = () => {
                 {memberStatus === 'current' && ' (nuvarande)'}
                 {memberStatus === 'former' && ' (tidigare)'}
                 {memberStatus === 'all' && ' (alla)'}
+                {selectedCommittee !== "all" && ` i ${selectedCommittee}`}
               </p>
             </div>
           </div>
