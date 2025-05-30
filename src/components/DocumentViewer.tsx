@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
-import { ExternalLink, FileText, Calendar, Building, Hash, Loader2 } from 'lucide-react';
+import { ExternalLink, FileText, Calendar, Building, Hash, Loader2, AlertCircle } from 'lucide-react';
 import { RiksdagDocument } from '../services/riksdagApi';
 
 interface DocumentViewerProps {
@@ -21,6 +21,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     setError(null);
     
     try {
+      // Prioritera text-format över HTML för bättre läsbarhet
       const url = document.dokument_url_text || document.dokument_url_html;
       if (!url) {
         throw new Error('Ingen dokument-URL tillgänglig');
@@ -31,7 +32,48 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
         throw new Error('Kunde inte hämta dokumentet');
       }
       
-      const content = await response.text();
+      let content = await response.text();
+      
+      // Rensa bort XML-taggar och onödig information från innehållet
+      if (content.includes('<dokumentstatus>')) {
+        // Extrahera endast relevant textinnehåll från XML-strukturen
+        const textMatch = content.match(/<text>(.*?)<\/text>/s);
+        if (textMatch) {
+          content = textMatch[1];
+        } else {
+          // Om ingen text-tag finns, försök hitta beskrivning eller sammandrag
+          const summaryMatch = content.match(/<summary>(.*?)<\/summary>/s) || 
+                              content.match(/<notis>(.*?)<\/notis>/s) ||
+                              content.match(/<beskrivning>(.*?)<\/beskrivning>/s);
+          if (summaryMatch) {
+            content = summaryMatch[1];
+          } else {
+            content = 'Dokumentinnehåll kunde inte extraheras korrekt. Använd länken för att öppna i ny flik.';
+          }
+        }
+      }
+      
+      // Rensa HTML-entiteter och formatera texten
+      content = content
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&ouml;/g, 'ö')
+        .replace(/&auml;/g, 'ä')
+        .replace(/&aring;/g, 'å')
+        .replace(/&Ouml;/g, 'Ö')
+        .replace(/&Auml;/g, 'Ä')
+        .replace(/&Aring;/g, 'Å')
+        .replace(/<BR\/>/g, '\n')
+        .replace(/<br>/g, '\n')
+        .replace(/<[^>]*>/g, '') // Ta bort återstående HTML-taggar
+        .trim();
+
+      if (!content || content.length < 50) {
+        throw new Error('Dokumentet verkar vara tomt eller innehåller endast metadata');
+      }
+      
       setDocumentContent(content);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Okänt fel');
@@ -60,7 +102,9 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       'prot': 'Protokoll',
       'fr': 'Skriftlig fråga',
       'frs': 'Svar på skriftlig fråga',
-      'ip': 'Interpellation'
+      'ip': 'Interpellation',
+      'yttr': 'Yttrande',
+      'fpm': 'Faktapromemoria'
     };
     return types[type] || type;
   };
@@ -124,9 +168,13 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600">{error}</p>
+              <div className="flex items-center space-x-2 mb-2">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-red-600 font-medium">Kunde inte ladda dokumentinnehåll</p>
+              </div>
+              <p className="text-red-600 text-sm mb-3">{error}</p>
               {(document.dokument_url_html || document.dokument_url_text) && (
-                <Button variant="outline" size="sm" className="mt-2" asChild>
+                <Button variant="outline" size="sm" asChild>
                   <a 
                     href={document.dokument_url_html || document.dokument_url_text} 
                     target="_blank" 
@@ -142,14 +190,11 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
           {documentContent && (
             <div className="prose max-w-none">
-              <div 
-                className="whitespace-pre-wrap text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ 
-                  __html: documentContent.includes('<') 
-                    ? documentContent 
-                    : documentContent.replace(/\n/g, '<br>')
-                }}
-              />
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-gray-800">
+                  {documentContent}
+                </pre>
+              </div>
             </div>
           )}
         </div>

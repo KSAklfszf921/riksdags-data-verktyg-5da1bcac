@@ -24,7 +24,7 @@ import {
   Hash
 } from 'lucide-react';
 import { searchDocuments, DocumentSearchParams, RiksdagDocument } from '../services/riksdagApi';
-import { DOCUMENT_TYPES } from '../types/document';
+import { useDocumentTypes } from '../hooks/useDocumentTypes';
 import DocumentViewer from './DocumentViewer';
 
 interface DocumentSearchProps {
@@ -84,6 +84,7 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
   const [selectedParties, setSelectedParties] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const { documentTypes, loading: typesLoading } = useDocumentTypes();
   const parties = ['S', 'M', 'L', 'KD', 'V', 'SD', 'C', 'MP'];
   const partyNames = {
     'S': 'Socialdemokraterna',
@@ -95,6 +96,34 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
     'C': 'Centerpartiet',
     'MP': 'Miljöpartiet'
   };
+
+  // Bestäm vilka kolumner som ska visas baserat på dokumenttyp och sökkriterier
+  const getVisibleColumns = () => {
+    const columns = {
+      titel: true,
+      typ: true,
+      datum: true,
+      beteckning: false,
+      utskott: false,
+      actions: true
+    };
+
+    // Visa beteckning för de flesta dokumenttyper utom vissa
+    const noBeteckningTypes = ['prot', 'fr', 'frs'];
+    if (!searchParams.docType || !noBeteckningTypes.includes(searchParams.docType)) {
+      columns.beteckning = true;
+    }
+
+    // Visa utskott endast för utskottsrelaterade dokument
+    const utskottTypes = ['bet', 'yttr', 'utskdok'];
+    if (!searchParams.docType || utskottTypes.includes(searchParams.docType)) {
+      columns.utskott = true;
+    }
+
+    return columns;
+  };
+
+  const visibleColumns = getVisibleColumns();
 
   // Load initial documents on component mount
   useEffect(() => {
@@ -161,7 +190,7 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
   };
 
   const getDocumentTypeLabel = (type: string) => {
-    const docType = DOCUMENT_TYPES.find(dt => dt.value === type);
+    const docType = documentTypes.find(dt => dt.value === type);
     return docType ? docType.label : type;
   };
 
@@ -203,7 +232,7 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Dokumenttyp
+                Dokumenttyp {typesLoading && <span className="text-xs text-gray-500">(laddar...)</span>}
               </label>
               <Select 
                 value={searchParams.docType || 'all'} 
@@ -214,9 +243,9 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alla typer</SelectItem>
-                  {DOCUMENT_TYPES.map((type) => (
+                  {documentTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                      {type.label} ({type.count.toLocaleString()})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -440,49 +469,57 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Typ</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Beteckning</TableHead>
-                      <TableHead>Utskott</TableHead>
-                      <TableHead></TableHead>
+                      {visibleColumns.titel && <TableHead>Titel</TableHead>}
+                      {visibleColumns.typ && <TableHead>Typ</TableHead>}
+                      {visibleColumns.datum && <TableHead>Datum</TableHead>}
+                      {visibleColumns.beteckning && <TableHead>Beteckning</TableHead>}
+                      {visibleColumns.utskott && <TableHead>Utskott</TableHead>}
+                      {visibleColumns.actions && <TableHead></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {documents.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="font-medium">
-                          <div className="max-w-xs">
-                            <p className="truncate">{doc.titel}</p>
-                            {doc.undertitel && (
-                              <p className="text-sm text-gray-500 truncate">{doc.undertitel}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getDocumentTypeLabel(doc.typ)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDate(doc.datum)}</TableCell>
-                        <TableCell className="font-mono text-sm">{doc.beteckning || '-'}</TableCell>
-                        <TableCell>{doc.organ || '-'}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-1">
-                            <DocumentViewer document={doc} />
-                            {(doc.dokument_url_html || doc.dokument_url_text) && (
-                              <Button variant="ghost" size="sm" asChild>
-                                <a 
-                                  href={doc.dokument_url_html || doc.dokument_url_text} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
+                        {visibleColumns.titel && (
+                          <TableCell className="font-medium">
+                            <div className="max-w-xs">
+                              <p className="truncate">{doc.titel}</p>
+                              {doc.undertitel && (
+                                <p className="text-sm text-gray-500 truncate">{doc.undertitel}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {visibleColumns.typ && (
+                          <TableCell>
+                            <Badge variant="outline">
+                              {getDocumentTypeLabel(doc.typ)}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        {visibleColumns.datum && <TableCell>{formatDate(doc.datum)}</TableCell>}
+                        {visibleColumns.beteckning && (
+                          <TableCell className="font-mono text-sm">{doc.beteckning || '-'}</TableCell>
+                        )}
+                        {visibleColumns.utskott && <TableCell>{doc.organ || '-'}</TableCell>}
+                        {visibleColumns.actions && (
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <DocumentViewer document={doc} />
+                              {(doc.dokument_url_html || doc.dokument_url_text) && (
+                                <Button variant="ghost" size="sm" asChild>
+                                  <a 
+                                    href={doc.dokument_url_html || doc.dokument_url_text} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
