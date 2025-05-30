@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, RiksdagMember } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, RiksdagMember } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
 const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<Member> => {
@@ -15,21 +14,32 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     imageUrl = riksdagMember.bild_url_80;
   }
 
-  // Fetch member's documents
-  let documents = [];
-  try {
-    const memberDocs = await fetchMemberDocuments(riksdagMember.intressent_id);
-    documents = memberDocs.slice(0, 10).map(doc => ({
-      id: doc.id,
-      title: doc.titel,
-      type: doc.typ,
-      date: doc.datum,
-      beteckning: doc.beteckning,
-      url: doc.dokument_url_html || doc.dokument_url_text
-    }));
-  } catch (error) {
-    console.error('Error fetching member documents:', error);
-  }
+  // Fetch member's documents and speeches in parallel
+  const [documents, speeches] = await Promise.all([
+    fetchMemberDocuments(riksdagMember.intressent_id).catch(() => []),
+    fetchMemberSpeeches(riksdagMember.intressent_id).catch(() => [])
+  ]);
+
+  const mappedDocuments = documents.slice(0, 10).map(doc => ({
+    id: doc.id,
+    title: doc.titel,
+    type: doc.typ,
+    date: doc.datum,
+    beteckning: doc.beteckning,
+    url: doc.dokument_url_html || doc.dokument_url_text
+  }));
+
+  const mappedSpeeches = speeches.slice(0, 10).map(speech => ({
+    id: speech.anforande_id,
+    title: speech.rel_dok_titel || speech.kammaraktivitet,
+    date: speech.anforandedatum,
+    debate: speech.kammaraktivitet,
+    duration: speech.anf_sekunder ? Math.round(parseInt(speech.anf_sekunder) / 60) : 0,
+    url: `https://data.riksdagen.se/anforande/${speech.anforande_id}`,
+    type: speech.anforandetyp,
+    text: speech.anforandetext ? speech.anforandetext.substring(0, 200) + '...' : '',
+    time: speech.anf_klockslag
+  }));
 
   return {
     id: riksdagMember.intressent_id,
@@ -42,10 +52,10 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
     profession: 'Riksdagsledamot',
     committees: [],
-    speeches: [],
+    speeches: mappedSpeeches,
     votes: [],
     proposals: [],
-    documents,
+    documents: mappedDocuments,
     activityScore: Math.random() * 10
   };
 };
@@ -67,7 +77,7 @@ export const useMembers = (
         setLoading(true);
         const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
         
-        // Map members with real images and documents (in parallel for better performance)
+        // Map members with real images, documents and speeches (in parallel for better performance)
         const mappedMembers = await Promise.all(
           riksdagMembers.map(member => mapRiksdagMemberToMember(member))
         );

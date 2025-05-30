@@ -1,3 +1,4 @@
+
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -21,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import DocumentSearch from './DocumentSearch';
+import SpeechSearch from './SpeechSearch';
 
 interface MemberProfileProps {
   member: Member;
@@ -53,6 +55,11 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
     } catch {
       return dateString;
     }
+  };
+
+  const formatTime = (timeString?: string) => {
+    if (!timeString) return '';
+    return timeString.substring(0, 5); // Format HH:MM
   };
 
   return (
@@ -138,6 +145,86 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
+          {/* Anföranden från API */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageSquare className="w-5 h-5" />
+                <span>Senaste anföranden ({member.speeches.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {member.speeches.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Titel</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Tid</TableHead>
+                      <TableHead>Text (utdrag)</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {member.speeches.map((speech) => (
+                      <TableRow key={speech.id}>
+                        <TableCell className="font-medium">
+                          <div className="max-w-sm">
+                            <p className="truncate">{speech.title}</p>
+                            <p className="text-sm text-gray-500 truncate">{speech.debate}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {speech.type || 'Anförande'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDate(speech.date)}</TableCell>
+                        <TableCell>
+                          {speech.time && (
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-3 h-3" />
+                              <span>{formatTime(speech.time)}</span>
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-md">
+                          <p className="text-sm line-clamp-2">{speech.text}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href={speech.url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-gray-500 text-center py-4">Inga anföranden registrerade</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Avancerad anförandesökning för denna ledamot */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageSquare className="w-5 h-5" />
+                <span>Sök alla anföranden från {member.firstName} {member.lastName}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SpeechSearch 
+                initialMemberId={member.id} 
+                showMemberFilter={false}
+              />
+            </CardContent>
+          </Card>
+
           {/* Dokument från ledamoten */}
           {member.documents && member.documents.length > 0 && (
             <Card>
@@ -203,53 +290,6 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                 initialMemberId={member.id} 
                 showMemberFilter={false}
               />
-            </CardContent>
-          </Card>
-
-          {/* Anföranden */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MessageSquare className="w-5 h-5" />
-                <span>Anföranden ({member.speeches.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {member.speeches.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Debatt</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Tid</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.speeches.map((speech) => (
-                      <TableRow key={speech.id}>
-                        <TableCell className="font-medium">{speech.title}</TableCell>
-                        <TableCell>{speech.debate}</TableCell>
-                        <TableCell>{speech.date}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{speech.duration} min</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm">
-                            <ExternalLink className="w-3 h-3" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-gray-500 text-center py-4">Inga anföranden registrerade</p>
-              )}
             </CardContent>
           </Card>
 

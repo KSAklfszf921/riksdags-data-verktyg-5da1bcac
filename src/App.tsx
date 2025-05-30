@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Ledamoter from "./pages/Ledamoter";
 import Voteringar from "./pages/Voteringar";
 import Dokument from "./pages/Dokument";
+import Anforanden from "./pages/Anforanden";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/ledamoter" element={<Ledamoter />} />
           <Route path="/voteringar" element={<Voteringar />} />
           <Route path="/dokument" element={<Dokument />} />
+          <Route path="/anforanden" element={<Anforanden />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

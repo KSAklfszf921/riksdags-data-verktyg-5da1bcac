@@ -54,6 +54,33 @@ export interface RiksdagDocumentResponse {
   };
 }
 
+export interface RiksdagSpeech {
+  id: string;
+  anforande_id: string;
+  intressent_id: string;
+  rel_dok_id: string;
+  namn: string;
+  parti: string;
+  anforandedatum: string;
+  anforandetext: string;
+  anforandetyp: string;
+  kammaraktivitet: string;
+  anforande_nummer: string;
+  talare: string;
+  rel_dok_titel?: string;
+  rel_dok_beteckning?: string;
+  rel_dok_datum?: string;
+  anf_klockslag?: string;
+  anf_sekunder?: string;
+}
+
+export interface RiksdagSpeechResponse {
+  anforandelista: {
+    anforande: RiksdagSpeech[];
+    '@hits'?: string;
+  };
+}
+
 export interface DocumentSearchParams {
   searchTerm?: string;
   docType?: string;
@@ -68,6 +95,16 @@ export interface DocumentSearchParams {
   tempbet?: string;
   sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag';
   sortOrder?: 'asc' | 'desc';
+  pageSize?: number;
+}
+
+export interface SpeechSearchParams {
+  rm?: string;
+  anftyp?: 'Nej' | '';
+  date?: string;
+  systemDate?: string;
+  party?: string;
+  intressentId?: string;
   pageSize?: number;
 }
 
@@ -98,7 +135,7 @@ export const fetchMembers = async (
 ): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
   let url = `${BASE_URL}/personlista/?utformat=json`;
   
-  // Lägg till status filter
+  // Lägg till status filter - förbättrad för att säkerställa korrekt filtrering
   switch (status) {
     case 'current':
       url += '&rdlstatus=tjanstgorande';
@@ -117,7 +154,21 @@ export const fetchMembers = async (
       throw new Error('Kunde inte hämta ledamöter');
     }
     const data: RiksdagPersonResponse = await response.json();
-    const allMembers = data.personlista?.person || [];
+    let allMembers = data.personlista?.person || [];
+    
+    // Extra filtrering för nuvarande ledamöter - kontrollera datum_tom
+    if (status === 'current') {
+      const currentDate = new Date();
+      allMembers = allMembers.filter(member => {
+        // Om datum_tom är tomt eller i framtiden, är ledamoten nuvarande
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return true;
+        }
+        const endDate = new Date(member.datum_tom);
+        return endDate > currentDate;
+      });
+    }
+    
     const totalCount = parseInt(data.personlista?.['@hits'] || '0');
     
     // Implementera klient-sidan paginering eftersom API:et inte stödjer det direkt
@@ -144,7 +195,19 @@ export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
       throw new Error('Kunde inte hämta ledamöter');
     }
     const data: RiksdagPersonResponse = await response.json();
-    return data.personlista?.person || [];
+    let members = data.personlista?.person || [];
+    
+    // Extra filtrering för nuvarande ledamöter
+    const currentDate = new Date();
+    members = members.filter(member => {
+      if (!member.datum_tom || member.datum_tom.trim() === '') {
+        return true;
+      }
+      const endDate = new Date(member.datum_tom);
+      return endDate > currentDate;
+    });
+    
+    return members;
   } catch (error) {
     console.error('Error fetching all members:', error);
     return [];
@@ -200,6 +263,40 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
   }
 };
 
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speeches: RiksdagSpeech[], totalCount: number}> => {
+  let url = `${BASE_URL}/anforandelista/?utformat=json`;
+  
+  // Add page size
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  // Add search parameters
+  if (params.rm) url += `&rm=${encodeURIComponent(params.rm)}`;
+  if (params.anftyp) url += `&anftyp=${params.anftyp}`;
+  if (params.date) url += `&d=${params.date}`;
+  if (params.systemDate) url += `&ts=${params.systemDate}`;
+  if (params.party) url += `&parti=${params.party}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagSpeechResponse = await response.json();
+    const speeches = data.anforandelista?.anforande || [];
+    const totalCount = parseInt(data.anforandelista?.['@hits'] || '0');
+    
+    return { speeches, totalCount };
+  } catch (error) {
+    console.error('Error searching speeches:', error);
+    throw error;
+  }
+};
+
 export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
   const { documents } = await searchDocuments({
     intressentId,
@@ -208,4 +305,12 @@ export const fetchMemberDocuments = async (intressentId: string): Promise<Riksda
     sortOrder: 'desc'
   });
   return documents;
+};
+
+export const fetchMemberSpeeches = async (intressentId: string): Promise<RiksdagSpeech[]> => {
+  const { speeches } = await searchSpeeches({
+    intressentId,
+    pageSize: 100
+  });
+  return speeches;
 };

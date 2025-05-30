@@ -25,6 +25,9 @@ export interface Speech {
   debate: string;
   duration: number;
   url: string;
+  type?: string;
+  text?: string;
+  time?: string;
 }
 
 export interface Vote {
