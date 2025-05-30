@@ -9,7 +9,93 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      member_data: {
+        Row: {
+          activity_data: Json | null
+          assignments: Json | null
+          birth_year: number | null
+          constituency: string | null
+          created_at: string
+          first_name: string
+          gender: string | null
+          id: string
+          last_name: string
+          member_id: string
+          party: string
+          updated_at: string
+        }
+        Insert: {
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          constituency?: string | null
+          created_at?: string
+          first_name: string
+          gender?: string | null
+          id?: string
+          last_name: string
+          member_id: string
+          party: string
+          updated_at?: string
+        }
+        Update: {
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          constituency?: string | null
+          created_at?: string
+          first_name?: string
+          gender?: string | null
+          id?: string
+          last_name?: string
+          member_id?: string
+          party?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      party_data: {
+        Row: {
+          active_members: number
+          activity_stats: Json | null
+          age_distribution: Json | null
+          committee_distribution: Json | null
+          created_at: string
+          gender_distribution: Json | null
+          id: string
+          party_code: string
+          party_name: string
+          total_members: number
+          updated_at: string
+        }
+        Insert: {
+          active_members?: number
+          activity_stats?: Json | null
+          age_distribution?: Json | null
+          committee_distribution?: Json | null
+          created_at?: string
+          gender_distribution?: Json | null
+          id?: string
+          party_code: string
+          party_name: string
+          total_members?: number
+          updated_at?: string
+        }
+        Update: {
+          active_members?: number
+          activity_stats?: Json | null
+          age_distribution?: Json | null
+          committee_distribution?: Json | null
+          created_at?: string
+          gender_distribution?: Json | null
+          id?: string
+          party_code?: string
+          party_name?: string
+          total_members?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
