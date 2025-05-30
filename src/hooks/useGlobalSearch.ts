@@ -81,25 +81,34 @@ export const useGlobalSearch = () => {
         console.log('Document search failed:', err);
       }
 
-      // Search speeches
+      // Search speeches - only search by party if search term matches a known party
       try {
-        const speechResult = await searchSpeeches({
-          query: searchTerm,
-          pageSize: 3
-        });
-        
-        const speechResults: SearchResult[] = speechResult.speeches.map(speech => ({
-          id: speech.anforande_id,
-          type: 'speech' as const,
-          title: `Anförande av ${speech.talare}`,
-          subtitle: speech.parti.toUpperCase(),
-          description: speech.kammaraktivitet,
-          date: speech.anforandedatum,
-          party: speech.parti,
-          data: speech
-        }));
-        
-        allResults = [...allResults, ...speechResults];
+        const knownParties = ['s', 'sd', 'm', 'c', 'v', 'kd', 'l', 'mp'];
+        const searchTermLower = searchTerm.toLowerCase();
+        const matchedParty = knownParties.find(party => 
+          party === searchTermLower || 
+          searchTermLower.includes(party)
+        );
+
+        if (matchedParty) {
+          const speechResult = await searchSpeeches({
+            party: matchedParty,
+            pageSize: 3
+          });
+          
+          const speechResults: SearchResult[] = speechResult.speeches.map(speech => ({
+            id: speech.anforande_id,
+            type: 'speech' as const,
+            title: `Anförande av ${speech.talare}`,
+            subtitle: speech.parti.toUpperCase(),
+            description: speech.kammaraktivitet,
+            date: speech.anforandedatum,
+            party: speech.parti,
+            data: speech
+          }));
+          
+          allResults = [...allResults, ...speechResults];
+        }
       } catch (err) {
         console.log('Speech search failed:', err);
       }
