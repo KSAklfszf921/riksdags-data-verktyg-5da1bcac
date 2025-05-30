@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Button } from './ui/button';
@@ -21,45 +20,81 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     setError(null);
     
     try {
-      // Försök att hämta fullständigt dokumentinnehåll
-      let url = document.dokument_url_text || document.dokument_url_html;
+      // Förbättrad URL-konstruktion för att försöka flera format
+      const urls = [];
       
-      if (!url) {
-        // Skapa URL baserat på beteckning om det inte finns direktlänk
-        if (document.beteckning) {
-          const beteckning = document.beteckning.replace(/\s+/g, '');
-          url = `https://data.riksdagen.se/dokument/${beteckning}.html`;
-        } else {
-          throw new Error('Ingen dokument-URL tillgänglig');
+      // Lägg till direktlänkar om de finns
+      if (document.dokument_url_html) {
+        const htmlUrl = document.dokument_url_html.startsWith('//') 
+          ? `https:${document.dokument_url_html}` 
+          : document.dokument_url_html;
+        urls.push(htmlUrl);
+      }
+      
+      if (document.dokument_url_text) {
+        const textUrl = document.dokument_url_text.startsWith('//') 
+          ? `https:${document.dokument_url_text}` 
+          : document.dokument_url_text;
+        urls.push(textUrl);
+      }
+      
+      // Konstruera URLs baserat på beteckning
+      if (document.beteckning) {
+        const beteckning = document.beteckning.replace(/\s+/g, '');
+        urls.push(`https://data.riksdagen.se/dokument/${beteckning}.html`);
+        urls.push(`https://data.riksdagen.se/dokument/${beteckning}`);
+        urls.push(`https://data.riksdagen.se/dokument/${beteckning}/text`);
+      }
+      
+      console.log('Trying URLs:', urls);
+      
+      let content = '';
+      let fetchError = null;
+      
+      // Försök hämta från varje URL tills vi får meningsfullt innehåll
+      for (const url of urls) {
+        try {
+          console.log('Fetching from:', url);
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            console.log(`Failed to fetch from ${url}: ${response.status}`);
+            continue;
+          }
+          
+          let rawContent = await response.text();
+          console.log(`Content length from ${url}:`, rawContent.length);
+          
+          // Extrahera innehåll baserat på format
+          let extractedContent = '';
+          if (rawContent.includes('<!DOCTYPE html>') || rawContent.includes('<html')) {
+            extractedContent = extractContentFromHTML(rawContent);
+          } else if (rawContent.includes('<?xml') || rawContent.includes('<dokument>')) {
+            extractedContent = extractContentFromXML(rawContent);
+          } else {
+            extractedContent = rawContent;
+          }
+          
+          // Kontrollera om vi fick meningsfullt innehåll (inte bara metadata)
+          const cleanedContent = cleanAndFormatContent(extractedContent);
+          console.log('Cleaned content length:', cleanedContent.length);
+          console.log('Content preview:', cleanedContent.substring(0, 200));
+          
+          // Om innehållet ser ut som riktig text (inte bara metadata), använd det
+          if (cleanedContent.length > 200 && !isOnlyMetadata(cleanedContent)) {
+            content = cleanedContent;
+            console.log('Found good content from:', url);
+            break;
+          }
+          
+        } catch (err) {
+          console.error(`Error fetching from ${url}:`, err);
+          fetchError = err;
         }
       }
       
-      const fullUrl = url.startsWith('//') ? `https:${url}` : url;
-      console.log('Fetching document from:', fullUrl);
-      
-      const response = await fetch(fullUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: Kunde inte hämta dokumentet`);
-      }
-      
-      let content = await response.text();
-      console.log('Raw content length:', content.length);
-      
-      // Förbättrad innehållsextrahering för olika dokumentformat
-      if (content.includes('<!DOCTYPE html>') || content.includes('<html')) {
-        // HTML-format - extrahera från olika sektioner
-        content = extractFromHTML(content);
-      } else if (content.includes('<?xml') || content.includes('<dokument>')) {
-        // XML-format - extrahera från XML-struktur
-        content = extractFromXML(content);
-      }
-      
-      // Rensa och formatera innehållet
-      content = cleanAndFormatContent(content);
-      
-      if (!content || content.length < 50) {
-        // Om fortfarande inget meningsfullt innehåll, använd sammanfattning
-        content = document.summary || document.notis || 'Dokumentinnehåll kunde inte extraheras fullständigt. Prova att öppna dokumentet i en ny flik.';
+      if (!content || isOnlyMetadata(content)) {
+        throw new Error('Kunde inte extrahera dokumentinnehåll från någon av källorna');
       }
       
       setDocumentContent(content);
@@ -71,63 +106,137 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     }
   };
 
-  const extractFromHTML = (htmlContent: string): string => {
-    // Extrahera från HTML-struktur (motioner etc.)
+  const extractContentFromHTML = (htmlContent: string): string => {
+    // Förbättrad HTML-extraktion för olika dokumenttyper
     let content = '';
     
-    // Försök extrahera från huvud-content divs
-    const mainContentMatch = htmlContent.match(/<main[^>]*>(.*?)<\/main>/s) ||
-                            htmlContent.match(/<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s) ||
-                            htmlContent.match(/<div[^>]*class="[^"]*hit[^"]*"[^>]*>(.*?)<\/div>/s);
+    // Försök hitta huvud-innehållsområdet
+    const contentSelectors = [
+      // Motioner och propositioner
+      /<div[^>]*class="[^"]*dokument-text[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*main[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<main[^>]*>(.*?)<\/main>/s,
+      
+      // Specifika sektioner för motioner
+      /<div[^>]*class="[^"]*motion[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*proposal[^"]*"[^>]*>(.*?)<\/div>/s,
+      
+      // Fallback: body innehåll utan header/footer/nav
+      /<body[^>]*>(.*?)<\/body>/s
+    ];
     
-    if (mainContentMatch) {
-      content = mainContentMatch[1];
-    } else {
-      // Fallback - ta allt mellan body-tags
-      const bodyMatch = htmlContent.match(/<body[^>]*>(.*?)<\/body>/s);
-      if (bodyMatch) {
-        content = bodyMatch[1];
-      } else {
-        content = htmlContent;
+    for (const regex of contentSelectors) {
+      const match = htmlContent.match(regex);
+      if (match && match[1]) {
+        content = match[1];
+        console.log('Found content with selector:', regex.source.substring(0, 50) + '...');
+        
+        // Rensa bort navigation, footer, header etc.
+        content = removeNavigationElements(content);
+        
+        // Om vi hittat betydande innehåll, använd det
+        if (content.length > 500) {
+          break;
+        }
       }
     }
     
-    // Försök hitta specifika innehållssektioner för motioner
-    const motionSections = [
-      /<div[^>]*class="[^"]*notis[^"]*"[^>]*>(.*?)<\/div>/gs,
-      /<div[^>]*class="[^"]*utdrag[^"]*"[^>]*>(.*?)<\/div>/gs,
-      /<h4[^>]*>.*?<\/h4>\s*<div[^>]*class="[^"]*meta[^"]*"[^>]*>(.*?)<\/div>/gs
-    ];
-    
-    for (const regex of motionSections) {
-      const matches = content.match(regex);
-      if (matches && matches.length > 0) {
-        content = matches.join('\n\n');
-        break;
+    // Om vi fortfarande inte har bra innehåll, ta hela body:n och rensa
+    if (!content || content.length < 200) {
+      const bodyMatch = htmlContent.match(/<body[^>]*>(.*?)<\/body>/s);
+      if (bodyMatch) {
+        content = removeNavigationElements(bodyMatch[1]);
       }
     }
     
     return content;
   };
 
-  const extractFromXML = (xmlContent: string): string => {
-    // Extrahera från XML-format
-    const xmlSections = [
-      /<dokument[^>]*>(.*?)<\/dokument>/s,
-      /<text[^>]*>(.*?)<\/text>/s,
+  const removeNavigationElements = (content: string): string => {
+    return content
+      // Ta bort navigation, header, footer
+      .replace(/<nav[^>]*>.*?<\/nav>/gs, '')
+      .replace(/<header[^>]*>.*?<\/header>/gs, '')
+      .replace(/<footer[^>]*>.*?<\/footer>/gs, '')
+      .replace(/<aside[^>]*>.*?<\/aside>/gs, '')
+      
+      // Ta bort menyer och breadcrumbs
+      .replace(/<div[^>]*class="[^"]*menu[^"]*"[^>]*>.*?<\/div>/gs, '')
+      .replace(/<div[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<\/div>/gs, '')
+      .replace(/<div[^>]*class="[^"]*navigation[^"]*"[^>]*>.*?<\/div>/gs, '')
+      
+      // Ta bort metadata-block som ofta är i början
+      .replace(/<div[^>]*class="[^"]*metadata[^"]*"[^>]*>.*?<\/div>/gs, '')
+      .replace(/<div[^>]*class="[^"]*document-info[^"]*"[^>]*>.*?<\/div>/gs, '')
+      
+      // Ta bort script och style
+      .replace(/<script[^>]*>.*?<\/script>/gs, '')
+      .replace(/<style[^>]*>.*?<\/style>/gs, '');
+  };
+
+  const extractContentFromXML = (xmlContent: string): string => {
+    // Förbättrad XML-extraktion
+    const xmlSelectors = [
+      // Huvudinnehåll
       /<dokinttext[^>]*>(.*?)<\/dokinttext>/s,
+      /<text[^>]*>(.*?)<\/text>/s,
+      /<dokument[^>]*>(.*?)<\/dokument>/s,
+      
+      // Motionsspecifika
+      /<motion[^>]*>(.*?)<\/motion>/s,
+      /<proposal[^>]*>(.*?)<\/proposal>/s,
+      
+      // Fallback
       /<summary[^>]*>(.*?)<\/summary>/s,
       /<notis[^>]*>(.*?)<\/notis>/s
     ];
     
-    for (const regex of xmlSections) {
+    for (const regex of xmlSelectors) {
       const match = xmlContent.match(regex);
-      if (match && match[1].trim()) {
+      if (match && match[1] && match[1].trim().length > 100) {
+        console.log('Found XML content with selector:', regex.source.substring(0, 30) + '...');
         return match[1];
       }
     }
     
     return xmlContent;
+  };
+
+  const isOnlyMetadata = (content: string): boolean => {
+    // Kontrollera om innehållet bara är metadata
+    const metadataIndicators = [
+      // Datum och ID-mönster
+      /^\d{4}-\d{2}-\d{2}\s*\d+\s*[A-Z]{2,5}\s*\d+/,
+      
+      // Många korta rader med teknisk info
+      /^[\s\d\-:]+[A-Z]{2,10}[\s\d\-:]+$/m,
+      
+      // Bara beteckningar och datum
+      /^[A-Z]{1,3}\d{6}\s*\d{4}\/\d{2}:\d+/,
+    ];
+    
+    // Om innehållet matchar metadata-mönster och är kort
+    if (content.length < 500) {
+      for (const indicator of metadataIndicators) {
+        if (indicator.test(content.trim())) {
+          console.log('Content appears to be only metadata');
+          return true;
+        }
+      }
+    }
+    
+    // Om innehållet mestadels består av datum, siffror och korta ord
+    const words = content.trim().split(/\s+/);
+    const shortWords = words.filter(word => word.length <= 3 || /^\d+$/.test(word) || /^\d{4}-\d{2}-\d{2}$/.test(word));
+    const shortWordRatio = shortWords.length / words.length;
+    
+    if (shortWordRatio > 0.7 && content.length < 1000) {
+      console.log('Content has high ratio of short words/numbers, likely metadata');
+      return true;
+    }
+    
+    return false;
   };
 
   const cleanAndFormatContent = (content: string): string => {
