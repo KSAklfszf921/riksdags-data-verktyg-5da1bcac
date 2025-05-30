@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Button } from './ui/button';
@@ -65,13 +66,13 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
             extractedContent = rawContent;
           }
           
-          // Rensa och formatera innehållet
-          const cleanedContent = cleanAndFormatContent(extractedContent);
-          console.log('Cleaned content length:', cleanedContent.length);
+          // Formatera innehållet för Riksdag-stil
+          const formattedContent = formatAsRiksdagDocument(extractedContent, document);
+          console.log('Formatted content length:', formattedContent.length);
           
           // Om innehållet ser ut som riktig text, använd det
-          if (cleanedContent.length > 200 && !isOnlyMetadata(cleanedContent)) {
-            content = cleanedContent;
+          if (formattedContent.length > 200 && !isOnlyMetadata(formattedContent)) {
+            content = formattedContent;
             console.log('Found good content from:', url);
             break;
           }
@@ -109,6 +110,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       // Betänkanden och propositioner
       /<div[^>]*id="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
       /<div[^>]*class="[^"]*document-content[^"]*"[^>]*>(.*?)<\/div>/s,
+      
+      // Specifik Riksdag struktur
+      /<div[^>]*class="[^"]*pconf[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*Section1[^"]*"[^>]*>(.*?)<\/div>/s,
       
       // Fallback: hela body minus navigation
       /<body[^>]*>(.*?)<\/body>/s
@@ -173,6 +178,86 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     return xmlContent;
   };
 
+  const formatAsRiksdagDocument = (content: string, documentInfo: RiksdagDocument): string => {
+    // Rensa innehållet först
+    let cleanedContent = cleanAndFormatContent(content);
+    
+    // Strukturera innehållet som ett Riksdagsdokument
+    let formattedContent = '';
+    
+    // Lägg till dokumenthuvud
+    formattedContent += createDocumentHeader(documentInfo);
+    
+    // Bearbeta innehållet för att identifiera och formatera strukturelement
+    formattedContent += processContentStructure(cleanedContent);
+    
+    return formattedContent;
+  };
+
+  const createDocumentHeader = (documentInfo: RiksdagDocument): string => {
+    const docType = getDocumentTypeLabel(documentInfo.typ);
+    const authors = extractAuthors(documentInfo);
+    
+    return `
+      <div class="document-header">
+        <div class="publication-type">${docType}</div>
+        <div class="document-number">${documentInfo.beteckning || ''}</div>
+        ${authors ? `<div class="authors">${authors}</div>` : ''}
+        <h1>${documentInfo.titel}</h1>
+        ${documentInfo.undertitel ? `<div class="subtitle">${documentInfo.undertitel}</div>` : ''}
+      </div>
+    `;
+  };
+
+  const extractAuthors = (documentInfo: RiksdagDocument): string => {
+    // Försök extrahera författare från titel eller undertitel
+    const titleMatch = documentInfo.titel?.match(/av\s+([^(]+)/i);
+    const subtitleMatch = documentInfo.undertitel?.match(/av\s+([^(]+)/i);
+    
+    return titleMatch?.[1]?.trim() || subtitleMatch?.[1]?.trim() || '';
+  };
+
+  const processContentStructure = (content: string): string => {
+    return content
+      // Identifiera och formatera förslag till riksdagsbeslut
+      .replace(/(Förslag\s+till\s+riksdagsbeslut|FÖRSLAG\s+TILL\s+RIKSDAGSBESLUT)/gi, 
+        '<h1 class="proposal-header">Förslag till riksdagsbeslut</h1>')
+      
+      // Identifiera motivering
+      .replace(/(Motivering|MOTIVERING)/gi, 
+        '<h1 class="motivation-header">Motivering</h1>')
+      
+      // Formatera numrerade förslag
+      .replace(/(\d+\.\s*Riksdagen[^.]+\.)/g, 
+        '<div class="numbered-list-item">$1</div>')
+      
+      // Formatera vanliga rubriker
+      .replace(/^([A-ZÅÄÖ][A-ZÅÄÖ\s]{5,})\s*$/gm, '<h2>$1</h2>')
+      
+      // Formatera underrubriker
+      .replace(/^([A-ZÅÄÖ][a-zåäö\s]{10,})\s*$/gm, '<h3>$1</h3>')
+      
+      // Formatera paragrafer
+      .replace(/\n\n+/g, '</p><p>')
+      .replace(/^(.)/gm, '<p>$1')
+      .replace(/(.)\n$/gm, '$1</p>')
+      
+      // Formatera listor
+      .replace(/^\s*[-•]\s+(.+)/gm, '<li>$1</li>')
+      .replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>')
+      
+      // Rensa upp extra taggar
+      .replace(/<\/p><p><h/g, '</p><h')
+      .replace(/<\/h([1-6])><p>/g, '</h$1><p>')
+      .replace(/<p><\/p>/g, '')
+      .replace(/(<p>)*(<\/p>)*/g, (match, start, end) => {
+        if (start && end) return '<p></p>';
+        if (start) return '<p>';
+        if (end) return '</p>';
+        return match;
+      });
+  };
+
   const cleanAndFormatContent = (content: string): string => {
     return content
       // Ta bort alla HTML-taggar men behåll struktur
@@ -195,19 +280,6 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       .replace(/function[^{]*\{[^}]*\}/gs, '')
       .replace(/var\s+[^;]+;/gs, '')
       .replace(/document\.[^;]+;/gs, '')
-      
-      // Ta bort inline CSS properties
-      .replace(/position:\s*[^;]+;/gs, '')
-      .replace(/margin:\s*[^;]+;/gs, '')
-      .replace(/padding:\s*[^;]+;/gs, '')
-      .replace(/width:\s*[^;]+;/gs, '')
-      .replace(/height:\s*[^;]+;/gs, '')
-      .replace(/overflow:\s*[^;]+;/gs, '')
-      .replace(/border:\s*[^;]+;/gs, '')
-      
-      // Ta bort CSS-selektorer och properties
-      .replace(/#page_\d+\s*\{[^}]*\}/gs, '')
-      .replace(/\{[^}]*position:[^}]*\}/gs, '')
       
       // Ersätt HTML-entiteter
       .replace(/&amp;/g, '&')
@@ -238,15 +310,6 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       // Ta bort alla återstående HTML-taggar
       .replace(/<[^>]*>/g, ' ')
       
-      // Ta bort Markdown-formatering
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      .replace(/\*([^*]+)\*/g, '$1')
-      .replace(/_([^_]+)_/g, '$1')
-      .replace(/`([^`]+)`/g, '$1')
-      .replace(/#{1,6}\s*/g, '')
-      .replace(/^\s*[-*+]\s+/gm, '• ')
-      .replace(/^\s*\d+\.\s+/gm, '')
-      
       // Rensa överflödiga mellanslag och radbrytningar
       .replace(/\n\s*\n\s*\n+/g, '\n\n')
       .replace(/[ \t]+/g, ' ')
@@ -274,18 +337,6 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       }
     }
     
-    // Om innehållet mestadels består av datum, siffror och CSS
-    const cssLines = content.split('\n').filter(line => 
-      line.includes('position:') || 
-      line.includes('margin:') || 
-      line.includes('#page_') ||
-      line.includes('overflow:')
-    );
-    
-    if (cssLines.length > 3) {
-      return true;
-    }
-    
     return false;
   };
 
@@ -301,7 +352,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     const types: { [key: string]: string } = {
       'bet': 'Betänkande',
       'prop': 'Proposition',
-      'mot': 'Motion',
+      'mot': 'Motion till riksdagen',
       'dir': 'Kommittédirektiv',
       'sou': 'Statens offentliga utredning',
       'ds': 'Departementsserien',
@@ -415,10 +466,11 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
           {documentContent && (
             <div className="prose max-w-none">
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed font-sans text-gray-800 max-h-96 overflow-y-auto">
-                  {documentContent}
-                </div>
+              <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <div 
+                  className="riksdag-document max-h-96 overflow-y-auto"
+                  dangerouslySetInnerHTML={{ __html: documentContent }}
+                />
               </div>
             </div>
           )}
