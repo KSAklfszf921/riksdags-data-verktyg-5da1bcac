@@ -77,6 +77,10 @@ export interface RiksdagSpeech {
   rel_dok_datum?: string;
   anf_klockslag?: string;
   anf_sekunder?: string;
+  anforande_url_html?: string;
+  dok_id?: string;
+  dok_titel?: string;
+  protokoll_url_www?: string;
 }
 
 export interface RiksdagSpeechResponse {
