@@ -125,15 +125,11 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     return result;
   });
 
-  // Extract current committees from active assignments and use the uppgift field for full names
-  const currentCommittees = activeCommitteeAssignments.map(assignment => {
-    const fullName = assignment.uppgift || COMMITTEE_MAPPING[assignment.organ_kod] || assignment.organ_kod;
-    console.log(`Committee mapping for ${riksdagMember.efternamn}: ${assignment.organ_kod} -> ${fullName}`);
-    return fullName;
-  });
+  // Store committee codes directly for efficient filtering
+  const currentCommitteeCodes = activeCommitteeAssignments.map(assignment => assignment.organ_kod);
 
   console.log(`Final active committee assignments for ${riksdagMember.efternamn}:`, activeCommitteeAssignments.map(a => `${a.organ_kod} (${a.roll})`));
-  console.log(`Current committees for ${riksdagMember.efternamn}:`, currentCommittees);
+  console.log(`Current committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
 
   // Convert assignments to match the Member interface - keep organ_kod as is
   const convertedAssignments = assignments.map(assignment => ({
@@ -147,6 +143,11 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     uppgift: assignment.uppgift
   }));
 
+  // Generate email address if not provided
+  const generateEmail = (firstName: string, lastName: string) => {
+    return `${firstName.toLowerCase().replace(/\s+/g, '-').replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o')}.${lastName.toLowerCase().replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o')}@riksdagen.se`;
+  };
+
   return {
     id: riksdagMember.intressent_id,
     firstName: riksdagMember.tilltalsnamn,
@@ -154,10 +155,10 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     party: riksdagMember.parti,
     constituency: riksdagMember.valkrets,
     imageUrl,
-    email: memberDetails?.email || `${riksdagMember.tilltalsnamn.toLowerCase()}.${riksdagMember.efternamn.toLowerCase()}@riksdagen.se`,
+    email: memberDetails?.email || generateEmail(riksdagMember.tilltalsnamn, riksdagMember.efternamn),
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
     profession: memberDetails?.yrke || 'Riksdagsledamot',
-    committees: currentCommittees,
+    committees: currentCommitteeCodes, // Store codes for efficient filtering
     speeches: mappedSpeeches,
     votes: [],
     proposals: [],
@@ -228,33 +229,15 @@ export const useMembers = (
         if (committee && committee !== 'all') {
           console.log(`Filtering members by committee: ${committee}`);
           
+          // Convert committee name to code if needed
+          const committeeCodeToMatch = COMMITTEE_CODE_MAPPING[committee] || committee;
+          
           filteredMembers = mappedMembers.filter(member => {
-            // Check if member has the committee in their committees array (which now contains full names)
-            const hasMatchingCommittee = member.committees.some(memberCommittee => {
-              // Direct match with full committee name
-              if (memberCommittee === committee) {
-                return true;
-              }
-              
-              // Check if the search committee is a code and member has the corresponding full name
-              const fullCommitteeName = COMMITTEE_MAPPING[committee];
-              if (fullCommitteeName && memberCommittee === fullCommitteeName) {
-                return true;
-              }
-              
-              // Check if the search committee is a full name and member has a matching code
-              const committeeCode = COMMITTEE_CODE_MAPPING[committee];
-              if (committeeCode && memberCommittee === COMMITTEE_MAPPING[committeeCode]) {
-                return true;
-              }
-              
-              // Partial matching as fallback
-              return memberCommittee.toLowerCase().includes(committee.toLowerCase()) ||
-                     committee.toLowerCase().includes(memberCommittee.toLowerCase());
-            });
+            // Direct match with committee code
+            const hasMatchingCommittee = member.committees.includes(committeeCodeToMatch);
             
             if (hasMatchingCommittee) {
-              console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} - Member committees: ${member.committees.join(', ')}`);
+              console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} via code ${committeeCodeToMatch} - Member committees: ${member.committees.join(', ')}`);
             }
             
             return hasMatchingCommittee;
@@ -333,8 +316,9 @@ export const useCommittees = () => {
     const loadCommittees = async () => {
       setLoading(true);
       try {
-        const committeeList = await fetchAllCommittees();
-        setCommittees(committeeList);
+        // Return committee names (not codes) for UI display
+        const committeeNames = Object.values(COMMITTEE_MAPPING);
+        setCommittees(committeeNames);
       } catch (error) {
         console.error('Error loading committees:', error);
       } finally {
@@ -399,4 +383,14 @@ export const useCommitteeMembers = (committeeCode: string) => {
   }, [committeeCode]);
 
   return { members, loading, error };
+};
+
+// Utility function to get committee name from code
+export const getCommitteeName = (code: string): string => {
+  return COMMITTEE_MAPPING[code] || code;
+};
+
+// Utility function to get committee code from name
+export const getCommitteeCode = (name: string): string => {
+  return COMMITTEE_CODE_MAPPING[name] || name;
 };

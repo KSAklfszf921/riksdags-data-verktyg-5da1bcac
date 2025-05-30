@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
 import MemberProfile from "../components/MemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
-import { useMembers, useCommittees } from "../hooks/useMembers";
+import { useMembers, useCommittees, getCommitteeName, getCommitteeCode } from "../hooks/useMembers";
 import { RiksdagMember } from "../services/riksdagApi";
 
 const Ledamoter = () => {
@@ -33,44 +34,13 @@ const Ledamoter = () => {
   );
   const { committees } = useCommittees();
 
-  // Predefined committees with full names (no codes)
-  const COMMITTEE_LIST = [
-    'Arbetsmarknadsutskottet',
-    'Civilutskottet',
-    'EU-nämnden',
-    'Europarådets svenska delegation',
-    'Finansutskottet',
-    'Försvarsutskottet',
-    'Justitieutskottet',
-    'Konstitutionsutskottet',
-    'Kulturutskottet',
-    'Miljö- och jordbruksutskottet',
-    'Näringsutskottet',
-    'Sammansatta utrikes- och försvarsutskottet',
-    'Skatteutskottet',
-    'Socialförsäkringsutskottet',
-    'Socialutskottet',
-    'Trafikutskottet',
-    'Utbildningsutskottet',
-    'Utrikesutskottet'
-  ];
-
-  // Combine API committees with predefined list and remove duplicates
-  // Only use full names, no codes
-  const allAvailableCommittees = Array.from(new Set([
-    ...committees,
-    ...COMMITTEE_LIST
-  ]))
-  .filter(committee => committee.length > 3) // Filter out short codes like "AU", "CU" etc
-  .sort();
-
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
 
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
   const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
 
-  // Simplified committee filtering - now that committees are stored as full names
+  // Improved committee filtering using committee codes
   const filteredAndSortedMembers = members
     .filter(member => {
       // Om autocomplete-filter är aktivt, visa bara den valda ledamoten
@@ -83,13 +53,13 @@ const Ledamoter = () => {
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
       
-      // Simplified committee filtering since committees are now stored as full names
-      const matchesCommittee = selectedCommittee === "all" || 
-        member.committees.some(committee => 
-          committee === selectedCommittee ||
-          committee.toLowerCase().includes(selectedCommittee.toLowerCase()) ||
-          selectedCommittee.toLowerCase().includes(committee.toLowerCase())
-        );
+      // Improved committee filtering using codes
+      let matchesCommittee = true;
+      if (selectedCommittee !== "all") {
+        // Convert committee name to code for matching
+        const committeeCodeToMatch = getCommitteeCode(selectedCommittee);
+        matchesCommittee = member.committees.includes(committeeCodeToMatch);
+      }
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
     })
@@ -131,6 +101,14 @@ const Ledamoter = () => {
 
   const handleLoadMore = () => {
     setCurrentPage(prev => prev + 1);
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setSelectedParty("all");
+    setSelectedConstituency("all");
+    setSelectedCommittee("all");
+    setAutocompleteFilter(null);
   };
 
   if (loading && currentPage === 1) {
@@ -318,7 +296,7 @@ const Ledamoter = () => {
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
                         <SelectItem value="all">Alla utskott/organ</SelectItem>
-                        {allAvailableCommittees.map((committee) => (
+                        {committees.map((committee) => (
                           <SelectItem key={committee} value={committee}>
                             {committee}
                           </SelectItem>
@@ -417,6 +395,7 @@ const Ledamoter = () => {
                 )}
                 <span>{loading ? 'Laddar...' : 'Ladda fler ledamöter'}</span>
               </Button>
+              {error && <p className="text-red-500 mt-2">{error}</p>}
             </div>
           )}
 
@@ -427,9 +406,12 @@ const Ledamoter = () => {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   Inga ledamöter hittades
                 </h3>
-                <p className="text-gray-600">
-                  Prova att ändra dina sökkriterier eller filter
+                <p className="text-gray-600 mb-4">
+                  Inga ledamöter matchar dina sökkriterier. Försök att rensa filter eller sök med ett annat namn.
                 </p>
+                <Button onClick={clearAllFilters} className="mt-4">
+                  Rensa alla filter
+                </Button>
               </CardContent>
             </Card>
           )}

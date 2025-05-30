@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { MapPin, Star, Users, Building2, Briefcase } from 'lucide-react';
+import { getCommitteeName } from '../hooks/useMembers';
 
 interface MemberCardProps {
   member: Member;
@@ -116,7 +117,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
             <Building2 className="w-4 h-4 text-blue-600" />
             <div className="flex-1 min-w-0">
               <span className="font-medium text-blue-800 truncate block">
-                {assignment.uppgift || assignment.organ_kod}
+                {assignment.uppgift || getCommitteeName(assignment.organ_kod)}
               </span>
               <span className="text-xs text-gray-600">
                 {assignment.roll}
@@ -171,7 +172,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
         {/* Debug info - show active assignments count */}
         <div className="text-xs text-gray-400 border-t pt-2">
-          {activeAssignments.length} aktiva uppdrag
+          {activeAssignments.length} aktiva uppdrag | Utskott: {member.committees.map(code => getCommitteeName(code)).join(', ') || 'Inga'}
         </div>
       </CardContent>
     </Card>

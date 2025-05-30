@@ -1,3 +1,4 @@
+
 export interface Member {
   id: string;
   firstName: string;
@@ -9,7 +10,7 @@ export interface Member {
   phone?: string;
   birthYear: number;
   profession: string;
-  committees: string[];
+  committees: string[]; // Now stores committee codes (e.g. "AU", "SoU") for efficient filtering
   speeches: Speech[];
   votes: Vote[];
   proposals: Proposal[];
