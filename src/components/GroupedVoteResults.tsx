@@ -77,8 +77,27 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     return groups;
   }, {});
 
-  const groupsArray = Object.values(groupedVotes);
-  console.log('Created groups:', groupsArray.length);
+  let groupsArray = Object.values(groupedVotes);
+
+  // Ensure we always have at least 5 groups - create dummy groups if needed
+  const minGroups = 5;
+  if (groupsArray.length < minGroups) {
+    const additionalGroupsNeeded = minGroups - groupsArray.length;
+    console.log(`Adding ${additionalGroupsNeeded} dummy groups to reach minimum of ${minGroups}`);
+    
+    for (let i = 0; i < additionalGroupsNeeded; i++) {
+      const dummyGroup: VoteGroup = {
+        beteckning: `Exempel ${i + 1}`,
+        riksmote: '2024/25',
+        avser: `Exempel på votering ${i + 1} - ingen data tillgänglig`,
+        votes: [],
+        voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 }
+      };
+      groupsArray.push(dummyGroup);
+    }
+  }
+
+  console.log('Final groups count:', groupsArray.length);
   console.log('Groups summary:', groupsArray.map(g => ({
     key: `${g.beteckning}-${g.riksmote}`,
     voteCount: g.votes.length,
@@ -123,20 +142,21 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {groupsArray.map((group) => {
+          {groupsArray.map((group, index) => {
             const groupKey = `${group.beteckning}-${group.riksmote}`;
             const isExpanded = expandedGroups.has(groupKey);
+            const isEmpty = group.votes.length === 0;
             
             return (
-              <Collapsible key={groupKey} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
+              <Collapsible key={`${groupKey}-${index}`} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
                 <CollapsibleTrigger asChild>
-                  <div className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className={`border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors ${isEmpty ? 'bg-gray-100 border-dashed' : ''}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900 mb-2">
+                        <h3 className={`font-medium mb-2 ${isEmpty ? 'text-gray-500' : 'text-gray-900'}`}>
                           {group.beteckning} - Riksmöte {group.riksmote}
                         </h3>
-                        <p className="text-sm text-gray-600 mb-3">
+                        <p className={`text-sm mb-3 ${isEmpty ? 'text-gray-400 italic' : 'text-gray-600'}`}>
                           {group.avser}
                         </p>
                         
@@ -162,8 +182,8 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                       </div>
                       
                       <div className="flex items-center space-x-2">
-                        <Badge variant="outline">
-                          {group.votes.length} ledamöter
+                        <Badge variant={isEmpty ? "secondary" : "outline"}>
+                          {isEmpty ? 'Exempel' : `${group.votes.length} ledamöter`}
                         </Badge>
                         {isExpanded ? (
                           <ChevronUp className="w-4 h-4" />
@@ -178,34 +198,40 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                 <CollapsibleContent className="mt-2">
                   <div className="border rounded-lg bg-gray-50">
                     <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
-                      {group.votes.map((vote, index) => (
-                        <div key={`${vote.iid || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">
-                              {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {vote.valkrets || 'Okänd valkrets'}
-                            </p>
-                          </div>
-                          <Badge 
-                            variant={
-                              vote.rost === 'Ja' ? 'default' : 
-                              vote.rost === 'Nej' ? 'destructive' : 
-                              'secondary'
-                            }
-                            style={{
-                              backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                             vote.rost === 'Nej' ? '#EF4444' : 
-                                             vote.rost === 'Avstår' ? '#F59E0B' :
-                                             '#6B7280',
-                              color: 'white'
-                            }}
-                          >
-                            {vote.rost || 'Okänd'}
-                          </Badge>
+                      {isEmpty ? (
+                        <div className="text-center py-4 text-gray-500">
+                          <p>Ingen röstdata tillgänglig för denna votering</p>
                         </div>
-                      ))}
+                      ) : (
+                        group.votes.map((vote, voteIndex) => (
+                          <div key={`vote-${index}-${voteIndex}`} className="flex items-center justify-between bg-white p-3 rounded border">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">
+                                {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {vote.valkrets || 'Okänd valkrets'}
+                              </p>
+                            </div>
+                            <Badge 
+                              variant={
+                                vote.rost === 'Ja' ? 'default' : 
+                                vote.rost === 'Nej' ? 'destructive' : 
+                                'secondary'
+                              }
+                              style={{
+                                backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
+                                               vote.rost === 'Nej' ? '#EF4444' : 
+                                               vote.rost === 'Avstår' ? '#F59E0B' :
+                                               '#6B7280',
+                                color: 'white'
+                              }}
+                            >
+                              {vote.rost || 'Okänd'}
+                            </Badge>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </CollapsibleContent>
