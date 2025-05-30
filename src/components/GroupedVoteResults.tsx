@@ -197,7 +197,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                   <div className="border rounded-lg bg-gray-50">
                     <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
                       {group.votes.map((vote, index) => (
-                        <div key={`${vote.iid || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
+                        <div key={`${vote.intressent_id || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
                           <div className="flex-1">
                             <p className="font-medium text-sm">
                               {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
