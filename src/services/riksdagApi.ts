@@ -17,6 +17,7 @@ export interface RiksdagMember {
 export interface RiksdagPersonResponse {
   personlista: {
     person: RiksdagMember[];
+    '@hits': string;
   };
 }
 
@@ -56,6 +57,50 @@ export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMemb
   } catch (error) {
     console.error('Error fetching member suggestions:', error);
     return [];
+  }
+};
+
+export const fetchMembers = async (
+  page: number = 1,
+  pageSize: number = 20,
+  status: 'current' | 'all' | 'former' = 'current'
+): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
+  let url = `${BASE_URL}/personlista/?utformat=json`;
+  
+  // Lägg till status filter
+  switch (status) {
+    case 'current':
+      url += '&rdlstatus=tjanstgorande';
+      break;
+    case 'all':
+      url += '&rdlstatus='; // Alla ledamöter
+      break;
+    case 'former':
+      url += '&rdlstatus=tidigare';
+      break;
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Kunde inte hämta ledamöter');
+    }
+    const data: RiksdagPersonResponse = await response.json();
+    const allMembers = data.personlista?.person || [];
+    const totalCount = parseInt(data.personlista?.['@hits'] || '0');
+    
+    // Implementera klient-sidan paginering eftersom API:et inte stödjer det direkt
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedMembers = allMembers.slice(startIndex, endIndex);
+    
+    return {
+      members: paginatedMembers,
+      totalCount: allMembers.length
+    };
+  } catch (error) {
+    console.error('Error fetching members:', error);
+    return { members: [], totalCount: 0 };
   }
 };
 

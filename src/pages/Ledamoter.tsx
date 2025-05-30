@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, ArrowLeft, Search, Filter, Loader2, AlertCircle } from "lucide-react";
+import { Users, ArrowLeft, Search, Filter, Loader2, AlertCircle, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { partyInfo } from "../data/mockMembers";
 import { Member } from "../types/member";
@@ -22,8 +22,10 @@ const Ledamoter = () => {
   const [sortBy, setSortBy] = useState<string>("name");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
+  const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { members, loading, error } = useMembers();
+  const { members, loading, error, totalCount, hasMore } = useMembers(currentPage, 20, memberStatus);
 
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
@@ -72,7 +74,16 @@ const Ledamoter = () => {
     }
   };
 
-  if (loading) {
+  const handleStatusChange = (newStatus: 'current' | 'all' | 'former') => {
+    setMemberStatus(newStatus);
+    setCurrentPage(1);
+  };
+
+  const handleLoadMore = () => {
+    setCurrentPage(prev => prev + 1);
+  };
+
+  if (loading && currentPage === 1) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
         <div className="text-center">
@@ -83,7 +94,7 @@ const Ledamoter = () => {
     );
   }
 
-  if (error) {
+  if (error && currentPage === 1) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
         <Card className="max-w-md">
@@ -125,6 +136,41 @@ const Ledamoter = () => {
                 <p className="text-gray-600">Utforska riksdagsledamöter och deras aktiviteter</p>
               </div>
             </div>
+
+            {/* Status väljare */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Filter className="w-5 h-5" />
+                  <span>Ledamotstyp</span>
+                </CardTitle>
+                <CardDescription>
+                  Välj vilken kategori av ledamöter du vill visa
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-4">
+                  <Button
+                    variant={memberStatus === 'current' ? 'default' : 'outline'}
+                    onClick={() => handleStatusChange('current')}
+                  >
+                    Nuvarande ledamöter
+                  </Button>
+                  <Button
+                    variant={memberStatus === 'all' ? 'default' : 'outline'}
+                    onClick={() => handleStatusChange('all')}
+                  >
+                    Alla ledamöter
+                  </Button>
+                  <Button
+                    variant={memberStatus === 'former' ? 'default' : 'outline'}
+                    onClick={() => handleStatusChange('former')}
+                  >
+                    Tidigare ledamöter
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Sök- och filtersektion */}
             <Card className="mb-6">
@@ -247,7 +293,10 @@ const Ledamoter = () => {
             {/* Resultaträknare */}
             <div className="mb-4">
               <p className="text-gray-600">
-                Visar {filteredAndSortedMembers.length} av {members.length} ledamöter
+                Visar {filteredAndSortedMembers.length} av {totalCount} ledamöter
+                {memberStatus === 'current' && ' (nuvarande)'}
+                {memberStatus === 'former' && ' (tidigare)'}
+                {memberStatus === 'all' && ' (alla)'}
               </p>
             </div>
           </div>
@@ -263,7 +312,25 @@ const Ledamoter = () => {
             ))}
           </div>
 
-          {filteredAndSortedMembers.length === 0 && (
+          {/* Ladda fler knapp */}
+          {hasMore && !autocompleteFilter && (
+            <div className="mt-8 text-center">
+              <Button 
+                onClick={handleLoadMore}
+                disabled={loading}
+                className="flex items-center space-x-2"
+              >
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                <span>{loading ? 'Laddar...' : 'Ladda fler ledamöter'}</span>
+              </Button>
+            </div>
+          )}
+
+          {filteredAndSortedMembers.length === 0 && !loading && (
             <Card className="mt-8">
               <CardContent className="text-center py-8">
                 <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />

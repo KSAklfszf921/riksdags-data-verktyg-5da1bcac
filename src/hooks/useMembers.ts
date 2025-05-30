@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { fetchAllMembers, fetchMemberSuggestions, RiksdagMember } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, RiksdagMember } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
 const mapRiksdagMemberToMember = (riksdagMember: RiksdagMember): Member => {
@@ -22,18 +22,32 @@ const mapRiksdagMemberToMember = (riksdagMember: RiksdagMember): Member => {
   };
 };
 
-export const useMembers = () => {
+export const useMembers = (
+  page: number = 1,
+  pageSize: number = 20,
+  status: 'current' | 'all' | 'former' = 'current'
+) => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     const loadMembers = async () => {
       try {
         setLoading(true);
-        const riksdagMembers = await fetchAllMembers();
+        const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
         const mappedMembers = riksdagMembers.map(mapRiksdagMemberToMember);
-        setMembers(mappedMembers);
+        
+        if (page === 1) {
+          setMembers(mappedMembers);
+        } else {
+          setMembers(prev => [...prev, ...mappedMembers]);
+        }
+        
+        setTotalCount(total);
+        setHasMore(page * pageSize < total);
         setError(null);
       } catch (err) {
         setError('Kunde inte ladda ledamöter');
@@ -44,9 +58,23 @@ export const useMembers = () => {
     };
 
     loadMembers();
-  }, []);
+  }, [page, pageSize, status]);
 
-  return { members, loading, error };
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      return { page: page + 1, pageSize, status };
+    }
+    return null;
+  };
+
+  return { 
+    members, 
+    loading, 
+    error, 
+    totalCount, 
+    hasMore, 
+    loadMore 
+  };
 };
 
 export const useMemberSuggestions = () => {
