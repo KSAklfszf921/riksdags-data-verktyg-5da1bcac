@@ -42,10 +42,9 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Mapping member: ${riksdagMember.tilltalsnamn} ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
   
-  const [documents, speeches, calendarEvents] = await Promise.all([
+  const [documents, speeches] = await Promise.all([
     fetchMemberDocuments(riksdagMember.intressent_id).then(docs => docs.slice(0, 10)).catch(() => []),
-    fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 10)).catch(() => []),
-    fetchMemberCalendarEvents(riksdagMember.intressent_id).then(events => events.slice(0, 5)).catch(() => [])
+    fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 10)).catch(() => [])
   ]);
 
   console.log(`Member ${riksdagMember.efternamn}: ${documents.length} documents, ${speeches.length} speeches`);
@@ -71,18 +70,6 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     time: speech.anf_klockslag
   }));
 
-  const mappedCalendarEvents = calendarEvents.map(event => ({
-    id: event.id,
-    title: event.summary || event.aktivitet,
-    date: event.datum,
-    time: event.tid,
-    location: event.plats,
-    type: event.typ,
-    organ: event.organ,
-    description: event.description,
-    url: event.url
-  }));
-
   // Count specific document types for stats
   const motions = documents.filter(doc => doc.typ === 'mot').length;
   const interpellations = documents.filter(doc => doc.typ === 'ip').length;
@@ -95,6 +82,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
   const assignments = memberDetails?.assignments || [];
   
   console.log(`Processing ${assignments.length} assignments for ${riksdagMember.efternamn}`);
+  console.log(`Raw assignments for ${riksdagMember.efternamn}:`, assignments);
   
   // Filter active assignments with improved logic
   const activeAssignments = assignments.filter(assignment => {
@@ -143,9 +131,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     
     const result = isActive && isNotChamber && isCommitteeOrImportant;
     
-    if (isActive && isNotChamber) {
-      console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - Active: ${result} - Type: ${assignment.typ} - End: ${assignment.tom || 'No end date'}`);
-    }
+    console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - Active: ${isActive}, NotChamber: ${isNotChamber}, Committee: ${isCommitteeOrImportant}, Final: ${result} - Type: ${assignment.typ} - End: ${assignment.tom || 'No end date'}`);
     
     return result;
   });
@@ -154,7 +140,9 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
   const currentCommittees = activeAssignments.map(assignment => {
     const organ = assignment.organ;
     // If the organ is a code, map it to full name, otherwise use the organ name as is
-    return COMMITTEE_MAPPING[organ] || organ;
+    const fullName = COMMITTEE_MAPPING[organ] || organ;
+    console.log(`Committee mapping for ${riksdagMember.efternamn}: ${organ} -> ${fullName}`);
+    return fullName;
   });
 
   console.log(`Final active assignments for ${riksdagMember.efternamn}:`, activeAssignments.map(a => `${a.organ} (${a.roll})`));
@@ -175,7 +163,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     votes: [],
     proposals: [],
     documents: mappedDocuments,
-    calendarEvents: mappedCalendarEvents,
+    calendarEvents: [], // Calendar events removed to avoid API errors
     activityScore: Math.random() * 10,
     motions,
     interpellations,

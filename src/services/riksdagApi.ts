@@ -1,3 +1,4 @@
+
 export interface RiksdagMember {
   intressent_id: string;
   hangar_guid: string;
@@ -241,10 +242,12 @@ export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMemb
 
 export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagMemberDetails | null> => {
   try {
+    console.log(`Fetching member details for: ${intressentId}`);
     const url = `${BASE_URL}/personlista/?iid=${intressentId}&utformat=json`;
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.error(`Failed to fetch member details for ${intressentId}: ${response.status}`);
       throw new Error('Kunde inte hämta ledamotsinformation');
     }
     
@@ -252,21 +255,38 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
     const person = data.personlista?.person?.[0];
     
     if (!person) {
+      console.log(`No person found for intressent_id: ${intressentId}`);
       return null;
     }
 
-    // Hämta uppdragsinformation
+    // Hämta uppdragsinformation med förbättrad felhantering
     const assignmentsUrl = `${BASE_URL}/personuppdrag/?iid=${intressentId}&utformat=json`;
     let assignments: RiksdagMemberAssignment[] = [];
     
     try {
+      console.log(`Fetching assignments for ${intressentId} from: ${assignmentsUrl}`);
       const assignmentsResponse = await fetch(assignmentsUrl);
       if (assignmentsResponse.ok) {
         const assignmentsData = await assignmentsResponse.json();
-        assignments = assignmentsData.personuppdrag?.uppdrag || [];
+        console.log(`Raw assignments response for ${intressentId}:`, assignmentsData);
+        
+        // Hantera olika responsstrukturer
+        if (assignmentsData.personuppdrag?.uppdrag) {
+          assignments = Array.isArray(assignmentsData.personuppdrag.uppdrag) 
+            ? assignmentsData.personuppdrag.uppdrag 
+            : [assignmentsData.personuppdrag.uppdrag];
+        } else if (assignmentsData.uppdrag) {
+          assignments = Array.isArray(assignmentsData.uppdrag) 
+            ? assignmentsData.uppdrag 
+            : [assignmentsData.uppdrag];
+        }
+        
+        console.log(`Found ${assignments.length} assignments for ${person.tilltalsnamn} ${person.efternamn}`);
+      } else {
+        console.log(`No assignments response for ${intressentId}: ${assignmentsResponse.status}`);
       }
     } catch (error) {
-      console.error('Error fetching member assignments:', error);
+      console.error(`Error fetching member assignments for ${intressentId}:`, error);
     }
 
     return {
@@ -284,7 +304,7 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
       email: `${person.tilltalsnamn.toLowerCase()}.${person.efternamn.toLowerCase()}@riksdag.se`
     };
   } catch (error) {
-    console.error('Error fetching member details:', error);
+    console.error(`Error fetching member details for ${intressentId}:`, error);
     return null;
   }
 };
@@ -379,13 +399,21 @@ export const fetchAllCommittees = async (): Promise<string[]> => {
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.error(`Failed to fetch committees: ${response.status}`);
       throw new Error('Kunde inte hämta utskott');
     }
     
     const data = await response.json();
+    console.log('Committees API response:', data);
+    
     const committees = data.utskottslista?.utskott || [];
     
-    return committees.map((committee: any) => committee.namn).filter((name: string) => name && name.trim() !== '');
+    const committeeNames = committees
+      .map((committee: any) => committee.namn)
+      .filter((name: string) => name && name.trim() !== '');
+    
+    console.log(`Found ${committeeNames.length} committees:`, committeeNames);
+    return committeeNames;
   } catch (error) {
     console.error('Error fetching committees:', error);
     return [];
@@ -643,18 +671,32 @@ export const searchCalendarEvents = async (params: CalendarSearchParams): Promis
   if (params.toDate) url += `&tom=${params.toDate}`;
   
   try {
+    console.log(`Fetching calendar events from: ${url}`);
     const response = await fetch(url);
+    
     if (!response.ok) {
+      console.error(`Calendar API error: ${response.status} ${response.statusText}`);
       throw new Error(`HTTP error: ${response.status}`);
     }
+    
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Calendar API did not return JSON:', contentType);
+      console.log('Response text preview:', await response.text().then(text => text.substring(0, 200)));
+      return { events: [], totalCount: 0 };
+    }
+    
     const data: RiksdagCalendarResponse = await response.json();
     const events = data.kalenderlista?.kalender || [];
     const totalCount = parseInt(data.kalenderlista?.['@hits'] || '0');
     
+    console.log(`Calendar events fetched: ${events.length}, total: ${totalCount}`);
     return { events, totalCount };
   } catch (error) {
     console.error('Error searching calendar events:', error);
-    throw error;
+    // Return empty result instead of throwing to prevent blocking member loading
+    return { events: [], totalCount: 0 };
   }
 };
 
@@ -663,7 +705,7 @@ export const fetchMemberDocuments = async (intressentId: string): Promise<Riksda
     console.log(`Fetching documents for member: ${intressentId}`);
     
     const { documents } = await searchDocuments({
-      iid: intressentId, // Använd iid istället för intressentId
+      iid: intressentId,
       sz: 100,
       sort: 'datum',
       sortorder: 'desc'
@@ -671,10 +713,8 @@ export const fetchMemberDocuments = async (intressentId: string): Promise<Riksda
     
     console.log(`Found ${documents.length} documents for member ${intressentId}`);
     
-    // Filtrera och berika dokumenten
     const enrichedDocuments = documents.map(doc => ({
       ...doc,
-      // Säkerställ att intressent_id är satt korrekt
       intressent_id: intressentId
     }));
     
@@ -690,7 +730,7 @@ export const fetchMemberSpeeches = async (intressentId: string): Promise<Riksdag
     console.log(`Fetching speeches for member: ${intressentId}`);
     
     const { speeches } = await searchSpeeches({
-      intressentId, // Använd intressentId parameter
+      intressentId,
       pageSize: 100
     });
     
@@ -720,8 +760,13 @@ export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVot
 };
 
 export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
-  const { events } = await searchCalendarEvents({
-    pageSize: 100
-  });
-  return events;
+  try {
+    console.log(`Fetching calendar events for member: ${intressentId}`);
+    // Calendar events in Riksdag API are not member-specific, so return empty array
+    // The API doesn't support filtering by member ID for calendar events
+    return [];
+  } catch (error) {
+    console.error(`Error fetching calendar events for member ${intressentId}:`, error);
+    return [];
+  }
 };
