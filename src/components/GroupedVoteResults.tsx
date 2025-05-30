@@ -2,7 +2,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { RiksdagVote } from "../services/riksdagApi";
@@ -32,9 +31,17 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
   console.log('GroupedVoteResults received votes:', votes.length);
   console.log('Sample votes:', votes.slice(0, 3));
 
-  // Group votes by beteckning and riksmöte
+  // Group votes by beteckning and riksmöte - improved grouping logic
   const groupedVotes = votes.reduce((groups: { [key: string]: VoteGroup }, vote) => {
+    // Create a unique key for each voting session
     const groupKey = `${vote.beteckning || 'Okänd'}-${vote.rm || 'Okänt'}`;
+    
+    console.log('Processing vote:', {
+      beteckning: vote.beteckning,
+      rm: vote.rm,
+      groupKey,
+      avser: vote.avser
+    });
     
     if (!groups[groupKey]) {
       groups[groupKey] = {
@@ -63,14 +70,21 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
       case 'frånvarande':
         groups[groupKey].voteStats.franvarande++;
         break;
+      default:
+        console.log('Unknown vote type:', vote.rost);
     }
     
     return groups;
   }, {});
 
   const groupsArray = Object.values(groupedVotes);
-
-  console.log('Final groups count:', groupsArray.length);
+  console.log('Created groups:', groupsArray.length);
+  console.log('Groups summary:', groupsArray.map(g => ({
+    key: `${g.beteckning}-${g.riksmote}`,
+    voteCount: g.votes.length,
+    beteckning: g.beteckning,
+    riksmote: g.riksmote
+  })));
 
   const toggleGroup = (groupKey: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -84,21 +98,6 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
 
   const getPartyColor = (party: string) => {
     return partyInfo[party]?.color || '#6B7280';
-  };
-
-  const getVoteBadgeStyle = (vote: string) => {
-    switch (vote) {
-      case 'Ja':
-        return { backgroundColor: '#10B981', color: 'white' };
-      case 'Nej':
-        return { backgroundColor: '#EF4444', color: 'white' };
-      case 'Avstår':
-        return { backgroundColor: '#F59E0B', color: 'white' };
-      case 'Frånvarande':
-        return { backgroundColor: '#6B7280', color: 'white' };
-      default:
-        return { backgroundColor: '#6B7280', color: 'white' };
-    }
   };
 
   if (groupsArray.length === 0) {
@@ -115,29 +114,29 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Voteringsresultat per beslutspunkt</span>
-          <Badge variant="secondary">{totalCount} röster i {groupsArray.length} voteringar</Badge>
+          <span>Grupperade voteringsresultat</span>
+          <Badge variant="secondary">{totalCount} träffar i {groupsArray.length} voteringar</Badge>
         </CardTitle>
         <CardDescription>
-          Klicka på en votering för att se detaljerade röstresultat i tabellform
+          Voteringar grupperade efter beteckning och riksmöte. Visar {votes.length} individuella röster.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {groupsArray.map((group, index) => {
+          {groupsArray.map((group) => {
             const groupKey = `${group.beteckning}-${group.riksmote}`;
             const isExpanded = expandedGroups.has(groupKey);
             
             return (
-              <Collapsible key={`${groupKey}-${index}`} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
+              <Collapsible key={groupKey} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
                 <CollapsibleTrigger asChild>
                   <div className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium mb-2 text-gray-900">
+                        <h3 className="font-medium text-gray-900 mb-2">
                           {group.beteckning} - Riksmöte {group.riksmote}
                         </h3>
-                        <p className="text-sm mb-3 text-gray-600">
+                        <p className="text-sm text-gray-600 mb-3">
                           {group.avser}
                         </p>
                         
@@ -177,54 +176,36 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                 </CollapsibleTrigger>
                 
                 <CollapsibleContent className="mt-2">
-                  <div className="border rounded-lg bg-white">
-                    <div className="p-4">
-                      <h4 className="font-medium mb-3 text-gray-900">
-                        Detaljerade röstresultat - {group.beteckning}
-                      </h4>
-                      <div className="max-h-96 overflow-y-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Ledamot</TableHead>
-                              <TableHead>Parti</TableHead>
-                              <TableHead>Valkrets</TableHead>
-                              <TableHead>Röst</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {group.votes
-                              .sort((a, b) => (a.namn || '').localeCompare(b.namn || ''))
-                              .map((vote, voteIndex) => (
-                                <TableRow key={`vote-${index}-${voteIndex}`} className="hover:bg-gray-50">
-                                  <TableCell className="font-medium">
-                                    {vote.namn || 'Okänt namn'}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center space-x-2">
-                                      <div 
-                                        className="w-3 h-3 rounded-full" 
-                                        style={{ backgroundColor: getPartyColor(vote.parti || '') }}
-                                      ></div>
-                                      <span>{vote.parti || 'Okänt parti'}</span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-sm text-gray-600">
-                                    {vote.valkrets || 'Okänd valkrets'}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge 
-                                      variant="secondary"
-                                      style={getVoteBadgeStyle(vote.rost || 'Okänd')}
-                                    >
-                                      {vote.rost || 'Okänd'}
-                                    </Badge>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                          </TableBody>
-                        </Table>
-                      </div>
+                  <div className="border rounded-lg bg-gray-50">
+                    <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
+                      {group.votes.map((vote, index) => (
+                        <div key={`${vote.iid || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">
+                              {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {vote.valkrets || 'Okänd valkrets'}
+                            </p>
+                          </div>
+                          <Badge 
+                            variant={
+                              vote.rost === 'Ja' ? 'default' : 
+                              vote.rost === 'Nej' ? 'destructive' : 
+                              'secondary'
+                            }
+                            style={{
+                              backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
+                                             vote.rost === 'Nej' ? '#EF4444' : 
+                                             vote.rost === 'Avstår' ? '#F59E0B' :
+                                             '#6B7280',
+                              color: 'white'
+                            }}
+                          >
+                            {vote.rost || 'Okänd'}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </CollapsibleContent>
