@@ -10,41 +10,33 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
-  fetchCalendarEvents, 
-  fetchThisWeekEvents, 
-  fetchNextWeekEvents,
+  fetchCachedCalendarData, 
+  fetchUpcomingEvents, 
+  fetchEventsByOrgan, 
+  fetchEventsByType,
+  fetchEventsByDateRange,
+  searchEvents,
   formatEventDate,
   formatEventTime,
-  getEventTypeName,
-  getOrganName,
-  getActivityName,
-  EVENT_TYPES,
-  ORGANS,
-  ACTIVITIES,
-  type RiksdagCalendarEvent,
-  type CalendarSearchParams 
-} from "../services/riksdagCalendarApi";
+  type CachedCalendarData 
+} from "../services/cachedCalendarApi";
 import RiksdagCalendarView from "./RiksdagCalendarView";
 
 const RiksdagCalendarSearch = () => {
-  const [events, setEvents] = useState<RiksdagCalendarEvent[]>([]);
+  const [events, setEvents] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usingMockData, setUsingMockData] = useState(false);
-  const [searchParams, setSearchParams] = useState<CalendarSearchParams>({
-    utformat: 'json',
-    sz: 100,
-    sort: 'c',
-    sortorder: 'asc'
-  });
 
   // Form state
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedOrgan, setSelectedOrgan] = useState<string>("all");
-  const [selectedActivity, setSelectedActivity] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [riksmote, setRiksmote] = useState("");
+
+  // Get unique values for dropdowns
+  const uniqueOrgans = [...new Set(events.map(event => event.organ).filter(Boolean))];
+  const uniqueTypes = [...new Set(events.map(event => event.typ).filter(Boolean))];
 
   useEffect(() => {
     loadRecentEvents();
@@ -55,20 +47,10 @@ const RiksdagCalendarSearch = () => {
     setError(null);
     
     try {
-      const result = await fetchCalendarEvents({
-        sz: 50,
-        sort: 'r', // reverse chronological for recent events
-        sortorder: 'desc'
-      });
-      
-      // Check if we got mock data (mock data has predictable IDs)
-      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
-      setUsingMockData(isMockData);
-      
+      const result = await fetchCachedCalendarData(50);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata från Riksdagen. Visar exempeldata istället.');
-      setUsingMockData(true);
+      setError('Kunde inte hämta kalenderdata från databasen');
       console.error('Error loading recent events:', err);
     } finally {
       setLoading(false);
@@ -80,45 +62,23 @@ const RiksdagCalendarSearch = () => {
     setError(null);
     
     try {
-      const params: CalendarSearchParams = {
-        ...searchParams
-      };
+      let result: CachedCalendarData[] = [];
 
-      // Add filters based on form state
-      if (selectedType !== "all") {
-        params.typ = selectedType;
-      }
-      
-      if (selectedOrgan !== "all") {
-        params.org = selectedOrgan;
-        // Note: According to the technical instruction, 'akt' is ignored when 'org' is set for committees
-      } else if (selectedActivity !== "all") {
-        params.akt = selectedActivity;
+      if (searchQuery) {
+        result = await searchEvents(searchQuery);
+      } else if (fromDate && toDate) {
+        result = await fetchEventsByDateRange(fromDate, toDate);
+      } else if (selectedOrgan && selectedOrgan !== "all") {
+        result = await fetchEventsByOrgan(selectedOrgan);
+      } else if (selectedType && selectedType !== "all") {
+        result = await fetchEventsByType(selectedType);
+      } else {
+        result = await fetchCachedCalendarData(100);
       }
 
-      if (fromDate) {
-        params.from = fromDate;
-      }
-
-      if (toDate) {
-        params.tom = toDate;
-      }
-
-      if (riksmote) {
-        params.rm = riksmote;
-      }
-
-      console.log('Search params:', params);
-      const result = await fetchCalendarEvents(params);
-      
-      // Check if we got mock data
-      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
-      setUsingMockData(isMockData);
-      
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata från Riksdagen. Visar exempeldata istället.');
-      setUsingMockData(true);
+      setError('Kunde inte hämta kalenderdata');
       console.error('Error searching events:', err);
     } finally {
       setLoading(false);
@@ -130,13 +90,10 @@ const RiksdagCalendarSearch = () => {
     setError(null);
     
     try {
-      const result = await fetchThisWeekEvents();
-      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
-      setUsingMockData(isMockData);
+      const result = await fetchUpcomingEvents(7);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta denna veckans händelser. Visar exempeldata istället.');
-      setUsingMockData(true);
+      setError('Kunde inte hämta denna veckans händelser');
       console.error('Error loading this week events:', err);
     } finally {
       setLoading(false);
@@ -148,13 +105,18 @@ const RiksdagCalendarSearch = () => {
     setError(null);
     
     try {
-      const result = await fetchNextWeekEvents();
-      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
-      setUsingMockData(isMockData);
+      const nextWeekStart = new Date();
+      nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+      const nextWeekEnd = new Date();
+      nextWeekEnd.setDate(nextWeekEnd.getDate() + 14);
+      
+      const result = await fetchEventsByDateRange(
+        nextWeekStart.toISOString().split('T')[0],
+        nextWeekEnd.toISOString().split('T')[0]
+      );
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta nästa veckans händelser. Visar exempeldata istället.');
-      setUsingMockData(true);
+      setError('Kunde inte hämta nästa veckans händelser');
       console.error('Error loading next week events:', err);
     } finally {
       setLoading(false);
@@ -164,41 +126,42 @@ const RiksdagCalendarSearch = () => {
   const clearFilters = () => {
     setSelectedType("all");
     setSelectedOrgan("all");
-    setSelectedActivity("all");
+    setSearchQuery("");
     setFromDate("");
     setToDate("");
-    setRiksmote("");
     loadRecentEvents();
   };
 
-  const exportToiCal = async () => {
-    try {
-      const params = { ...searchParams, utformat: 'icalendar' as const };
-      const queryParams = new URLSearchParams();
-      
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          queryParams.append(key, value.toString());
-        }
-      });
+  const exportToiCal = () => {
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Riksdag//Calendar//EN',
+      ...events.map(event => {
+        const eventDate = new Date(event.datum || '');
+        if (isNaN(eventDate.getTime())) return [];
+        
+        return [
+          'BEGIN:VEVENT',
+          `DTSTART:${eventDate.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
+          `SUMMARY:${event.summary || event.aktivitet || 'Händelse'}`,
+          `DESCRIPTION:${event.description || ''}`,
+          `LOCATION:${event.plats || ''}`,
+          `UID:${event.event_id || event.id}`,
+          'END:VEVENT'
+        ];
+      }).flat(),
+      'END:VCALENDAR'
+    ].join('\n');
 
-      const url = `https://data.riksdagen.se/kalender/?${queryParams.toString()}`;
-      
-      const response = await fetch(url);
-      const icalData = await response.text();
-      
-      const blob = new Blob([icalData], { type: 'text/calendar' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `riksdag-kalender-${new Date().toISOString().split('T')[0]}.ics`;
-      link.click();
-    } catch (err) {
-      console.error('Error exporting calendar:', err);
-      setError('Kunde inte exportera kalender');
-    }
+    const blob = new Blob([icsContent], { type: 'text/calendar' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `riksdag-kalender-${new Date().toISOString().split('T')[0]}.ics`;
+    link.click();
   };
 
-  const getEventTypeColor = (typ: string, org: string) => {
+  const getEventTypeColor = (organ: string, typ: string) => {
     const colors: { [key: string]: string } = {
       'kamm': 'bg-blue-100 text-blue-800',
       'AU': 'bg-green-100 text-green-800',
@@ -215,21 +178,11 @@ const RiksdagCalendarSearch = () => {
       'sammantrade': 'bg-gray-100 text-gray-800',
       'besök': 'bg-green-100 text-green-800'
     };
-    return colors[org] || colors[typ] || 'bg-gray-100 text-gray-800';
+    return colors[organ] || colors[typ] || 'bg-gray-100 text-gray-800';
   };
 
   return (
     <div className="space-y-6">
-      {usingMockData && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Riksdagens API är för närvarande inte tillgängligt på grund av CORS-begränsningar. 
-            Exempeldata visas för att demonstrera funktionaliteten.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <Tabs defaultValue="search" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="search">Sök händelser</TabsTrigger>
@@ -244,11 +197,21 @@ const RiksdagCalendarSearch = () => {
                 <span>Riksdagens Kalender</span>
               </CardTitle>
               <CardDescription>
-                Sök och filtrera händelser från Sveriges riksdag. Data hämtas direkt från data.riksdagen.se.
+                Sök och filtrera händelser från Sveriges riksdag. Data hämtas från vår databas med riktiga kalenderdata.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="searchQuery">Sökord</Label>
+                  <Input
+                    id="searchQuery"
+                    placeholder="Sök i titel, beskrivning eller aktivitet..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
                 <div>
                   <Label htmlFor="eventType">Händelsetyp</Label>
                   <Select value={selectedType} onValueChange={setSelectedType}>
@@ -257,13 +220,15 @@ const RiksdagCalendarSearch = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alla typer</SelectItem>
-                      {Object.entries(EVENT_TYPES).map(([key, name]) => (
-                        <SelectItem key={key} value={key}>{name}</SelectItem>
+                      {uniqueTypes.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="organ">Organ</Label>
                   <Select value={selectedOrgan} onValueChange={setSelectedOrgan}>
@@ -272,51 +237,13 @@ const RiksdagCalendarSearch = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alla organ</SelectItem>
-                      {Object.entries(ORGANS).map(([key, name]) => (
-                        <SelectItem key={key} value={key}>{name}</SelectItem>
+                      {uniqueOrgans.map((organ) => (
+                        <SelectItem key={organ} value={organ}>{organ}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="activity">Aktivitet</Label>
-                  <Select 
-                    value={selectedActivity} 
-                    onValueChange={setSelectedActivity}
-                    disabled={selectedOrgan !== "all"}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Välj aktivitet" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alla aktiviteter</SelectItem>
-                      {Object.entries(ACTIVITIES).map(([key, name]) => (
-                        <SelectItem key={key} value={key}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedOrgan !== "all" && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Aktivitetsfilter ignoreras när organ är valt
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="riksmote">Riksmöte</Label>
-                  <Input
-                    id="riksmote"
-                    placeholder="t.ex. 2023/24"
-                    value={riksmote}
-                    onChange={(e) => setRiksmote(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="fromDate">Från datum</Label>
                   <Input
@@ -326,7 +253,9 @@ const RiksdagCalendarSearch = () => {
                     onChange={(e) => setFromDate(e.target.value)}
                   />
                 </div>
-                
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="toDate">Till datum</Label>
                   <Input
@@ -370,7 +299,7 @@ const RiksdagCalendarSearch = () => {
           {error && (
             <Card>
               <CardContent className="text-center py-8">
-                <p className="text-amber-600">{error}</p>
+                <p className="text-red-600">{error}</p>
               </CardContent>
             </Card>
           )}
@@ -380,14 +309,7 @@ const RiksdagCalendarSearch = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Kalenderhändelser</span>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="secondary">{events.length} händelser</Badge>
-                    {usingMockData && (
-                      <Badge variant="outline" className="text-amber-600">
-                        Exempeldata
-                      </Badge>
-                    )}
-                  </div>
+                  <Badge variant="secondary">{events.length} händelser</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -397,7 +319,7 @@ const RiksdagCalendarSearch = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">
-                            {event.titel || 'Utan titel'}
+                            {event.summary || event.aktivitet || 'Utan titel'}
                           </h3>
                           <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
                             <div className="flex items-center space-x-1">
@@ -417,25 +339,20 @@ const RiksdagCalendarSearch = () => {
                               </div>
                             )}
                           </div>
-                          {event.beskrivning && (
+                          {event.description && (
                             <p className="text-sm text-gray-600 mt-2">
-                              {event.beskrivning}
+                              {event.description}
                             </p>
                           )}
                           <div className="flex items-center space-x-2 mt-2">
-                            {event.org && (
-                              <Badge variant="outline" className={getEventTypeColor(event.typ, event.org)}>
-                                {getOrganName(event.org)}
+                            {event.organ && (
+                              <Badge variant="outline" className={getEventTypeColor(event.organ, event.typ || '')}>
+                                {event.organ}
                               </Badge>
                             )}
                             {event.typ && (
                               <Badge variant="secondary">
-                                {getEventTypeName(event.typ)}
-                              </Badge>
-                            )}
-                            {event.akt && (
-                              <Badge variant="outline">
-                                {getActivityName(event.akt)}
+                                {event.typ}
                               </Badge>
                             )}
                           </div>

@@ -6,18 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react";
 import { 
-  RiksdagCalendarEvent, 
+  CachedCalendarData, 
   formatEventDate, 
-  formatEventTime, 
-  getEventTypeName, 
-  getOrganName, 
-  getActivityName 
-} from '../services/riksdagCalendarApi';
+  formatEventTime 
+} from '../services/cachedCalendarApi';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isValid } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
 interface RiksdagCalendarViewProps {
-  events: RiksdagCalendarEvent[];
+  events: CachedCalendarData[];
   loading?: boolean;
 }
 
@@ -39,11 +36,11 @@ const eventTypeColors: { [key: string]: string } = {
   'default': 'bg-gray-500 text-white'
 };
 
-const getEventColor = (event: RiksdagCalendarEvent) => {
-  return eventTypeColors[event.org] || eventTypeColors[event.typ] || eventTypeColors.default;
+const getEventColor = (event: CachedCalendarData) => {
+  return eventTypeColors[event.organ || ''] || eventTypeColors[event.typ || ''] || eventTypeColors.default;
 };
 
-const parseEventDate = (dateString: string): Date | null => {
+const parseEventDate = (dateString: string | null): Date | null => {
   if (!dateString) return null;
   
   try {
@@ -66,7 +63,7 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
 
   // Group events by date
   const eventsByDate = useMemo(() => {
-    const grouped: { [key: string]: RiksdagCalendarEvent[] } = {};
+    const grouped: { [key: string]: CachedCalendarData[] } = {};
     events.forEach(event => {
       const eventDate = parseEventDate(event.datum);
       if (eventDate) {
@@ -153,9 +150,9 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
                   <div
                     key={event.id || index}
                     className={`text-xs p-1 rounded truncate ${getEventColor(event)}`}
-                    title={event.titel || 'Händelse'}
+                    title={event.summary || event.aktivitet || 'Händelse'}
                   >
-                    {event.titel || 'Händelse'}
+                    {event.summary || event.aktivitet || 'Händelse'}
                   </div>
                 ))}
                 {dayEvents.length > 3 && (
@@ -192,7 +189,7 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
                     key={event.id || index}
                     className={`text-xs p-2 rounded ${getEventColor(event)}`}
                   >
-                    <div className="font-medium truncate">{event.titel || 'Händelse'}</div>
+                    <div className="font-medium truncate">{event.summary || event.aktivitet || 'Händelse'}</div>
                     {event.tid && <div className="opacity-75">{formatEventTime(event.tid)}</div>}
                   </div>
                 ))}
@@ -222,10 +219,10 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
               <Card key={event.id || index}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{event.titel || 'Händelse'}</CardTitle>
+                    <CardTitle className="text-base">{event.summary || event.aktivitet || 'Händelse'}</CardTitle>
                     <div className="flex space-x-2">
-                      {event.org && <Badge className={getEventColor(event)}>{getOrganName(event.org)}</Badge>}
-                      {event.typ && <Badge variant="secondary">{getEventTypeName(event.typ)}</Badge>}
+                      {event.organ && <Badge className={getEventColor(event)}>{event.organ}</Badge>}
+                      {event.typ && <Badge variant="secondary">{event.typ}</Badge>}
                     </div>
                   </div>
                 </CardHeader>
@@ -243,13 +240,8 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
                         <span>{event.plats}</span>
                       </div>
                     )}
-                    {event.beskrivning && (
-                      <p className="text-gray-700 mt-2">{event.beskrivning}</p>
-                    )}
-                    {event.akt && (
-                      <Badge variant="outline">
-                        {getActivityName(event.akt)}
-                      </Badge>
+                    {event.description && (
+                      <p className="text-gray-700 mt-2">{event.description}</p>
                     )}
                   </div>
                 </CardContent>

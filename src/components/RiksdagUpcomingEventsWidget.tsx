@@ -5,18 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, MapPin, ChevronRight, Loader2 } from "lucide-react";
 import { 
-  fetchThisWeekEvents, 
-  fetchNextWeekEvents,
+  fetchUpcomingEvents,
   formatEventDate, 
   formatEventTime,
-  getOrganName,
-  getEventTypeName,
-  type RiksdagCalendarEvent 
-} from '../services/riksdagCalendarApi';
+  type CachedCalendarData 
+} from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
 
 const RiksdagUpcomingEventsWidget = () => {
-  const [events, setEvents] = useState<RiksdagCalendarEvent[]>([]);
+  const [events, setEvents] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -30,27 +27,17 @@ const RiksdagUpcomingEventsWidget = () => {
       setLoading(true);
       setError(null);
       
-      // Get both this week and next week events
-      const [thisWeek, nextWeek] = await Promise.all([
-        fetchThisWeekEvents(),
-        fetchNextWeekEvents()
-      ]);
-      
-      // Combine and sort by date, then take first 6
-      const combined = [...thisWeek, ...nextWeek];
-      const sorted = combined.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
-      const filtered = sorted.filter(event => new Date(event.datum) >= new Date());
-      
-      setEvents(filtered.slice(0, 6));
+      const upcomingEvents = await fetchUpcomingEvents(6);
+      setEvents(upcomingEvents);
     } catch (err) {
-      setError('Kunde inte hämta kommande händelser från Riksdagen');
+      setError('Kunde inte hämta kommande händelser från databasen');
       console.error('Error loading upcoming events:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getEventTypeColor = (org: string, typ: string) => {
+  const getEventTypeColor = (organ: string, typ: string) => {
     const colors: { [key: string]: string } = {
       'kamm': 'bg-blue-100 text-blue-800',
       'AU': 'bg-green-100 text-green-800',
@@ -67,10 +54,12 @@ const RiksdagUpcomingEventsWidget = () => {
       'sammantrade': 'bg-gray-100 text-gray-800',
       'besök': 'bg-green-100 text-green-800'
     };
-    return colors[org] || colors[typ] || 'bg-gray-100 text-gray-800';
+    return colors[organ] || colors[typ] || 'bg-gray-100 text-gray-800';
   };
 
-  const formatEventDateShort = (dateString: string) => {
+  const formatEventDateShort = (dateString: string | null) => {
+    if (!dateString) return '';
+    
     try {
       const date = new Date(dateString);
       const today = new Date();
@@ -107,7 +96,7 @@ const RiksdagUpcomingEventsWidget = () => {
         <CardContent>
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            <span className="text-gray-600">Laddar händelser från Riksdagen...</span>
+            <span className="text-gray-600">Laddar händelser från databasen...</span>
           </div>
         </CardContent>
       </Card>
@@ -183,7 +172,7 @@ const RiksdagUpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {event.titel || 'Händelse'}
+                        {event.summary || event.aktivitet || 'Händelse'}
                       </h4>
                       {event.plats && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
@@ -194,14 +183,14 @@ const RiksdagUpcomingEventsWidget = () => {
                       <div className="flex items-center space-x-1 mt-1">
                         {event.typ && (
                           <Badge variant="outline" className="text-xs">
-                            {getEventTypeName(event.typ)}
+                            {event.typ}
                           </Badge>
                         )}
                       </div>
                     </div>
-                    {event.org && (
-                      <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(event.org, event.typ)}`}>
-                        {getOrganName(event.org)}
+                    {event.organ && (
+                      <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(event.organ, event.typ || '')}`}>
+                        {event.organ}
                       </Badge>
                     )}
                   </div>
