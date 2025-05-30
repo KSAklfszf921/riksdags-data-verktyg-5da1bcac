@@ -15,14 +15,14 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     imageUrl = riksdagMember.bild_url_80;
   }
 
-  // Fetch member's documents, speeches and calendar events in parallel
+  // For performance, fetch limited data initially
   const [documents, speeches, calendarEvents] = await Promise.all([
-    fetchMemberDocuments(riksdagMember.intressent_id).catch(() => []),
-    fetchMemberSpeeches(riksdagMember.intressent_id).catch(() => []),
-    fetchMemberCalendarEvents(riksdagMember.intressent_id).catch(() => [])
+    fetchMemberDocuments(riksdagMember.intressent_id).then(docs => docs.slice(0, 5)).catch(() => []),
+    fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 5)).catch(() => []),
+    fetchMemberCalendarEvents(riksdagMember.intressent_id).then(events => events.slice(0, 5)).catch(() => [])
   ]);
 
-  const mappedDocuments = documents.slice(0, 10).map(doc => ({
+  const mappedDocuments = documents.map(doc => ({
     id: doc.id,
     title: doc.titel,
     type: doc.typ,
@@ -31,7 +31,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     url: doc.dokument_url_html || doc.dokument_url_text
   }));
 
-  const mappedSpeeches = speeches.slice(0, 10).map(speech => ({
+  const mappedSpeeches = speeches.map(speech => ({
     id: speech.anforande_id,
     title: speech.rel_dok_titel || speech.kammaraktivitet,
     date: speech.anforandedatum,
@@ -43,7 +43,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     time: speech.anf_klockslag
   }));
 
-  const mappedCalendarEvents = calendarEvents.slice(0, 10).map(event => ({
+  const mappedCalendarEvents = calendarEvents.map(event => ({
     id: event.id,
     title: event.summary || event.aktivitet,
     date: event.datum,
@@ -90,9 +90,12 @@ export const useMembers = (
     const loadMembers = async () => {
       try {
         setLoading(true);
-        const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
+        console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}`);
         
-        // Map members with real images, documents and speeches (in parallel for better performance)
+        const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
+        console.log(`Fetched ${riksdagMembers.length} members out of ${total} total`);
+        
+        // Map members with limited data for better performance
         const mappedMembers = await Promise.all(
           riksdagMembers.map(member => mapRiksdagMemberToMember(member))
         );

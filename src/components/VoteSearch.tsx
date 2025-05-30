@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -144,7 +144,7 @@ const VoteSearch = () => {
                 <div>
                   <Label htmlFor="valkrets">Valkrets</Label>
                   <Select 
-                    value={searchParams.valkrets || ''} 
+                    value={searchParams.valkrets || 'all'} 
                     onValueChange={(value) => setSearchParams({
                       ...searchParams,
                       valkrets: value === 'all' ? undefined : value
@@ -167,17 +167,17 @@ const VoteSearch = () => {
                 <div>
                   <Label htmlFor="rost">Röst</Label>
                   <Select 
-                    value={searchParams.rost || ''} 
+                    value={searchParams.rost || 'all'} 
                     onValueChange={(value) => setSearchParams({
                       ...searchParams,
-                      rost: value === '' ? undefined : value as any
+                      rost: value === 'all' ? undefined : value as any
                     })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Alla röster" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Alla</SelectItem>
+                      <SelectItem value="all">Alla</SelectItem>
                       <SelectItem value="Ja">Ja</SelectItem>
                       <SelectItem value="Nej">Nej</SelectItem>
                       <SelectItem value="Avstår">Avstår</SelectItem>
@@ -228,17 +228,17 @@ const VoteSearch = () => {
               <div>
                 <Label htmlFor="gruppering">Gruppering</Label>
                 <Select 
-                  value={searchParams.gruppering || ''} 
+                  value={searchParams.gruppering || 'none'} 
                   onValueChange={(value) => setSearchParams({
                     ...searchParams,
-                    gruppering: value === '' ? undefined : value as any
+                    gruppering: value === 'none' ? undefined : value as any
                   })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Ingen gruppering" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Ingen gruppering</SelectItem>
+                    <SelectItem value="none">Ingen gruppering</SelectItem>
                     <SelectItem value="iid">Ledamot - ID</SelectItem>
                     <SelectItem value="namn">Ledamot - namn</SelectItem>
                     <SelectItem value="parti">Parti</SelectItem>

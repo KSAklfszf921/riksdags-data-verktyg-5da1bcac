@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,29 @@ const CalendarSearch = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [allaHandelser, setAllaHandelser] = useState(false);
+
+  // Preload 20 latest events on component mount
+  useEffect(() => {
+    loadLatestEvents();
+  }, []);
+
+  const loadLatestEvents = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await searchCalendarEvents({
+        pageSize: 20
+      });
+      setEvents(result.events);
+      setTotalCount(result.totalCount);
+    } catch (err) {
+      setError('Kunde inte hämta kalenderdata');
+      console.error('Error loading latest calendar events:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const kammarAktiviteter = [
     { value: 'ad', label: 'Aktuell debatt' },
@@ -177,7 +199,7 @@ const CalendarSearch = () => {
             <span>Sök kalenderhändelser</span>
           </CardTitle>
           <CardDescription>
-            Filtrera och sök bland riksdagens kalenderhändelser
+            Filtrera och sök bland riksdagens kalenderhändelser. Senaste händelserna visas automatiskt.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -323,6 +345,12 @@ const CalendarSearch = () => {
               }}
             >
               Rensa filter
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={loadLatestEvents}
+            >
+              Visa senaste
             </Button>
           </div>
         </CardContent>

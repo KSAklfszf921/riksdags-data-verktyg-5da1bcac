@@ -201,18 +201,7 @@ export const fetchMembers = async (
 ): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
   let url = `${BASE_URL}/personlista/?utformat=json`;
   
-  // Lägg till status filter - förbättrad för att säkerställa korrekt filtrering
-  switch (status) {
-    case 'current':
-      url += '&rdlstatus=tjanstgorande';
-      break;
-    case 'all':
-      url += '&rdlstatus='; // Alla ledamöter
-      break;
-    case 'former':
-      url += '&rdlstatus=tidigare';
-      break;
-  }
+  console.log(`Fetching members with status: ${status}`);
   
   try {
     const response = await fetch(url);
@@ -222,25 +211,48 @@ export const fetchMembers = async (
     const data: RiksdagPersonResponse = await response.json();
     let allMembers = data.personlista?.person || [];
     
-    // Extra filtrering för nuvarande ledamöter - kontrollera datum_tom
+    console.log(`Initial fetch returned ${allMembers.length} members`);
+    
+    // Filter members based on status
+    const currentDate = new Date();
+    
     if (status === 'current') {
-      const currentDate = new Date();
       allMembers = allMembers.filter(member => {
-        // Om datum_tom är tomt eller i framtiden, är ledamoten nuvarande
+        // Current members have either no end date or end date in the future
         if (!member.datum_tom || member.datum_tom.trim() === '') {
           return true;
         }
-        const endDate = new Date(member.datum_tom);
-        return endDate > currentDate;
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate > currentDate;
+        } catch {
+          return true; // If date parsing fails, assume current
+        }
+      });
+    } else if (status === 'former') {
+      allMembers = allMembers.filter(member => {
+        // Former members have an end date in the past
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return false;
+        }
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate <= currentDate;
+        } catch {
+          return false;
+        }
       });
     }
+    // For 'all' status, we don't filter
     
-    const totalCount = parseInt(data.personlista?.['@hits'] || '0');
+    console.log(`After filtering for ${status}: ${allMembers.length} members`);
     
-    // Implementera klient-sidan paginering eftersom API:et inte stödjer det direkt
+    // Implement client-side pagination
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedMembers = allMembers.slice(startIndex, endIndex);
+    
+    console.log(`Returning page ${page}: ${paginatedMembers.length} members (${startIndex}-${endIndex})`);
     
     return {
       members: paginatedMembers,
@@ -292,7 +304,7 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
   
   // Add search parameters
   if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
-  if (params.docType) url += `&typ=${params.docType}`;
+  if (params.docType) url += `&doktyp=${params.docType}`;
   if (params.fromDate) url += `&from=${params.fromDate}`;
   if (params.toDate) url += `&tom=${params.toDate}`;
   if (params.intressentId) url += `&iid=${params.intressentId}`;

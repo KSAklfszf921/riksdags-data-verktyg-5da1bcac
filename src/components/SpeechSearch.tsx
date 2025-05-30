@@ -64,8 +64,11 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     try {
-      return new Date(dateString).toLocaleDateString('sv-SE');
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return date.toLocaleDateString('sv-SE');
     } catch {
       return dateString;
     }
@@ -73,7 +76,11 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
 
   const formatTime = (timeString?: string) => {
     if (!timeString) return '';
-    return timeString.substring(0, 5); // Format HH:MM
+    // Handle different time formats
+    if (timeString.length >= 5) {
+      return timeString.substring(0, 5); // Format HH:MM
+    }
+    return timeString;
   };
 
   const getSpeechTypeLabel = (type: string) => {
@@ -81,9 +88,26 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
       'Anförande': 'Anförande',
       'Replik': 'Replik',
       'Svar': 'Svar',
-      'Slutreplik': 'Slutreplik'
+      'Slutreplik': 'Slutreplik',
+      'Återkallelse': 'Återkallelse',
+      'Övrigt': 'Övrigt'
     };
     return typeMap[type] || type;
+  };
+
+  const getSpeechTypeColor = (type: string) => {
+    switch (type) {
+      case 'Anförande':
+        return 'default';
+      case 'Replik':
+        return 'secondary';
+      case 'Svar':
+        return 'outline';
+      case 'Slutreplik':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
   };
 
   return (
@@ -243,11 +267,11 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
                     <TableCell className="font-medium">{speech.talare}</TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {speech.parti}
+                        {speech.parti.toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">
+                      <Badge variant={getSpeechTypeColor(speech.anforandetyp) as any}>
                         {getSpeechTypeLabel(speech.anforandetyp)}
                       </Badge>
                     </TableCell>
@@ -268,7 +292,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
                     </TableCell>
                     <TableCell className="max-w-md">
                       <p className="text-sm line-clamp-3">
-                        {speech.anforandetext.substring(0, 200)}...
+                        {speech.anforandetext ? speech.anforandetext.substring(0, 200) + '...' : 'Ingen text tillgänglig'}
                       </p>
                     </TableCell>
                   </TableRow>

@@ -1,50 +1,64 @@
 
-export interface DocumentType {
-  value: string;
-  label: string;
-}
-
-export const DOCUMENT_TYPES: DocumentType[] = [
-  { value: 'kam-ad', label: 'Aktuell debatt' },
-  { value: 'kam-al', label: 'Allmänpolitisk debatt' },
+export const DOCUMENT_TYPES = [
   { value: 'bet', label: 'Betänkande' },
-  { value: 'kam-bu', label: 'Budgetdebatt' },
-  { value: 'kam-eu', label: 'EU-debatt' },
-  { value: 'kom', label: 'EU-förslag' },
+  { value: 'dir', label: 'Kommittédirektiv' },
+  { value: 'ds', label: 'Departementsserien' },
+  { value: 'eprotokoll', label: 'EU-nämndens protokoll' },
+  { value: 'eundok', label: 'EU-nämndens dokument' },
+  { value: 'eunprot', label: 'EU-nämndens uppteckning' },
+  { value: 'everkber', label: 'EU-nämndens verksamhetsberättelse' },
+  { value: 'f-lista', label: 'Föredragningslista' },
+  { value: 'fpm', label: 'Fakta-PM om EU-förslag' },
+  { value: 'fr', label: 'Skriftlig fråga' },
+  { value: 'frs', label: 'Svar på skriftlig fråga' },
+  { value: 'frsrdg', label: 'Framställning / redogörelse' },
   { value: 'ip', label: 'Interpellation' },
-  { value: 'kam-ip', label: 'Interpellationsdebatt' },
+  { value: 'kf-lista', label: 'Kallelse och föredragningslista' },
+  { value: 'kom', label: 'EU-förslag' },
+  { value: 'komm', label: 'Kommittéberättelse' },
+  { value: 'ku-anm', label: 'KU-anmälning' },
+  { value: 'kusprot', label: 'KU:s särskilda protokoll' },
   { value: 'mot', label: 'Motion' },
   { value: 'prop', label: 'Proposition' },
   { value: 'prot', label: 'Protokoll' },
-  { value: 'kam-rf', label: 'Regeringsförklaring' },
+  { value: 'rfr', label: 'Rapport från riksdagen' },
+  { value: 'rir', label: 'Riksrevisionens granskningsrapport' },
   { value: 'rskr', label: 'Riksdagsskrivelse' },
-  { value: 'fr', label: 'Skriftlig fråga' },
-  { value: 'frs', label: 'Svar på skriftlig fråga' },
-  { value: 'kam-sf', label: 'Statsministerns frågestund' },
+  { value: 'SFS', label: 'Svensk författningssamling' },
+  { value: 'skflista', label: 'Särskild kallelse- och föredragningslista' },
+  { value: 'skrsam', label: 'EU-nämndens skriftliga samråd' },
   { value: 'sou', label: 'Statens offentliga utredning' },
-  { value: 'kam-sd', label: 'Särskild debatt' },
+  { value: 't-lista', label: 'Talarlista' },
   { value: 'uprotokoll', label: 'Utskottens protokoll' },
-  { value: 'votering', label: 'Votering' },
+  { value: 'urf', label: 'Utredning från Riksdagsförvaltningen' },
+  { value: 'utskdok', label: 'Utskottsdokument' },
+  { value: 'utskottsmöte', label: 'Utskottens kallelse- och föredragningslista' },
+  { value: 'uverkber', label: 'Utskottens verksamhetsberättelse' },
+  { value: 'vpnbeslut', label: 'Valprövningsnämndens beslut' },
   { value: 'yttr', label: 'Yttrande' }
 ];
 
-export interface Committee {
-  value: string;
-  label: string;
-}
-
-export const COMMITTEES: Committee[] = [
+export const COMMITTEES = [
   { value: 'AU', label: 'Arbetsmarknadsutskottet' },
   { value: 'BoU', label: 'Bostadsutskottet' },
   { value: 'CU', label: 'Civilutskottet' },
+  { value: 'EU', label: 'EES-utskottet' },
   { value: 'eun', label: 'EU-nämnden' },
   { value: 'FiU', label: 'Finansutskottet' },
   { value: 'FöU', label: 'Försvarsutskottet' },
+  { value: 'JoU', label: 'Jordbruksutskottet' },
   { value: 'JuU', label: 'Justitieutskottet' },
   { value: 'KU', label: 'Konstitutionsutskottet' },
   { value: 'KrU', label: 'Kulturutskottet' },
+  { value: 'LU', label: 'Lagutskottet' },
   { value: 'MjU', label: 'Miljö- och jordbruksutskottet' },
   { value: 'NU', label: 'Näringsutskottet' },
+  { value: 'CKrU', label: 'Sammansatta civil- och kulturutskottet' },
+  { value: 'JuSoU', label: 'Sammansatta justitie- och socialutskottet' },
+  { value: 'KUU', label: 'Sammansatta konstitutions- och utrikesutskottet' },
+  { value: 'UFöU', label: 'Sammansatta utrikes- och försvarsutskottet' },
+  { value: 'UMJU', label: 'Sammansatta utrikes- och miljö- och jordbruksutskottet' },
+  { value: 'USoU', label: 'Sammansatta utrikes- och socialutskottet' },
   { value: 'SkU', label: 'Skatteutskottet' },
   { value: 'SfU', label: 'Socialförsäkringsutskottet' },
   { value: 'SoU', label: 'Socialutskottet' },
