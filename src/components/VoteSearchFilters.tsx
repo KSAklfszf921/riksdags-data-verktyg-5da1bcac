@@ -1,0 +1,219 @@
+
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VoteSearchParams } from "../services/riksdagApi";
+import { partyInfo } from "../data/mockMembers";
+
+interface VoteSearchFiltersProps {
+  searchParams: VoteSearchParams;
+  onParamsChange: (params: VoteSearchParams) => void;
+}
+
+const VoteSearchFilters = ({ searchParams, onParamsChange }: VoteSearchFiltersProps) => {
+  const riksmoten = [
+    '2024/25', '2023/24', '2022/23', '2021/22', '2020/21', '2019/20', '2018/19',
+    '2017/18', '2016/17', '2015/16', '2014/15', '2013/14', '2012/13', '2011/12',
+    '2010/11', '2009/10', '2008/09', '2007/08', '2006/07', '2005/06', '2004/05',
+    '2003/04', '2002/03'
+  ];
+
+  const parties = ['C', 'FP', 'L', 'KD', 'MP', 'M', 'S', 'SD', 'V', '-'];
+
+  const valkretsar = [
+    'Blekinge län', 'Dalarnas län', 'Gotlands län', 'Gävleborgs län',
+    'Göteborgs kommun', 'Hallands län', 'Jämtlands län', 'Jönköpings län',
+    'Kalmar län', 'Kronobergs län', 'Malmö kommun', 'Norrbottens län',
+    'Skåne läns norra och östra', 'Skåne läns södra', 'Skåne läns västra',
+    'Stockholms kommun', 'Stockholms län', 'Södermanlands län', 'Uppsala län',
+    'Värmlands län', 'Västerbottens län', 'Västernorrlands län', 'Västmanlands län',
+    'Västra Götalands läns norra', 'Västra Götalands läns södra',
+    'Västra Götalands läns västra', 'Västra Götalands läns östra',
+    'Örebro län', 'Östergötlands län'
+  ];
+
+  const handleRmChange = (rm: string, checked: boolean) => {
+    const currentRm = searchParams.rm || [];
+    if (checked) {
+      onParamsChange({
+        ...searchParams,
+        rm: [...currentRm, rm]
+      });
+    } else {
+      onParamsChange({
+        ...searchParams,
+        rm: currentRm.filter(r => r !== rm)
+      });
+    }
+  };
+
+  const handlePartyChange = (party: string, checked: boolean) => {
+    const currentParties = searchParams.party || [];
+    if (checked) {
+      onParamsChange({
+        ...searchParams,
+        party: [...currentParties, party]
+      });
+    } else {
+      onParamsChange({
+        ...searchParams,
+        party: currentParties.filter(p => p !== party)
+      });
+    }
+  };
+
+  const getPartyName = (party: string) => {
+    return partyInfo[party]?.fullName || party;
+  };
+
+  return (
+    <Tabs defaultValue="basic" className="w-full">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="basic">Grundläggande</TabsTrigger>
+        <TabsTrigger value="advanced">Avancerat</TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="basic" className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="beteckning">Beteckning</Label>
+            <Input
+              id="beteckning"
+              placeholder="ex. AU1"
+              value={searchParams.beteckning || ''}
+              onChange={(e) => onParamsChange({
+                ...searchParams,
+                beteckning: e.target.value
+              })}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="punkt">Förslagspunkt</Label>
+            <Input
+              id="punkt"
+              placeholder="ex. 2"
+              value={searchParams.punkt || ''}
+              onChange={(e) => onParamsChange({
+                ...searchParams,
+                punkt: e.target.value
+              })}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="valkrets">Valkrets</Label>
+            <Select 
+              value={searchParams.valkrets || 'all'} 
+              onValueChange={(value) => onParamsChange({
+                ...searchParams,
+                valkrets: value === 'all' ? undefined : value
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Välj valkrets" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla valkretsar</SelectItem>
+                {valkretsar.map((valkrets) => (
+                  <SelectItem key={valkrets} value={valkrets}>
+                    {valkrets}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="rost">Röst</Label>
+            <Select 
+              value={searchParams.rost || 'all'} 
+              onValueChange={(value) => onParamsChange({
+                ...searchParams,
+                rost: value === 'all' ? undefined : value as any
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Alla röster" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla</SelectItem>
+                <SelectItem value="Ja">Ja</SelectItem>
+                <SelectItem value="Nej">Nej</SelectItem>
+                <SelectItem value="Avstår">Avstår</SelectItem>
+                <SelectItem value="Frånvarande">Frånvarande</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="advanced" className="space-y-4">
+        <div>
+          <Label>Riksmöte</Label>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
+            {riksmoten.slice(0, 12).map((rm) => (
+              <div key={rm} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`rm-${rm}`}
+                  checked={searchParams.rm?.includes(rm) || false}
+                  onCheckedChange={(checked) => handleRmChange(rm, checked as boolean)}
+                />
+                <Label htmlFor={`rm-${rm}`} className="text-sm">
+                  {rm}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label>Parti</Label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+            {parties.map((party) => (
+              <div key={party} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`party-${party}`}
+                  checked={searchParams.party?.includes(party) || false}
+                  onCheckedChange={(checked) => handlePartyChange(party, checked as boolean)}
+                />
+                <Label htmlFor={`party-${party}`} className="text-sm">
+                  {getPartyName(party)} ({party})
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="gruppering">Gruppering</Label>
+          <Select 
+            value={searchParams.gruppering || 'none'} 
+            onValueChange={(value) => onParamsChange({
+              ...searchParams,
+              gruppering: value === 'none' ? undefined : value as any
+            })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Ingen gruppering" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Ingen gruppering</SelectItem>
+              <SelectItem value="iid">Ledamot - ID</SelectItem>
+              <SelectItem value="namn">Ledamot - namn</SelectItem>
+              <SelectItem value="parti">Parti</SelectItem>
+              <SelectItem value="valkrets">Valkrets</SelectItem>
+              <SelectItem value="rm">Riksmöte</SelectItem>
+              <SelectItem value="votering_id">Votering (ID)</SelectItem>
+              <SelectItem value="bet">Votering (bet + punkt)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+};
+
+export default VoteSearchFilters;
