@@ -755,12 +755,9 @@ export const searchCalendarEvents = async (params: CalendarSearchParams): Promis
   }
 };
 
-export const fetchMemberDocuments = async (intressentId: string, page: number = 1, pageSize: number = 500): Promise<RiksdagDocument[]> => {
+export const fetchMemberDocuments = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagDocument[]> => {
   try {
     console.log(`Fetching documents for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
-    
-    // Calculate skip parameter for pagination
-    const skip = (page - 1) * pageSize;
     
     const { documents } = await searchDocuments({
       iid: intressentId,
@@ -769,7 +766,7 @@ export const fetchMemberDocuments = async (intressentId: string, page: number = 
       sortorder: 'desc'
     });
     
-    console.log(`Fetched ${documents.length} documents for member ${intressentId} on page ${page}`);
+    console.log(`Found ${documents.length} documents for member ${intressentId}`);
     
     const enrichedDocuments = documents.map(doc => ({
       ...doc,
@@ -783,7 +780,7 @@ export const fetchMemberDocuments = async (intressentId: string, page: number = 
   }
 };
 
-export const fetchMemberSpeeches = async (intressentId: string, page: number = 1, pageSize: number = 500): Promise<RiksdagSpeech[]> => {
+export const fetchMemberSpeeches = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagSpeech[]> => {
   try {
     console.log(`Fetching speeches for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
     
@@ -792,7 +789,7 @@ export const fetchMemberSpeeches = async (intressentId: string, page: number = 1
       pageSize
     });
     
-    console.log(`Fetched ${speeches.length} speeches for member ${intressentId} on page ${page}`);
+    console.log(`Found ${speeches.length} speeches for member ${intressentId}`);
     return speeches;
   } catch (error) {
     console.error(`Error fetching speeches for member ${intressentId}:`, error);
