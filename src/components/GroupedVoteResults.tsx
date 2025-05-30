@@ -28,15 +28,26 @@ interface GroupedVoteResultsProps {
 const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  // Group votes by beteckning and riksmöte
+  console.log('GroupedVoteResults received votes:', votes.length);
+  console.log('Sample votes:', votes.slice(0, 3));
+
+  // Group votes by beteckning and riksmöte - improved grouping logic
   const groupedVotes = votes.reduce((groups: { [key: string]: VoteGroup }, vote) => {
-    const groupKey = `${vote.beteckning}-${vote.rm}`;
+    // Create a unique key for each voting session
+    const groupKey = `${vote.beteckning || 'Okänd'}-${vote.rm || 'Okänt'}`;
+    
+    console.log('Processing vote:', {
+      beteckning: vote.beteckning,
+      rm: vote.rm,
+      groupKey,
+      avser: vote.avser
+    });
     
     if (!groups[groupKey]) {
       groups[groupKey] = {
-        beteckning: vote.beteckning,
-        riksmote: vote.rm,
-        avser: vote.avser,
+        beteckning: vote.beteckning || 'Okänd beteckning',
+        riksmote: vote.rm || 'Okänt riksmöte',
+        avser: vote.avser || 'Ingen beskrivning tillgänglig',
         votes: [],
         voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 }
       };
@@ -45,25 +56,35 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     groups[groupKey].votes.push(vote);
     
     // Update vote statistics
-    switch (vote.rost) {
-      case 'Ja':
+    const rostLower = (vote.rost || '').toLowerCase();
+    switch (rostLower) {
+      case 'ja':
         groups[groupKey].voteStats.ja++;
         break;
-      case 'Nej':
+      case 'nej':
         groups[groupKey].voteStats.nej++;
         break;
-      case 'Avstår':
+      case 'avstår':
         groups[groupKey].voteStats.avstar++;
         break;
-      case 'Frånvarande':
+      case 'frånvarande':
         groups[groupKey].voteStats.franvarande++;
         break;
+      default:
+        console.log('Unknown vote type:', vote.rost);
     }
     
     return groups;
   }, {});
 
   const groupsArray = Object.values(groupedVotes);
+  console.log('Created groups:', groupsArray.length);
+  console.log('Groups summary:', groupsArray.map(g => ({
+    key: `${g.beteckning}-${g.riksmote}`,
+    voteCount: g.votes.length,
+    beteckning: g.beteckning,
+    riksmote: g.riksmote
+  })));
 
   const toggleGroup = (groupKey: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -79,6 +100,16 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     return partyInfo[party]?.color || '#6B7280';
   };
 
+  if (groupsArray.length === 0) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <p className="text-gray-600">Inga voteringsresultat att visa</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -87,7 +118,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
           <Badge variant="secondary">{totalCount} träffar i {groupsArray.length} voteringar</Badge>
         </CardTitle>
         <CardDescription>
-          Voteringar grupperade efter beteckning och riksmöte
+          Voteringar grupperade efter beteckning och riksmöte. Visar {votes.length} individuella röster.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -148,13 +179,13 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                   <div className="border rounded-lg bg-gray-50">
                     <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
                       {group.votes.map((vote, index) => (
-                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded border">
+                        <div key={`${vote.iid || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
                           <div className="flex-1">
                             <p className="font-medium text-sm">
-                              {vote.namn} ({vote.parti})
+                              {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
                             </p>
                             <p className="text-xs text-gray-500">
-                              {vote.valkrets}
+                              {vote.valkrets || 'Okänd valkrets'}
                             </p>
                           </div>
                           <Badge 
@@ -171,7 +202,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                               color: 'white'
                             }}
                           >
-                            {vote.rost}
+                            {vote.rost || 'Okänd'}
                           </Badge>
                         </div>
                       ))}

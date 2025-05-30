@@ -44,10 +44,25 @@ const VoteSearch = () => {
     setLoading(true);
     setError(null);
     
+    console.log('Starting search with params:', searchParams);
+    
     try {
       const result = await searchVotes(searchParams);
+      console.log('Search result:', {
+        votesCount: result.votes.length,
+        totalCount: result.totalCount,
+        sampleVotes: result.votes.slice(0, 3)
+      });
+      
       setVotes(result.votes);
       setTotalCount(result.totalCount);
+      
+      // Log unique combinations to verify we get different groups
+      const uniqueCombinations = new Set(
+        result.votes.map(vote => `${vote.beteckning}-${vote.rm}`)
+      );
+      console.log('Unique beteckning-riksmöte combinations found:', Array.from(uniqueCombinations));
+      
     } catch (err) {
       setError('Kunde inte hämta voteringsdata');
       console.error('Error searching votes:', err);
