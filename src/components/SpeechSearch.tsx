@@ -168,31 +168,35 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
     }
   };
 
-  // Group speeches by debate
-  const groupSpeechesByDebate = (speeches: RiksdagSpeech[]) => {
+  // Group speeches by subject (avsnittsrubrik)
+  const groupSpeechesBySubject = (speeches: RiksdagSpeech[]) => {
     const groups: { [key: string]: RiksdagSpeech[] } = {};
     
     speeches.forEach(speech => {
-      const debateKey = speech.kammaraktivitet || 'Okänd debatt';
-      if (!groups[debateKey]) {
-        groups[debateKey] = [];
+      const subjectKey = speech.avsnittsrubrik || 'Okänt ämne';
+      if (!groups[subjectKey]) {
+        groups[subjectKey] = [];
       }
-      groups[debateKey].push(speech);
+      groups[subjectKey].push(speech);
     });
 
-    // Sort speeches within each group by date and time
+    // Sort speeches within each group by date and speech number
     Object.keys(groups).forEach(key => {
       groups[key].sort((a, b) => {
-        const dateA = new Date(a.anforandedatum + ' ' + (a.anf_klockslag || '00:00'));
-        const dateB = new Date(b.anforandedatum + ' ' + (b.anf_klockslag || '00:00'));
-        return dateA.getTime() - dateB.getTime();
+        const dateA = new Date(a.anforandedatum);
+        const dateB = new Date(b.anforandedatum);
+        if (dateA.getTime() !== dateB.getTime()) {
+          return dateA.getTime() - dateB.getTime();
+        }
+        // If same date, sort by speech number
+        return parseInt(a.anforande_nummer) - parseInt(b.anforande_nummer);
       });
     });
 
     return groups;
   };
 
-  const groupedSpeeches = groupSpeechesByDebate(speeches);
+  const groupedSpeeches = groupSpeechesBySubject(speeches);
 
   return (
     <div className="space-y-6">
@@ -339,15 +343,15 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
 
       {speeches.length > 0 && (
         <div className="space-y-4">
-          {Object.entries(groupedSpeeches).map(([debateTitle, debateSpeeches]) => (
-            <Card key={debateTitle}>
+          {Object.entries(groupedSpeeches).map(([subjectTitle, subjectSpeeches]) => (
+            <Card key={subjectTitle}>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2 text-lg">
                   <MessageSquare className="w-5 h-5 text-purple-600" />
-                  <span className="truncate">{debateTitle}</span>
+                  <span className="truncate">Ämne: {subjectTitle}</span>
                 </CardTitle>
                 <CardDescription>
-                  {debateSpeeches.length} anföranden • {formatDate(debateSpeeches[0]?.anforandedatum)}
+                  {subjectSpeeches.length} anföranden • {formatDate(subjectSpeeches[0]?.anforandedatum)}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -362,7 +366,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {debateSpeeches.map((speech) => (
+                    {subjectSpeeches.map((speech) => (
                       <TableRow key={speech.anforande_id}>
                         <TableCell className="font-medium">{speech.talare}</TableCell>
                         <TableCell>
@@ -371,8 +375,8 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getSpeechTypeColor(speech.anforandetyp) as any}>
-                            {getSpeechTypeLabel(speech.anforandetyp)}
+                          <Badge variant={getSpeechTypeColor(speech.replik === 'Y' ? 'Replik' : 'Anförande') as any}>
+                            {speech.replik === 'Y' ? 'Replik' : 'Anförande'}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -403,7 +407,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
           <Card>
             <CardContent className="text-center py-4">
               <p className="text-sm text-gray-600">
-                Visar {speeches.length} av {totalCount} anföranden grupperade efter debatt
+                Visar {speeches.length} av {totalCount} anföranden grupperade efter ämne
               </p>
             </CardContent>
           </Card>
@@ -442,7 +446,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
           {selectedSpeech && (
             <div className="border-t pt-4 flex justify-between items-center">
               <div className="text-sm text-gray-600">
-                {selectedSpeech.anforandedatum} • {selectedSpeech.parti} • {selectedSpeech.kammaraktivitet}
+                {selectedSpeech.anforandedatum} • {selectedSpeech.parti} • {selectedSpeech.avsnittsrubrik}
               </div>
               <Button variant="outline" size="sm" asChild>
                 <a 
