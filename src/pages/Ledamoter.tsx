@@ -28,6 +28,9 @@ const Ledamoter = () => {
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
 
+  // Hämta unika partier från riktig data (filtrera bort tomma strängar)
+  const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
+
   // Filtrera och sortera ledamöter
   const filteredAndSortedMembers = members
     .filter(member => {
@@ -173,9 +176,9 @@ const Ledamoter = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Alla partier</SelectItem>
-                        {Object.entries(partyInfo).map(([key, party]) => (
-                          <SelectItem key={key} value={key}>
-                            {party.fullName} ({party.name})
+                        {actualParties.map((party) => (
+                          <SelectItem key={party} value={party}>
+                            {partyInfo[party] ? `${partyInfo[party].fullName} (${partyInfo[party].name})` : party}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -196,7 +199,7 @@ const Ledamoter = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Alla valkretsar</SelectItem>
-                        {constituencies.map((constituency) => (
+                        {constituencies.filter(constituency => constituency && constituency.trim() !== "").map((constituency) => (
                           <SelectItem key={constituency} value={constituency}>
                             {constituency}
                           </SelectItem>
