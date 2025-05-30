@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees } from '../services/riksdagApi';
 import { Member } from '../types/member';
@@ -171,42 +172,15 @@ export const useMembers = (
         setLoading(true);
         console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
-        let data;
-        if (committee && committee !== 'all') {
-          // Use committee-specific API when filtering by committee
-          data = await fetchMembersWithCommittees(page, pageSize, status, committee);
-          console.log(`Fetched ${data.members.length} members from committee ${committee} out of ${data.totalCount} total`);
-        } else {
-          // Use regular member API for general queries
-          const result = await fetchMembers(page, pageSize, status);
-          data = {
-            members: await Promise.all(
-              result.members.map(async member => {
-                const memberDetails = await fetchMemberDetails(member.intressent_id);
-                return {
-                  intressent_id: member.intressent_id,
-                  tilltalsnamn: member.tilltalsnamn,
-                  efternamn: member.efternamn,
-                  parti: member.parti,
-                  valkrets: member.valkrets,
-                  kon: member.kon,
-                  fodd_ar: member.fodd_ar,
-                  bild_url_80: member.bild_url_80,
-                  bild_url_192: member.bild_url_192,
-                  bild_url_max: member.bild_url_max,
-                  assignments: memberDetails?.assignments || [],
-                  email: memberDetails?.email
-                };
-              })
-            ),
-            totalCount: result.totalCount
-          };
-          console.log(`Fetched ${data.members.length} members out of ${data.totalCount} total`);
-        }
+        // Always use the regular members API and then filter in frontend
+        // The committee-specific API seems to have issues
+        const result = await fetchMembers(page, pageSize, status);
+        console.log(`Fetched ${result.members.length} members out of ${result.totalCount} total (before committee filtering)`);
         
-        // Map members with full data
+        // Map members with full data including assignments
         const mappedMembers = await Promise.all(
-          data.members.map(async member => {
+          result.members.map(async member => {
+            const memberDetails = await fetchMemberDetails(member.intressent_id);
             return mapRiksdagMemberToMember({
               intressent_id: member.intressent_id,
               tilltalsnamn: member.tilltalsnamn,
@@ -223,18 +197,101 @@ export const useMembers = (
               bild_url_80: member.bild_url_80,
               bild_url_192: member.bild_url_192,
               bild_url_max: member.bild_url_max
-            }, member);
+            }, {
+              ...memberDetails,
+              assignments: memberDetails?.assignments || [],
+              email: memberDetails?.email
+            });
           })
         );
-        
-        if (page === 1) {
-          setMembers(mappedMembers);
-        } else {
-          setMembers(prev => [...prev, ...mappedMembers]);
+
+        console.log(`Mapped ${mappedMembers.length} members with assignments`);
+
+        // Filter by committee in frontend if committee filter is applied
+        let filteredMembers = mappedMembers;
+        if (committee && committee !== 'all') {
+          console.log(`Filtering members by committee: ${committee}`);
+          
+          filteredMembers = mappedMembers.filter(member => {
+            // Check if member has any active assignments matching the committee
+            const hasMatchingCommittee = member.assignments?.some(assignment => {
+              const currentDate = new Date();
+              let endDate = null;
+              
+              // Parse end date
+              if (assignment.tom) {
+                try {
+                  endDate = assignment.tom.includes('T') ? new Date(assignment.tom) : new Date(assignment.tom + 'T23:59:59');
+                  if (isNaN(endDate.getTime())) {
+                    endDate = null;
+                  }
+                } catch (e) {
+                  endDate = null;
+                }
+              }
+              
+              // Check if assignment is active
+              const isActive = !endDate || endDate > currentDate;
+              
+              // Enhanced committee matching logic
+              if (isActive) {
+                const organ = assignment.organ;
+                const committeeSearch = committee.toLowerCase();
+                const organLower = organ.toLowerCase();
+                
+                // Multiple matching strategies
+                const matches = 
+                  organ === committee || // Exact match
+                  organLower === committeeSearch || // Case insensitive exact match
+                  organLower.includes(committeeSearch) || // Contains search term
+                  committeeSearch.includes(organLower) || // Search term contains organ
+                  // Match common abbreviations
+                  (committee === 'CU' && (organ === 'Civilutskottet' || organLower.includes('civil'))) ||
+                  (committee === 'Civilutskottet' && (organ === 'CU' || organLower.includes('civil'))) ||
+                  (committee === 'AU' && (organ === 'Arbetsmarknadsutskottet' || organLower.includes('arbetsmarknad'))) ||
+                  (committee === 'FiU' && (organ === 'Finansutskottet' || organLower.includes('finans'))) ||
+                  (committee === 'FöU' && (organ === 'Försvarsutskottet' || organLower.includes('försvar'))) ||
+                  (committee === 'JuU' && (organ === 'Justitieutskottet' || organLower.includes('justitie'))) ||
+                  (committee === 'KU' && (organ === 'Konstitutionsutskottet' || organLower.includes('konstitution'))) ||
+                  (committee === 'KrU' && (organ === 'Kulturutskottet' || organLower.includes('kultur'))) ||
+                  (committee === 'MjU' && (organ === 'Miljö- och jordbruksutskottet' || organLower.includes('miljö') || organLower.includes('jordbruk'))) ||
+                  (committee === 'NU' && (organ === 'Näringsutskottet' || organLower.includes('näring'))) ||
+                  (committee === 'SkU' && (organ === 'Skatteutskottet' || organLower.includes('skatt'))) ||
+                  (committee === 'SfU' && (organ === 'Socialförsäkringsutskottet' || organLower.includes('socialförsäkring'))) ||
+                  (committee === 'SoU' && (organ === 'Socialutskottet' || organLower.includes('social'))) ||
+                  (committee === 'TU' && (organ === 'Trafikutskottet' || organLower.includes('trafik'))) ||
+                  (committee === 'UbU' && (organ === 'Utbildningsutskottet' || organLower.includes('utbildning'))) ||
+                  (committee === 'UU' && (organ === 'Utrikesutskottet' || organLower.includes('utrikes')));
+                
+                if (matches) {
+                  console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} via assignment: ${organ} (${assignment.roll})`);
+                }
+                
+                return matches;
+              }
+              
+              return false;
+            });
+            
+            return hasMatchingCommittee;
+          });
+          
+          console.log(`After committee filtering: ${filteredMembers.length} members match committee ${committee}`);
+          
+          // Log some examples of filtered members
+          filteredMembers.slice(0, 3).forEach(member => {
+            console.log(`Filtered member: ${member.firstName} ${member.lastName} - Committees: ${member.committees.join(', ')}`);
+          });
         }
         
-        setTotalCount(data.totalCount);
-        setHasMore(page * pageSize < data.totalCount);
+        if (page === 1) {
+          setMembers(filteredMembers);
+        } else {
+          setMembers(prev => [...prev, ...filteredMembers]);
+        }
+        
+        setTotalCount(committee && committee !== 'all' ? filteredMembers.length : result.totalCount);
+        setHasMore(page * pageSize < (committee && committee !== 'all' ? filteredMembers.length : result.totalCount));
         setError(null);
       } catch (err) {
         setError('Kunde inte ladda ledamöter');
