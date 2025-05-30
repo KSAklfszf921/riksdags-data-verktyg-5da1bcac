@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GroupedVoteResults from "./GroupedVoteResults";
+import VoteCharts from "./VoteCharts";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -544,7 +544,10 @@ const VoteSearch = () => {
         )}
 
         {votes.length > 0 && (
-          <GroupedVoteResults votes={votes} totalCount={totalCount} />
+          <>
+            <VoteCharts votes={votes} />
+            <GroupedVoteResults votes={votes} totalCount={totalCount} />
+          </>
         )}
       </div>
     </TooltipProvider>

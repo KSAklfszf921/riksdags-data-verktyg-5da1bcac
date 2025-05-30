@@ -26,7 +26,7 @@ const Kalender = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Kalender</h1>
-              <p className="text-gray-600">Sök och utforska riksdagens kalenderhändelser</p>
+              <p className="text-gray-600">Sök och utforska riksdagens kalenderhändelser med förbättrade vyer och funktioner</p>
             </div>
           </div>
         </div>
