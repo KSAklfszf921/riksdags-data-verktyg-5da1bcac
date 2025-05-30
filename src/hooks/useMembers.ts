@@ -78,73 +78,23 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Fetch committee assignments separately using the dedicated API
-  let currentCommitteeCodes: string[] = [];
-  let assignments: any[] = [];
+  // Extract committee codes from member details assignments
+  const currentCommitteeCodes = memberDetails?.assignments?.map(assignment => assignment.organ_kod) || [];
+  
+  console.log(`Committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
 
-  try {
-    console.log(`Fetching committee assignments for ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
-    const committeeAssignments = await getMemberCommitteeAssignments(riksdagMember.intressent_id);
-    
-    console.log(`Raw committee assignments for ${riksdagMember.efternamn}:`, committeeAssignments);
-    
-    // Filter for current active committee assignments
-    const currentDate = new Date();
-    const activeAssignments = committeeAssignments.filter(assignment => {
-      let endDate: Date | null = null;
-      if (assignment.tom) {
-        const tomString = assignment.tom.toString().trim();
-        if (tomString && tomString !== '') {
-          try {
-            if (tomString.includes('T')) {
-              endDate = new Date(tomString);
-            } else {
-              endDate = new Date(tomString + 'T23:59:59');
-            }
-            
-            if (isNaN(endDate.getTime())) {
-              endDate = null;
-            }
-          } catch (e) {
-            console.log(`Error parsing date for ${riksdagMember.efternamn}: ${tomString}`);
-            endDate = null;
-          }
-        }
-      }
-      
-      const isActive = !endDate || endDate > currentDate;
-      const isCommitteeAssignment = assignment.typ === 'uppdrag' && assignment.organ_kod && isValidCommitteeCode(assignment.organ_kod);
-      
-      console.log(`Assignment check for ${riksdagMember.efternamn}: ${assignment.organ_kod} - Active: ${isActive}, Committee: ${isCommitteeAssignment}`);
-      
-      return isActive && isCommitteeAssignment;
-    });
-
-    currentCommitteeCodes = activeAssignments.map(assignment => assignment.organ_kod);
-    assignments = committeeAssignments;
-
-    console.log(`Final active committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
-  } catch (error) {
-    console.error(`Error fetching committee assignments for ${riksdagMember.efternamn}:`, error);
-    currentCommitteeCodes = [];
-    assignments = [];
-  }
-
-  // Convert assignments to match the Member interface
-  const convertedAssignments = assignments.map(assignment => ({
-    organ_kod: assignment.organ_kod,
-    roll: assignment.roll,
-    status: assignment.status,
-    from: assignment.from,
-    tom: assignment.tom,
-    typ: assignment.typ,
-    ordning: assignment.ordning,
-    uppgift: assignment.uppgift
-  }));
-
-  // Generate email address if not provided
+  // Generate email address
   const generateEmail = (firstName: string, lastName: string) => {
-    return `${firstName.toLowerCase().replace(/\s+/g, '-').replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o')}.${lastName.toLowerCase().replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o')}@riksdagen.se`;
+    const cleanFirst = firstName.toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/ä/g, 'a')
+      .replace(/å/g, 'a')
+      .replace(/ö/g, 'o');
+    const cleanLast = lastName.toLowerCase()
+      .replace(/ä/g, 'a')
+      .replace(/å/g, 'a')
+      .replace(/ö/g, 'o');
+    return `${cleanFirst}.${cleanLast}@riksdagen.se`;
   };
 
   return {
@@ -156,18 +106,27 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     imageUrl,
     email: memberDetails?.email || generateEmail(riksdagMember.tilltalsnamn, riksdagMember.efternamn),
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
-    profession: memberDetails?.yrke || 'Riksdagsledamot',
-    committees: currentCommitteeCodes, // Now properly populated with committee codes
+    profession: 'Riksdagsledamot',
+    committees: currentCommitteeCodes,
     speeches: mappedSpeeches,
     votes: [],
     proposals: [],
     documents: mappedDocuments,
-    calendarEvents: [], // Calendar events removed to avoid API errors
+    calendarEvents: [],
     activityScore: Math.random() * 10,
     motions,
     interpellations,
     writtenQuestions,
-    assignments: convertedAssignments
+    assignments: memberDetails?.assignments?.map(assignment => ({
+      organ_kod: assignment.organ_kod,
+      roll: assignment.roll,
+      status: assignment.status,
+      from: assignment.from,
+      tom: assignment.tom,
+      typ: assignment.typ,
+      ordning: assignment.ordning,
+      uppgift: assignment.uppgift
+    })) || []
   };
 };
 
@@ -189,70 +148,74 @@ export const useMembers = (
         setLoading(true);
         console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
-        // Always use the regular members API and then filter in frontend
-        const result = await fetchMembers(page, pageSize, status);
-        console.log(`Fetched ${result.members.length} members out of ${result.totalCount} total (before committee filtering)`);
+        let result;
         
-        // Map members with full data including assignments
-        const mappedMembers = await Promise.all(
-          result.members.map(async member => {
-            const memberDetails = await fetchMemberDetails(member.intressent_id);
-            return mapRiksdagMemberToMember({
-              intressent_id: member.intressent_id,
-              tilltalsnamn: member.tilltalsnamn,
-              efternamn: member.efternamn,
-              parti: member.parti,
-              valkrets: member.valkrets,
-              kon: member.kon,
-              fodd_ar: member.fodd_ar,
-              hangar_guid: '',
-              status: '',
-              datum_fran: '',
-              datum_tom: '',
-              fodd_datum: '',
-              bild_url_80: member.bild_url_80,
-              bild_url_192: member.bild_url_192,
-              bild_url_max: member.bild_url_max
-            }, {
-              ...memberDetails,
-              assignments: memberDetails?.assignments || [],
-              email: memberDetails?.email
-            });
-          })
-        );
-
-        console.log(`Mapped ${mappedMembers.length} members with assignments`);
-
-        // Filter by committee in frontend if committee filter is applied
-        let filteredMembers = mappedMembers;
+        // Use optimized committee filtering when committee is specified
         if (committee && committee !== 'all') {
-          console.log(`Filtering members by committee: ${committee}`);
+          const committeeCode = COMMITTEE_CODE_MAPPING[committee] || committee;
           
-          // Convert committee name to code if needed
-          const committeeCodeToMatch = COMMITTEE_CODE_MAPPING[committee] || committee;
-          
-          filteredMembers = mappedMembers.filter(member => {
-            // Direct match with committee code
-            const hasMatchingCommittee = member.committees.includes(committeeCodeToMatch);
+          if (isValidCommitteeCode(committeeCode)) {
+            console.log(`Using committee-specific API for: ${committeeCode}`);
+            result = await fetchMembersWithCommittees(page, pageSize, status, committeeCode);
             
-            if (hasMatchingCommittee) {
-              console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} via code ${committeeCodeToMatch} - Member committees: ${member.committees.join(', ')}`);
+            const mappedMembers = await Promise.all(
+              result.members.map(member => 
+                mapRiksdagMemberToMember({
+                  intressent_id: member.intressent_id,
+                  tilltalsnamn: member.tilltalsnamn,
+                  efternamn: member.efternamn,
+                  parti: member.parti,
+                  valkrets: member.valkrets,
+                  kon: member.kon,
+                  fodd_ar: member.fodd_ar,
+                  hangar_guid: '',
+                  status: '',
+                  datum_fran: '',
+                  datum_tom: '',
+                  fodd_datum: '',
+                  bild_url_80: member.bild_url_80,
+                  bild_url_192: member.bild_url_192,
+                  bild_url_max: member.bild_url_max
+                }, member)
+              )
+            );
+            
+            if (page === 1) {
+              setMembers(mappedMembers);
+            } else {
+              setMembers(prev => [...prev, ...mappedMembers]);
             }
             
-            return hasMatchingCommittee;
-          });
-          
-          console.log(`After committee filtering: ${filteredMembers.length} members match committee ${committee}`);
-        }
-        
-        if (page === 1) {
-          setMembers(filteredMembers);
+            setTotalCount(result.totalCount);
+            setHasMore(page * pageSize < result.totalCount);
+          } else {
+            console.log(`Invalid committee code: ${committeeCode}`);
+            setMembers([]);
+            setTotalCount(0);
+            setHasMore(false);
+          }
         } else {
-          setMembers(prev => [...prev, ...filteredMembers]);
+          // Use regular members API for all members
+          console.log('Using regular members API');
+          const memberResult = await fetchMembers(page, pageSize, status);
+          
+          const mappedMembers = await Promise.all(
+            memberResult.members.map(async member => {
+              const memberDetails = await fetchMemberDetails(member.intressent_id);
+              return mapRiksdagMemberToMember(member, memberDetails);
+            })
+          );
+          
+          if (page === 1) {
+            setMembers(mappedMembers);
+          } else {
+            setMembers(prev => [...prev, ...mappedMembers]);
+          }
+          
+          setTotalCount(memberResult.totalCount);
+          setHasMore(page * pageSize < memberResult.totalCount);
         }
         
-        setTotalCount(committee && committee !== 'all' ? filteredMembers.length : result.totalCount);
-        setHasMore(page * pageSize < (committee && committee !== 'all' ? filteredMembers.length : result.totalCount));
         setError(null);
       } catch (err) {
         setError('Kunde inte ladda ledamöter');

@@ -1,4 +1,3 @@
-
 export interface Member {
   id: string;
   firstName: string;
@@ -10,7 +9,7 @@ export interface Member {
   phone?: string;
   birthYear: number;
   profession: string;
-  committees: string[]; // Now stores committee codes (e.g. "AU", "SoU") for efficient filtering
+  committees: string[]; // Committee codes (e.g. "AU", "SoU") for efficient filtering
   speeches: Speech[];
   votes: Vote[];
   proposals: Proposal[];
@@ -31,7 +30,7 @@ export interface MemberAssignment {
   tom: string;
   typ: string; // Removed type restriction to handle 'uppdrag'
   ordning?: string;
-  uppgift: string; // Committee full name e.g. "Arbetsmarknadsutskottet", now required
+  uppgift: string; // Committee full name
 }
 
 export interface Speech {
