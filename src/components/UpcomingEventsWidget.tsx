@@ -4,13 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, MapPin, ChevronRight, Loader2 } from "lucide-react";
-import { searchCalendarEvents, RiksdagCalendarEvent } from '../services/riksdagApi';
-import { format, isToday, isTomorrow, addDays } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { 
+  fetchUpcomingEvents, 
+  formatEventDate, 
+  formatEventTime, 
+  isEventToday, 
+  type CachedCalendarData 
+} from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
 
 const UpcomingEventsWidget = () => {
-  const [events, setEvents] = useState<RiksdagCalendarEvent[]>([]);
+  const [events, setEvents] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -24,32 +28,13 @@ const UpcomingEventsWidget = () => {
       setLoading(true);
       setError(null);
       
-      const today = new Date();
-      const nextWeek = addDays(today, 7);
-      
-      const result = await searchCalendarEvents({
-        fromDate: format(today, 'yyyy-MM-dd'),
-        toDate: format(nextWeek, 'yyyy-MM-dd'),
-        pageSize: 10
-      });
-      
-      setEvents(result.events.slice(0, 6)); // Show max 6 events
+      const result = await fetchUpcomingEvents(7); // Next 7 days
+      setEvents(result.slice(0, 6)); // Show max 6 events
     } catch (err) {
       setError('Kunde inte hämta kommande händelser');
       console.error('Error loading upcoming events:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const formatEventDate = (dateString: string) => {
-    const date = new Date(dateString);
-    if (isToday(date)) {
-      return 'Idag';
-    } else if (isTomorrow(date)) {
-      return 'Imorgon';
-    } else {
-      return format(date, 'EEE d MMM', { locale: sv });
     }
   };
 
@@ -67,6 +52,31 @@ const UpcomingEventsWidget = () => {
       'NU': 'bg-cyan-100 text-cyan-800',
     };
     return colors[organ] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatEventDateShort = (dateString: string | null) => {
+    if (!dateString) return 'Okänt datum';
+    
+    try {
+      const date = new Date(dateString);
+      if (isEventToday(dateString)) {
+        return 'Idag';
+      }
+      
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      if (date.toDateString() === tomorrow.toDateString()) {
+        return 'Imorgon';
+      }
+      
+      return date.toLocaleDateString('sv-SE', { 
+        weekday: 'short', 
+        day: 'numeric', 
+        month: 'short' 
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   if (loading) {
@@ -141,14 +151,14 @@ const UpcomingEventsWidget = () => {
         ) : (
           <div className="space-y-3">
             {events.map((event, index) => (
-              <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+              <div key={event.id || index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="text-center min-w-[60px]">
                   <div className="text-xs font-medium text-gray-500 uppercase">
-                    {formatEventDate(event.datum)}
+                    {formatEventDateShort(event.datum)}
                   </div>
                   {event.tid && (
                     <div className="text-xs text-gray-400 mt-1">
-                      {event.tid}
+                      {formatEventTime(event.tid)}
                     </div>
                   )}
                 </div>
@@ -157,7 +167,7 @@ const UpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {event.summary || event.aktivitet}
+                        {event.summary || event.aktivitet || 'Händelse'}
                       </h4>
                       {event.plats && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
@@ -166,9 +176,11 @@ const UpcomingEventsWidget = () => {
                         </div>
                       )}
                     </div>
-                    <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(event.organ)}`}>
-                      {event.organ}
-                    </Badge>
+                    {event.organ && (
+                      <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(event.organ)}`}>
+                        {event.organ}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>

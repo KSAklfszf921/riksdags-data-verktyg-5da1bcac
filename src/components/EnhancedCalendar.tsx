@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin, Download } from "lucide-react";
-import { RiksdagCalendarEvent } from '../services/riksdagApi';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { CachedCalendarData, formatEventDate, formatEventTime } from '../services/cachedCalendarApi';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isValid } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
 interface EnhancedCalendarProps {
-  events: RiksdagCalendarEvent[];
+  events: CachedCalendarData[];
   loading?: boolean;
 }
 
@@ -28,8 +28,32 @@ const eventTypeColors: { [key: string]: string } = {
   'default': 'bg-gray-500 text-white'
 };
 
-const getEventColor = (event: RiksdagCalendarEvent) => {
-  return eventTypeColors[event.organ] || eventTypeColors.default;
+const getEventColor = (event: CachedCalendarData) => {
+  return eventTypeColors[event.organ || ''] || eventTypeColors.default;
+};
+
+const parseEventDate = (dateString: string | null): Date | null => {
+  if (!dateString) return null;
+  
+  try {
+    // Try parsing as ISO date first
+    if (dateString.includes('T')) {
+      const parsed = parseISO(dateString);
+      if (isValid(parsed)) return parsed;
+    }
+    
+    // Try parsing as YYYY-MM-DD
+    const parsed = parseISO(dateString);
+    if (isValid(parsed)) return parsed;
+    
+    // Try parsing as a regular date
+    const date = new Date(dateString);
+    if (isValid(date)) return date;
+    
+    return null;
+  } catch {
+    return null;
+  }
 };
 
 const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
@@ -39,13 +63,16 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
 
   // Group events by date
   const eventsByDate = useMemo(() => {
-    const grouped: { [key: string]: RiksdagCalendarEvent[] } = {};
+    const grouped: { [key: string]: CachedCalendarData[] } = {};
     events.forEach(event => {
-      const dateKey = format(new Date(event.datum), 'yyyy-MM-dd');
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = [];
+      const eventDate = parseEventDate(event.datum);
+      if (eventDate) {
+        const dateKey = format(eventDate, 'yyyy-MM-dd');
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = [];
+        }
+        grouped[dateKey].push(event);
       }
-      grouped[dateKey].push(event);
     });
     return grouped;
   }, [events]);
@@ -90,15 +117,20 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//Riksdag//Calendar//EN',
-      ...events.map(event => [
-        'BEGIN:VEVENT',
-        `DTSTART:${format(new Date(event.datum), 'yyyyMMdd')}`,
-        `SUMMARY:${event.summary || event.aktivitet}`,
-        `DESCRIPTION:${event.description || ''}`,
-        `LOCATION:${event.plats || ''}`,
-        `UID:${event.datum}-${event.summary?.replace(/\s+/g, '-') || 'event'}`,
-        'END:VEVENT'
-      ]).flat(),
+      ...events.map(event => {
+        const eventDate = parseEventDate(event.datum);
+        if (!eventDate) return [];
+        
+        return [
+          'BEGIN:VEVENT',
+          `DTSTART:${format(eventDate, 'yyyyMMdd')}`,
+          `SUMMARY:${event.summary || event.aktivitet || 'Händelse'}`,
+          `DESCRIPTION:${event.description || ''}`,
+          `LOCATION:${event.plats || ''}`,
+          `UID:${event.event_id || event.id}`,
+          'END:VEVENT'
+        ];
+      }).flat(),
       'END:VCALENDAR'
     ].join('\n');
 
@@ -150,11 +182,11 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
               <div className="space-y-1 mt-1">
                 {dayEvents.slice(0, 3).map((event, index) => (
                   <div
-                    key={index}
+                    key={event.id || index}
                     className={`text-xs p-1 rounded truncate ${getEventColor(event)}`}
-                    title={event.summary || event.aktivitet}
+                    title={event.summary || event.aktivitet || 'Händelse'}
                   >
-                    {event.summary || event.aktivitet}
+                    {event.summary || event.aktivitet || 'Händelse'}
                   </div>
                 ))}
                 {dayEvents.length > 3 && (
@@ -188,11 +220,11 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
               <div className="space-y-1">
                 {dayEvents.map((event, index) => (
                   <div
-                    key={index}
+                    key={event.id || index}
                     className={`text-xs p-2 rounded ${getEventColor(event)}`}
                   >
-                    <div className="font-medium truncate">{event.summary || event.aktivitet}</div>
-                    {event.tid && <div className="opacity-75">{event.tid}</div>}
+                    <div className="font-medium truncate">{event.summary || event.aktivitet || 'Händelse'}</div>
+                    {event.tid && <div className="opacity-75">{formatEventTime(event.tid)}</div>}
                   </div>
                 ))}
               </div>
@@ -218,11 +250,11 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
         ) : (
           <div className="space-y-3">
             {dayEvents.map((event, index) => (
-              <Card key={index}>
+              <Card key={event.id || index}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{event.summary || event.aktivitet}</CardTitle>
-                    <Badge className={getEventColor(event)}>{event.organ}</Badge>
+                    <CardTitle className="text-base">{event.summary || event.aktivitet || 'Händelse'}</CardTitle>
+                    {event.organ && <Badge className={getEventColor(event)}>{event.organ}</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -230,7 +262,7 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
                     {event.tid && (
                       <div className="flex items-center space-x-2">
                         <Clock className="w-4 h-4" />
-                        <span>{event.tid}</span>
+                        <span>{formatEventTime(event.tid)}</span>
                       </div>
                     )}
                     {event.plats && (

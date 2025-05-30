@@ -1,24 +1,37 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Search, Calendar, Clock, MapPin } from "lucide-react";
-import { searchCalendarEvents, CalendarSearchParams, RiksdagCalendarEvent } from "../services/riksdagApi";
+import { 
+  fetchCachedCalendarData, 
+  fetchUpcomingEvents, 
+  fetchEventsByOrgan, 
+  fetchEventsByType,
+  fetchEventsByDateRange,
+  searchEvents,
+  formatEventDate,
+  formatEventTime,
+  type CachedCalendarData 
+} from "../services/cachedCalendarApi";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EnhancedCalendar from "./EnhancedCalendar";
 
 const CalendarSearch = () => {
-  const [searchParams, setSearchParams] = useState<CalendarSearchParams>({});
-  const [events, setEvents] = useState<RiksdagCalendarEvent[]>([]);
+  const [events, setEvents] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(false);
-  const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [allaHandelser, setAllaHandelser] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedOrgan, setSelectedOrgan] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-  // Preload 20 latest events on component mount
+  // Preload latest events on component mount
   useEffect(() => {
     loadLatestEvents();
   }, []);
@@ -28,11 +41,8 @@ const CalendarSearch = () => {
     setError(null);
     
     try {
-      const result = await searchCalendarEvents({
-        pageSize: 50 // Load more events for better calendar view
-      });
-      setEvents(result.events);
-      setTotalCount(result.totalCount);
+      const result = await fetchCachedCalendarData(50);
+      setEvents(result);
     } catch (err) {
       setError('Kunde inte hämta kalenderdata');
       console.error('Error loading latest calendar events:', err);
@@ -41,94 +51,26 @@ const CalendarSearch = () => {
     }
   };
 
-  const kammarAktiviteter = [
-    { value: 'ad', label: 'Aktuell debatt' },
-    { value: 'al', label: 'Allmänpolitisk debatt' },
-    { value: 'af', label: 'Anmälan om partiföreträdare' },
-    { value: 'av', label: 'Avslutning' },
-    { value: 'at', label: 'Avtackning' },
-    { value: 'vo', label: 'Beslut' },
-    { value: 'bl', label: 'Bordläggning av ärenden' },
-    { value: 'bd', label: 'Bordläggningsdebatt' },
-    { value: 'bp', label: 'Bordläggningsplenum' },
-    { value: 'bu', label: 'Budgetdebatt' },
-    { value: 'ap', label: 'Debatt om förslag' },
-    { value: 'dv', label: 'Debatt om vårpropositionen' },
-    { value: 'fs', label: 'Frågestund' },
-    { value: 'ha', label: 'Hälsningsanförande' },
-    { value: 'hh', label: 'Högtidlighållande' },
-    { value: 'ar', label: 'Information från regeringen' },
-    { value: 'in', label: 'Inledning' },
-    { value: 'ip', label: 'Interpellationsdebat' },
-    { value: 'pa', label: 'Parentation' },
-    { value: 'pd', label: 'Partiledardebatt' },
-    { value: 'rf', label: 'Regeringsförklaring' },
-    { value: 'rd', label: 'Remissdebatt' },
-    { value: 'ro', label: 'Riksmötets öppnande' },
-    { value: 'sf', label: 'Statsministerns frågestund' },
-    { value: 'sd', label: 'Särskild debatt' },
-    { value: 'up', label: 'Upprop' },
-    { value: 'ud', label: 'Utrikespolitisk debatt' },
-    { value: 'va', label: 'Val' },
-    { value: 'ar', label: 'Återrapportering' }
-  ];
-
-  const utskott = [
-    { value: 'AU', label: 'Arbetsmarknadsutskottet' },
-    { value: 'CU', label: 'Civilutskottet' },
-    { value: 'eun', label: 'EU-nämnden' },
-    { value: 'FiU', label: 'Finansutskottet' },
-    { value: 'FöU', label: 'Försvarsutskottet' },
-    { value: 'JuU', label: 'Justitieutskottet' },
-    { value: 'KU', label: 'Konstitutionsutskottet' },
-    { value: 'KrU', label: 'Kulturutskottet' },
-    { value: 'MjU', label: 'Miljö- och jordbruksutskottet' },
-    { value: 'NU', label: 'Näringsutskottet' },
-    { value: 'CKrU', label: 'Sammansatta civil- och kulturutskottet' },
-    { value: 'UFöU', label: 'Sammansatta utrikes- och försvarsutskottet' },
-    { value: 'SkU', label: 'Skatteutskottet' },
-    { value: 'SfU', label: 'Socialförsäkringsutskottet' },
-    { value: 'SoU', label: 'Socialutskottet' },
-    { value: 'TU', label: 'Trafikutskottet' },
-    { value: 'UbU', label: 'Utbildningsutskottet' },
-    { value: 'UU', label: 'Utrikesutskottet' }
-  ];
-
-  const utskottAktiviteter = [
-    { value: 'pk', label: 'Presskonferens' },
-    { value: 'ss', label: 'Session' },
-    { value: 'are', label: 'Återrapportering från europeiska rådets möte' },
-    { value: 'ko', label: 'Öppen konferens' },
-    { value: 'ou', label: 'Öppen utfrågning' },
-    { value: 'be', label: 'Öppet besök' },
-    { value: 'st', label: 'Öppet sammanträde' },
-    { value: 'os', label: 'Öppet samråd' },
-    { value: 'se', label: 'Öppet seminarium' }
-  ];
-
-  const ovrigaAktiviteter = [
-    { value: 'be', label: 'Besök' },
-    { value: 'ib', label: 'Inkommande besök' },
-    { value: 're', label: 'Resa' },
-    { value: 'se', label: 'Seminarium (Ej öppet)' },
-    { value: 'tl', label: 'Träffa ledamöter' },
-    { value: 'ur', label: 'Ungdomens riksdag' },
-    { value: 'ub', label: 'Utgående besök' },
-    { value: 'vi', label: 'Visning' },
-    { value: 'oh', label: 'Öppet hus' }
-  ];
-
   const handleSearch = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const result = await searchCalendarEvents({
-        ...searchParams,
-        pageSize: 100 // Load more events for calendar view
-      });
-      setEvents(result.events);
-      setTotalCount(result.totalCount);
+      let result: CachedCalendarData[] = [];
+
+      if (searchQuery) {
+        result = await searchEvents(searchQuery);
+      } else if (fromDate && toDate) {
+        result = await fetchEventsByDateRange(fromDate, toDate);
+      } else if (selectedOrgan) {
+        result = await fetchEventsByOrgan(selectedOrgan);
+      } else if (selectedType) {
+        result = await fetchEventsByType(selectedType);
+      } else {
+        result = await fetchCachedCalendarData(100);
+      }
+
+      setEvents(result);
     } catch (err) {
       setError('Kunde inte hämta kalenderdata');
       console.error('Error searching calendar events:', err);
@@ -137,62 +79,33 @@ const CalendarSearch = () => {
     }
   };
 
-  const handleOrgChange = (org: string, checked: boolean) => {
-    if (org === 'kamm' && checked) {
-      setAllaHandelser(true);
-      setSearchParams({
-        ...searchParams,
-        org: ['kamm']
-      });
-    } else {
-      if (org === 'kamm') {
-        setAllaHandelser(false);
-      }
-      const currentOrg = searchParams.org || [];
-      if (checked) {
-        setSearchParams({
-          ...searchParams,
-          org: [...currentOrg.filter(o => o !== 'kamm'), org]
-        });
-      } else {
-        setSearchParams({
-          ...searchParams,
-          org: currentOrg.filter(o => o !== org)
-        });
-      }
-    }
-  };
-
-  const handleAktChange = (akt: string, checked: boolean) => {
-    if (allaHandelser && checked) {
-      setAllaHandelser(false);
-      setSearchParams({
-        ...searchParams,
-        org: searchParams.org?.filter(o => o !== 'kamm')
-      });
-    }
+  const loadUpcomingEvents = async () => {
+    setLoading(true);
+    setError(null);
     
-    const currentAkt = searchParams.akt || [];
-    if (checked) {
-      setSearchParams({
-        ...searchParams,
-        akt: [...currentAkt, akt]
-      });
-    } else {
-      setSearchParams({
-        ...searchParams,
-        akt: currentAkt.filter(a => a !== akt)
-      });
+    try {
+      const result = await fetchUpcomingEvents(30);
+      setEvents(result);
+    } catch (err) {
+      setError('Kunde inte hämta kommande händelser');
+      console.error('Error loading upcoming events:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('sv-SE');
-    } catch {
-      return dateString;
-    }
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedOrgan("");
+    setSelectedType("");
+    setFromDate("");
+    setToDate("");
+    loadLatestEvents();
   };
+
+  // Get unique organs and types for dropdowns
+  const uniqueOrgans = [...new Set(events.map(event => event.organ).filter(Boolean))];
+  const uniqueTypes = [...new Set(events.map(event => event.typ).filter(Boolean))];
 
   return (
     <div className="space-y-6">
@@ -216,15 +129,54 @@ const CalendarSearch = () => {
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <Label htmlFor="searchQuery">Sökord</Label>
+                  <Input
+                    id="searchQuery"
+                    placeholder="Sök i titel, beskrivning eller aktivitet..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="organ">Organ</Label>
+                  <Select value={selectedOrgan} onValueChange={setSelectedOrgan}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj organ" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Alla organ</SelectItem>
+                      {uniqueOrgans.map((organ) => (
+                        <SelectItem key={organ} value={organ}>{organ}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="eventType">Typ av händelse</Label>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj typ" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Alla typer</SelectItem>
+                      {uniqueTypes.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
                   <Label htmlFor="fromDate">Från datum</Label>
                   <Input
                     id="fromDate"
                     type="date"
-                    value={searchParams.fromDate || ''}
-                    onChange={(e) => setSearchParams({
-                      ...searchParams,
-                      fromDate: e.target.value
-                    })}
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
                   />
                 </div>
                 
@@ -233,113 +185,13 @@ const CalendarSearch = () => {
                   <Input
                     id="toDate"
                     type="date"
-                    value={searchParams.toDate || ''}
-                    onChange={(e) => setSearchParams({
-                      ...searchParams,
-                      toDate: e.target.value
-                    })}
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
                   />
                 </div>
               </div>
 
-              <Tabs defaultValue="kammaren" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="kammaren">Kammaren</TabsTrigger>
-                  <TabsTrigger value="utskott">Utskott</TabsTrigger>
-                  <TabsTrigger value="ovriga">Övriga</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="kammaren" className="space-y-4">
-                  <div>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Checkbox
-                        id="allaHandelser"
-                        checked={allaHandelser}
-                        onCheckedChange={(checked) => handleOrgChange('kamm', checked as boolean)}
-                      />
-                      <Label htmlFor="allaHandelser" className="font-medium">
-                        Alla händelser i kammaren
-                      </Label>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {kammarAktiviteter.map((aktivitet) => (
-                        <div key={aktivitet.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`akt-${aktivitet.value}`}
-                            checked={searchParams.akt?.includes(aktivitet.value) || false}
-                            onCheckedChange={(checked) => handleAktChange(aktivitet.value, checked as boolean)}
-                            disabled={allaHandelser}
-                          />
-                          <Label htmlFor={`akt-${aktivitet.value}`} className="text-sm">
-                            {aktivitet.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="utskott" className="space-y-4">
-                  <div>
-                    <Label className="text-base font-medium">Utskott och EU-nämnden</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                      {utskott.map((org) => (
-                        <div key={org.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`org-${org.value}`}
-                            checked={searchParams.org?.includes(org.value) || false}
-                            onCheckedChange={(checked) => handleOrgChange(org.value, checked as boolean)}
-                          />
-                          <Label htmlFor={`org-${org.value}`} className="text-sm">
-                            {org.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-base font-medium">Utskottsaktiviteter</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                      {utskottAktiviteter.map((aktivitet) => (
-                        <div key={aktivitet.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`utskott-akt-${aktivitet.value}`}
-                            checked={searchParams.akt?.includes(aktivitet.value) || false}
-                            onCheckedChange={(checked) => handleAktChange(aktivitet.value, checked as boolean)}
-                          />
-                          <Label htmlFor={`utskott-akt-${aktivitet.value}`} className="text-sm">
-                            {aktivitet.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="ovriga" className="space-y-4">
-                  <div>
-                    <Label className="text-base font-medium">Övriga kalenderhändelser</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-                      {ovrigaAktiviteter.map((aktivitet) => (
-                        <div key={aktivitet.value} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`ovrig-akt-${aktivitet.value}`}
-                            checked={searchParams.akt?.includes(aktivitet.value) || false}
-                            onCheckedChange={(checked) => handleAktChange(aktivitet.value, checked as boolean)}
-                          />
-                          <Label htmlFor={`ovrig-akt-${aktivitet.value}`} className="text-sm">
-                            {aktivitet.label}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-
-              <div className="flex space-x-2">
+              <div className="flex flex-wrap gap-2">
                 <Button onClick={handleSearch} disabled={loading}>
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -348,20 +200,14 @@ const CalendarSearch = () => {
                   )}
                   Sök händelser
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setSearchParams({});
-                    setAllaHandelser(false);
-                  }}
-                >
+                <Button variant="outline" onClick={clearFilters}>
                   Rensa filter
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={loadLatestEvents}
-                >
+                <Button variant="outline" onClick={loadLatestEvents}>
                   Visa senaste
+                </Button>
+                <Button variant="outline" onClick={loadUpcomingEvents}>
+                  Kommande händelser
                 </Button>
               </div>
             </CardContent>
@@ -380,27 +226,27 @@ const CalendarSearch = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Kalenderhändelser</span>
-                  <Badge variant="secondary">{totalCount} träffar</Badge>
+                  <Badge variant="secondary">{events.length} händelser</Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {events.slice(0, 50).map((event, index) => (
-                    <div key={index} className="border rounded-lg p-4">
+                    <div key={event.id || index} className="border rounded-lg p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">
-                            {event.summary || event.aktivitet}
+                            {event.summary || event.aktivitet || 'Utan titel'}
                           </h3>
                           <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
                             <div className="flex items-center space-x-1">
                               <Calendar className="w-4 h-4" />
-                              <span>{formatDate(event.datum)}</span>
+                              <span>{formatEventDate(event.datum)}</span>
                             </div>
                             {event.tid && (
                               <div className="flex items-center space-x-1">
                                 <Clock className="w-4 h-4" />
-                                <span>{event.tid}</span>
+                                <span>{formatEventTime(event.tid)}</span>
                               </div>
                             )}
                             {event.plats && (
@@ -416,20 +262,14 @@ const CalendarSearch = () => {
                             </p>
                           )}
                           <div className="flex items-center space-x-2 mt-2">
-                            <Badge variant="outline">{event.organ}</Badge>
-                            <Badge variant="secondary">{event.typ}</Badge>
+                            {event.organ && <Badge variant="outline">{event.organ}</Badge>}
+                            {event.typ && <Badge variant="secondary">{event.typ}</Badge>}
                           </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-                
-                {events.length < totalCount && (
-                  <p className="text-center text-gray-500 mt-4">
-                    Visar {events.length} av {totalCount} händelser
-                  </p>
-                )}
               </CardContent>
             </Card>
           )}

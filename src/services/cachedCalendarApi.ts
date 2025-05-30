@@ -180,6 +180,8 @@ export const formatEventDate = (dateString: string | null): string => {
   
   try {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    
     return date.toLocaleDateString('sv-SE', {
       weekday: 'long',
       year: 'numeric',
@@ -198,6 +200,8 @@ export const formatEventTime = (timeString: string | null): string => {
     // Handle both full datetime and time-only strings
     if (timeString.includes('T')) {
       const date = new Date(timeString);
+      if (isNaN(date.getTime())) return timeString;
+      
       return date.toLocaleTimeString('sv-SE', {
         hour: '2-digit',
         minute: '2-digit'
@@ -215,6 +219,8 @@ export const isEventToday = (dateString: string | null): boolean => {
   
   try {
     const eventDate = new Date(dateString);
+    if (isNaN(eventDate.getTime())) return false;
+    
     const today = new Date();
     
     return eventDate.toDateString() === today.toDateString();
@@ -228,6 +234,8 @@ export const isEventUpcoming = (dateString: string | null): boolean => {
   
   try {
     const eventDate = new Date(dateString);
+    if (isNaN(eventDate.getTime())) return false;
+    
     const today = new Date();
     
     return eventDate > today;
