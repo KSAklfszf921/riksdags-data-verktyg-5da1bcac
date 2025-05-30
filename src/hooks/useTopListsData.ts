@@ -106,7 +106,11 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
       console.log('Using cached top lists data');
       setTopListsData(prev => ({
         ...prev,
-        ...cached,
+        motions: cached.motions || [],
+        speeches: cached.speeches || [],
+        interpellations: cached.interpellations || [],
+        writtenQuestions: cached.writtenQuestions || [],
+        lastUpdated: cached.lastUpdated || null,
         loading: false
       }));
       return true;
@@ -265,7 +269,11 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
 
       setTopListsData(prev => ({
         ...prev,
-        ...newData,
+        motions: newData.motions,
+        speeches: newData.speeches,
+        interpellations: newData.interpellations,
+        writtenQuestions: newData.writtenQuestions,
+        lastUpdated: newData.lastUpdated,
         loading: false
       }));
 
