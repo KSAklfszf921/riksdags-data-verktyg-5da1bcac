@@ -11,6 +11,7 @@ import Dokument from "./pages/Dokument";
 import Anforanden from "./pages/Anforanden";
 import Kalender from "./pages/Kalender";
 import Topplistor from "./pages/Topplistor";
+import Partianalys from "./pages/Partianalys";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/anforanden" element={<Anforanden />} />
           <Route path="/kalender" element={<Kalender />} />
           <Route path="/topplistor" element={<Topplistor />} />
+          <Route path="/partianalys" element={<Partianalys />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
