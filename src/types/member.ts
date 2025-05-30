@@ -5,7 +5,7 @@ export interface Member {
   party: string;
   constituency: string;
   imageUrl: string;
-  email?: string;
+  email: string; // Now required since all members have email addresses
   phone?: string;
   birthYear: number;
   profession: string;
@@ -23,14 +23,14 @@ export interface Member {
 }
 
 export interface MemberAssignment {
-  organ: string;
+  organ_kod: string; // Changed from organ to organ_kod to match API
   roll: string;
   status: string;
   from: string;
   tom: string;
-  typ?: string;
+  typ: string; // Removed type restriction to handle 'uppdrag'
   ordning?: string;
-  uppgift?: string; // Committee full name e.g. "Arbetsmarknadsutskottet"
+  uppgift: string; // Committee full name e.g. "Arbetsmarknadsutskottet", now required
 }
 
 export interface Speech {

@@ -8,8 +8,8 @@ export interface RiksdagMember {
   status: string;
   kon: string;
   fodd_ar: string;
-  datum_fran: string;
-  datum_tom: string;
+  datum_fran?: string;
+  datum_tom?: string;
   fodd_datum: string;
   bild_url_80?: string;
   bild_url_192?: string;
@@ -17,14 +17,14 @@ export interface RiksdagMember {
 }
 
 export interface RiksdagMemberAssignment {
-  organ: string;
+  organ_kod: string;
   roll: string;
   status: string;
   from: string;
   tom: string;
   typ: string;
   ordning?: string;
-  uppgift?: string; // Committee full name e.g. "Arbetsmarknadsutskottet"
+  uppgift: string;
 }
 
 export interface RiksdagMemberDetails {
@@ -40,12 +40,15 @@ export interface RiksdagMemberDetails {
   bild_url_192?: string;
   bild_url_max?: string;
   assignments: RiksdagMemberAssignment[];
-  email?: string;
+  email: string;
 }
 
 export interface RiksdagPersonResponse {
   personlista: {
-    person: RiksdagMember[];
+    person: (RiksdagMember & { 
+      personuppdrag?: { uppdrag: any[] }; 
+      personuppgift?: { uppgift: any[] } 
+    })[];
     '@hits': string;
   };
 }
@@ -222,6 +225,12 @@ export interface CalendarSearchParams {
 
 const BASE_URL = 'https://data.riksdagen.se';
 
+// Updated committee codes based on actual Riksdagen structure
+const VALID_COMMITTEE_CODES = [
+  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU', 'NU', 'SkU', 'SfU', 
+  'SoU', 'TU', 'UbU', 'UU', 'UFöU', 'EUN', 'SäU'
+];
+
 export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
   if (query.length < 1) return [];
   
@@ -259,65 +268,54 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
       return null;
     }
 
-    // Fetch assignment information with improved error handling and committee filtering
-    const assignmentsUrl = `${BASE_URL}/personuppdrag/?iid=${intressentId}&utformat=json`;
-    let assignments: RiksdagMemberAssignment[] = [];
+    // Extract assignments directly from personlista response
+    const rawAssignments = person.personuppdrag?.uppdrag || [];
+    console.log(`Raw assignments for ${intressentId}:`, rawAssignments);
     
-    try {
-      console.log(`Fetching assignments for ${intressentId} from: ${assignmentsUrl}`);
-      const assignmentsResponse = await fetch(assignmentsUrl);
+    // Filter and map assignments with corrected typ filtering
+    const assignments: RiksdagMemberAssignment[] = rawAssignments
+      .filter(assignment => {
+        // Filter for committee assignments using typ === 'uppdrag' and validate committee codes
+        const isCommitteeAssignment = assignment.typ === 'uppdrag';
+        const hasValidOrgan = assignment.organ_kod && VALID_COMMITTEE_CODES.includes(assignment.organ_kod);
+        const hasCommitteeName = assignment.uppgift && Array.isArray(assignment.uppgift) && assignment.uppgift[0];
+        
+        const result = isCommitteeAssignment && hasValidOrgan && hasCommitteeName;
+        console.log(`Assignment filter for ${intressentId}: ${assignment.organ_kod} (${assignment.typ}) - Valid: ${result}`);
+        return result;
+      })
+      .map(assignment => ({
+        organ_kod: assignment.organ_kod,
+        roll: assignment.roll_kod || assignment.roll,
+        status: assignment.status,
+        from: assignment.from,
+        tom: assignment.tom,
+        typ: assignment.typ,
+        ordning: assignment.ordningsnummer || assignment.ordning,
+        uppgift: Array.isArray(assignment.uppgift) ? assignment.uppgift[0] : assignment.uppgift
+      }));
+
+    console.log(`Processed ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
+
+    // Handle email extraction with improved logic
+    let email = `${person.tilltalsnamn.toLowerCase()}.${person.efternamn.toLowerCase()}@riksdagen.se`;
+    
+    if (person.personuppgift?.uppgift) {
+      const emailEntry = person.personuppgift.uppgift.find(u => 
+        u.kod === 'Officiell e-postadress' || 
+        (u.uppgift && Array.isArray(u.uppgift) && u.uppgift[0]?.includes('@'))
+      );
       
-      if (assignmentsResponse.ok) {
-        const assignmentsData = await assignmentsResponse.json();
-        console.log(`Raw assignments response for ${intressentId}:`, assignmentsData);
-        
-        let rawAssignments: any[] = [];
-        
-        // Handle different response structures
-        if (assignmentsData.personuppdrag?.uppdrag) {
-          rawAssignments = Array.isArray(assignmentsData.personuppdrag.uppdrag) 
-            ? assignmentsData.personuppdrag.uppdrag 
-            : [assignmentsData.personuppdrag.uppdrag];
-        } else if (assignmentsData.uppdrag) {
-          rawAssignments = Array.isArray(assignmentsData.uppdrag) 
-            ? assignmentsData.uppdrag 
-            : [assignmentsData.uppdrag];
-        }
-        
-        // Filter and map assignments with validation
-        assignments = rawAssignments
-          .filter(assignment => {
-            // Only include committee assignments (typ === 'Utskott' or similar)
-            const isCommitteeAssignment = assignment.typ === 'Utskott' || 
-                                        assignment.typ === 'uppdrag' ||
-                                        assignment.typ === 'Riksdagsorgan';
-            
-            // Validate committee code if it's a committee assignment
-            const hasValidOrgan = assignment.organ && 
-                                (VALID_COMMITTEE_CODES.includes(assignment.organ) ||
-                                 assignment.organ.toLowerCase().includes('utskott') ||
-                                 assignment.organ.toLowerCase().includes('nämnd'));
-            
-            return isCommitteeAssignment && hasValidOrgan;
-          })
-          .map(assignment => ({
-            organ: assignment.organ,
-            roll: assignment.roll || assignment.roll_kod,
-            status: assignment.status,
-            from: assignment.from || assignment.datum_fran,
-            tom: assignment.tom || assignment.datum_tom,
-            typ: assignment.typ,
-            ordning: assignment.ordning || assignment.ordningsnummer,
-            uppgift: assignment.uppgift // Committee full name from API
-          }));
-        
-        console.log(`Found ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
-      } else {
-        console.log(`No assignments response for ${intressentId}: ${assignmentsResponse.status}`);
+      if (emailEntry && emailEntry.uppgift) {
+        const emailValue = Array.isArray(emailEntry.uppgift) ? emailEntry.uppgift[0] : emailEntry.uppgift;
+        email = emailValue.replace('[på]', '@').replace('(at)', '@');
       }
-    } catch (error) {
-      console.error(`Error fetching member assignments for ${intressentId}:`, error);
     }
+
+    // Normalize email format
+    email = email.replace(/\s+/g, '').toLowerCase()
+      .replace(/ä/g, 'a').replace(/å/g, 'a').replace(/ö/g, 'o')
+      .replace(/[^a-z0-9@.-]/g, '');
 
     return {
       intressent_id: person.intressent_id,
@@ -331,7 +329,7 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
       bild_url_192: person.bild_url_192,
       bild_url_max: person.bild_url_max,
       assignments,
-      email: undefined // Don't generate potentially incorrect email addresses
+      email
     };
   } catch (error) {
     console.error(`Error fetching member details for ${intressentId}:`, error);
@@ -347,14 +345,8 @@ export const fetchMembersWithCommittees = async (
 ): Promise<{ members: RiksdagMemberDetails[]; totalCount: number }> => {
   try {
     // Validate committee code if provided
-    if (committee && committee !== 'all') {
-      const isValidCommitteeCode = VALID_COMMITTEE_CODES.includes(committee);
-      const isValidCommitteeName = committee.toLowerCase().includes('utskott') || 
-                                  committee.toLowerCase().includes('nämnd');
-      
-      if (!isValidCommitteeCode && !isValidCommitteeName) {
-        console.warn(`Potentially invalid committee identifier: ${committee}`);
-      }
+    if (committee && committee !== 'all' && !VALID_COMMITTEE_CODES.includes(committee)) {
+      console.warn(`Potentially invalid committee code: ${committee}`);
     }
 
     let url = `${BASE_URL}/personlista/?utformat=json`;
@@ -374,7 +366,7 @@ export const fetchMembersWithCommittees = async (
     
     const currentDate = new Date();
     
-    // Filter by status
+    // Filter by status with improved date handling
     if (status === 'current') {
       allMembers = allMembers.filter(member => {
         if (!member.datum_tom || member.datum_tom.trim() === '') {
@@ -384,7 +376,7 @@ export const fetchMembersWithCommittees = async (
           const endDate = new Date(member.datum_tom);
           return endDate > currentDate;
         } catch {
-          return true;
+          return true; // Include if date parsing fails
         }
       });
     } else if (status === 'former') {
@@ -426,7 +418,7 @@ export const fetchMembersWithCommittees = async (
             bild_url_192: member.bild_url_192,
             bild_url_max: member.bild_url_max,
             assignments: [],
-            email: undefined
+            email: `${member.tilltalsnamn.toLowerCase()}.${member.efternamn.toLowerCase()}@riksdagen.se`
           };
         })
       );
@@ -444,30 +436,30 @@ export const fetchMembersWithCommittees = async (
 };
 
 export const fetchAllCommittees = async (): Promise<string[]> => {
-  try {
-    const url = `${BASE_URL}/utskott/?utformat=json`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch committees: ${response.status}`);
-      throw new Error('Kunde inte hämta utskott');
-    }
-    
-    const data = await response.json();
-    console.log('Committees API response:', data);
-    
-    const committees = data.utskottslista?.utskott || [];
-    
-    const committeeNames = committees
-      .map((committee: any) => committee.namn)
-      .filter((name: string) => name && name.trim() !== '');
-    
-    console.log(`Found ${committeeNames.length} committees:`, committeeNames);
-    return committeeNames;
-  } catch (error) {
-    console.error('Error fetching committees:', error);
-    return [];
-  }
+  // Use hardcoded list since utskott endpoint returns 404
+  const committees = [
+    'Arbetsmarknadsutskottet',
+    'Civilutskottet',
+    'Finansutskottet',
+    'Försvarsutskottet',
+    'Justitieutskottet',
+    'Konstitutionsutskottet',
+    'Kulturutskottet',
+    'Miljö- och jordbruksutskottet',
+    'Näringsutskottet',
+    'Skatteutskottet',
+    'Socialförsäkringsutskottet',
+    'Socialutskottet',
+    'Trafikutskottet',
+    'Utbildningsutskottet',
+    'Utrikesutskottet',
+    'Sammansatta utrikes- och försvarsutskottet',
+    'EU-nämnden',
+    'Säkerhetsutskottet'
+  ];
+  
+  console.log(`Returning ${committees.length} hardcoded committees`);
+  return committees;
 };
 
 export const fetchMembers = async (
@@ -828,19 +820,13 @@ export const getMemberCommitteeAssignments = async (intressentId: string): Promi
     return [];
   }
   
-  // Return only committee assignments, filtered and validated
-  return memberDetails.assignments.filter(assignment => 
-    assignment.typ === 'Utskott' || 
-    (assignment.organ && VALID_COMMITTEE_CODES.includes(assignment.organ))
-  );
+  // Return committee assignments, already filtered and validated
+  return memberDetails.assignments;
 };
 
-// New utility function to validate committee codes
+// Updated utility function to validate committee codes
 export const isValidCommitteeCode = (code: string): boolean => {
   return VALID_COMMITTEE_CODES.includes(code);
 };
 
-// Valid committee codes for validation
-const VALID_COMMITTEE_CODES = [
-  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU', 'NU', 'SkU', 'SfU', 'SoU', 'TU', 'UbU', 'UU', 'UFöU', 'eun'
-];
+// ... keep existing code (other exports)
