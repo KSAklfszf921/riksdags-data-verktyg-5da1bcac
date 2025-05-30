@@ -111,6 +111,8 @@ export interface RiksdagSpeech {
   dok_id?: string;
   dok_titel?: string;
   protokoll_url_www?: string;
+  avsnittsrubrik?: string;
+  replik?: string;
 }
 
 export interface RiksdagSpeechResponse {
