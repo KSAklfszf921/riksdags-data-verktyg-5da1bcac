@@ -1,4 +1,3 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -23,7 +22,8 @@ import {
   ExternalLink,
   X,
   BarChart3,
-  Building
+  Building,
+  BookOpen
 } from 'lucide-react';
 
 interface MemberProfileProps {
@@ -140,6 +140,22 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
     return endDate && endDate <= currentDate;
   }) || [];
 
+  // Helper function to get biography section title
+  const getBiographyTitle = (kod: string) => {
+    const titleMap: { [key: string]: string } = {
+      'Uppdrag inom riksdag och regering': 'Uppdrag inom riksdag och regering',
+      'Föräldrar': 'Föräldrar',
+      'Utbildning': 'Utbildning',
+      'Yrke': 'Yrke',
+      'Tidigare yrken': 'Tidigare yrken',
+      'Politiska uppdrag': 'Politiska uppdrag',
+      'Övriga uppdrag': 'Övriga uppdrag',
+      'Familj': 'Familj',
+      'Intressen': 'Intressen'
+    };
+    return titleMap[kod] || kod;
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
@@ -225,6 +241,30 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               )}
             </CardContent>
           </Card>
+
+          {/* Biografi */}
+          {member.biography && member.biography.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <BookOpen className="w-5 h-5" />
+                  <span>Biografi</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {member.biography.map((bio, index) => (
+                  <div key={index} className="border-l-4 border-blue-200 pl-4">
+                    <h4 className="font-semibold text-gray-900 mb-2">
+                      {getBiographyTitle(bio.kod)}
+                    </h4>
+                    <p className="text-gray-700 text-sm leading-relaxed">
+                      {bio.uppgift}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Aktuella uppdrag */}
           {activeAssignments.length > 0 && (

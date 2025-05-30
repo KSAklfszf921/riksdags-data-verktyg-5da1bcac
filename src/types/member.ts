@@ -20,6 +20,15 @@ export interface Member {
   interpellations?: number;
   writtenQuestions?: number;
   assignments?: MemberAssignment[];
+  biography?: BiographyItem[];
+}
+
+export interface BiographyItem {
+  kod: string;
+  uppgift: string;
+  typ: string;
+  intressent_id?: string;
+  hangar_id?: string;
 }
 
 export interface MemberAssignment {
