@@ -129,14 +129,12 @@ const Index = () => {
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Analysverktyg
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Välj det verktyg som passar dina behov för att utforska riksdagens data
-            </p>
+            
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {analysisTools.map((tool, index) => <Card key={tool.title} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg bg-white/80 backdrop-blur-sm cursor-pointer" onClick={() => handleToolClick(tool.href)}>
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-4 py-[20px] px-[20px] rounded-none">
                   <div className={`w-12 h-12 ${tool.color} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                     <tool.icon className="w-6 h-6 text-white" />
                   </div>
