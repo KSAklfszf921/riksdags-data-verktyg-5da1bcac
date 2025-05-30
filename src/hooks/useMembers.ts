@@ -64,11 +64,13 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Improved assignment processing - fix date parsing and filtering
+  // Enhanced assignment processing with better date handling and filtering
   const currentDate = new Date();
   const assignments = memberDetails?.assignments || [];
   
-  // Filter active assignments with more robust logic
+  console.log(`Processing ${assignments.length} assignments for ${riksdagMember.efternamn}`);
+  
+  // Filter active assignments with improved logic
   const activeAssignments = assignments.filter(assignment => {
     // Parse dates more carefully and handle various formats
     let endDate: Date | null = null;
@@ -102,18 +104,20 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
                         assignment.organ !== 'kam' && 
                         !assignment.organ.toLowerCase().includes('kammar');
     
-    // Focus on committee and important assignments
+    // Focus on committee and important assignments - be more inclusive
     const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
                                   assignment.typ === 'Riksdagsorgan' || 
                                   assignment.typ === 'Departement' ||
                                   assignment.organ.toLowerCase().includes('utskott') ||
                                   assignment.organ.toLowerCase().includes('nämnd') ||
-                                  assignment.organ.toLowerCase().includes('delegation');
+                                  assignment.organ.toLowerCase().includes('delegation') ||
+                                  assignment.organ.endsWith('U') || // Committee codes often end with 'U'
+                                  assignment.organ.endsWith('u');
     
     const result = isActive && isNotChamber && isCommitteeOrImportant;
     
-    if (result) {
-      console.log(`Active assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - End: ${assignment.tom || 'No end date'}`);
+    if (isActive && isNotChamber) {
+      console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - Active: ${result} - Type: ${assignment.typ} - End: ${assignment.tom || 'No end date'}`);
     }
     
     return result;

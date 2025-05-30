@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,32 +33,75 @@ const Ledamoter = () => {
   );
   const { committees } = useCommittees();
 
-  // Available committees list for member type filter
+  // Comprehensive list of all Swedish parliament committees and organs
   const ALL_COMMITTEES = [
     'Arbetsmarknadsutskottet',
-    'Bostadsutskottet', 
     'Civilutskottet',
-    'EES-utskottet',
     'EU-nämnden',
     'Europarådets svenska delegation',
     'Finansutskottet',
     'Försvarsutskottet',
-    'Jordbruksutskottet',
     'Justitieutskottet',
     'Konstitutionsutskottet',
     'Kulturutskottet',
-    'Lagutskottet',
     'Miljö- och jordbruksutskottet',
     'Näringsutskottet',
-    'Riksdagens delegation till Europarådets parlamentariska församling',
     'Sammansatta utrikes- och försvarsutskottet',
     'Skatteutskottet',
     'Socialförsäkringsutskottet',
     'Socialutskottet',
     'Trafikutskottet',
     'Utbildningsutskottet',
-    'Utrikesutskottet'
+    'Utrikesutskottet',
+    // Committee codes from the Riksdag API
+    'AU', // Arbetsmarknadsutskottet
+    'CU', // Civilutskottet
+    'FiU', // Finansutskottet
+    'FöU', // Försvarsutskottet
+    'JuU', // Justitieutskottet
+    'KU', // Konstitutionsutskottet
+    'KrU', // Kulturutskottet
+    'MjU', // Miljö- och jordbruksutskottet
+    'NU', // Näringsutskottet
+    'SkU', // Skatteutskottet
+    'SfU', // Socialförsäkringsutskottet
+    'SoU', // Socialutskottet
+    'TU', // Trafikutskottet
+    'UbU', // Utbildningsutskottet
+    'UU', // Utrikesutskottet
+    'UFöU', // Sammansatta utrikes- och försvarsutskottet
+    'eun', // EU-nämnden
+    // Additional organs and delegations
+    'Domarnämnden',
+    'Krigsdelegationen',
+    'Ledamotsrådet',
+    'Nordiska rådets svenska delegation',
+    'Riksbanksfullmäktige',
+    'Riksdagens ansvarsnämnd',
+    'Riksdagens arvodesnämnd',
+    'Riksdagens delegation till Arktiska parlamentarikerkonferensen',
+    'Riksdagens delegation till Europarådets parlamentariska församling',
+    'Riksdagens delegation till Interparlamentariska unionen',
+    'Riksdagens delegation till Natos parlamentariska församling',
+    'Riksdagens delegation till OSSE:s parlamentariska församling',
+    'Riksdagens delegation till parlamentariska Östersjökonferensen',
+    'Riksdagens ombudsmän',
+    'Riksdagens styrgrupp för det bilaterala demokratifrämjande samarbetet',
+    'Riksdagens överklagandenämnd',
+    'Riksdagsstyrelsen',
+    'Riksrevisionen',
+    'Riksrevisionens parlamentariska råd',
+    'Statsrådsarvodesnämnden',
+    'Utrikesnämnden',
+    'Valberedningen',
+    'Valprövningsnämnden'
   ];
+
+  // Combine API committees with predefined list and remove duplicates
+  const allAvailableCommittees = Array.from(new Set([
+    ...committees,
+    ...ALL_COMMITTEES
+  ])).sort();
 
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
@@ -67,7 +109,7 @@ const Ledamoter = () => {
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
   const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
 
-  // Filtrera och sortera ledamöter
+  // Improved committee filtering - more comprehensive matching
   const filteredAndSortedMembers = members
     .filter(member => {
       // Om autocomplete-filter är aktivt, visa bara den valda ledamoten
@@ -80,18 +122,29 @@ const Ledamoter = () => {
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
       
-      // Improved committee filtering - check if member has any assignment in the selected committee
+      // Enhanced committee filtering - check multiple ways to match committees
       const matchesCommittee = selectedCommittee === "all" || 
         member.assignments?.some(assignment => {
           const currentDate = new Date();
-          const endDate = assignment.tom ? new Date(assignment.tom) : null;
+          let endDate = null;
+          if (assignment.tom) {
+            try {
+              endDate = assignment.tom.includes('T') ? new Date(assignment.tom) : new Date(assignment.tom + 'T23:59:59');
+            } catch (e) {
+              endDate = null;
+            }
+          }
           const isActive = !endDate || endDate > currentDate;
           
-          // Match both by exact name and by containing the committee name
+          // Match by exact name, contains, code, or partial match
           return isActive && (
             assignment.organ === selectedCommittee ||
             assignment.organ.toLowerCase().includes(selectedCommittee.toLowerCase()) ||
-            selectedCommittee.toLowerCase().includes(assignment.organ.toLowerCase())
+            selectedCommittee.toLowerCase().includes(assignment.organ.toLowerCase()) ||
+            // Match committee codes (e.g., FiU for Finansutskottet)
+            (selectedCommittee.length <= 4 && assignment.organ.includes(selectedCommittee)) ||
+            // Match full committee names
+            (selectedCommittee.includes('utskott') && assignment.organ.toLowerCase().includes(selectedCommittee.split('utskott')[0].toLowerCase()))
           );
         });
       
@@ -322,13 +375,8 @@ const Ledamoter = () => {
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
                         <SelectItem value="all">Alla utskott/organ</SelectItem>
-                        {committees.map((committee) => (
+                        {allAvailableCommittees.map((committee) => (
                           <SelectItem key={committee} value={committee}>
-                            {committee}
-                          </SelectItem>
-                        ))}
-                        {ALL_COMMITTEES.map((committee) => (
-                          <SelectItem key={`static-${committee}`} value={committee}>
                             {committee}
                           </SelectItem>
                         ))}

@@ -14,21 +14,38 @@ interface MemberCardProps {
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const party = partyInfo[member.party];
 
-  // Get current active assignments (excluding Kammaren and chamber assignments)
+  // Get current active assignments with improved filtering
   const currentDate = new Date();
   const activeAssignments = member.assignments?.filter(assignment => {
+    // Parse end date more carefully
     let endDate: Date | null = null;
     if (assignment.tom) {
-      const tomString = assignment.tom.toString();
-      if (tomString.includes('T')) {
-        endDate = new Date(tomString);
-      } else {
-        endDate = new Date(tomString + 'T23:59:59');
+      const tomString = assignment.tom.toString().trim();
+      if (tomString && tomString !== '') {
+        try {
+          if (tomString.includes('T')) {
+            endDate = new Date(tomString);
+          } else {
+            endDate = new Date(tomString + 'T23:59:59');
+          }
+          if (isNaN(endDate.getTime())) {
+            endDate = null;
+          }
+        } catch (e) {
+          endDate = null;
+        }
       }
     }
     
+    // Assignment is active if no end date or end date is in the future
     const isActive = !endDate || endDate > currentDate;
-    const isNotChamber = assignment.organ !== 'Kammaren' && assignment.organ !== 'kam';
+    
+    // Filter out chamber assignments (Kammaren/kam)
+    const isNotChamber = assignment.organ !== 'Kammaren' && 
+                        assignment.organ !== 'kam' && 
+                        !assignment.organ.toLowerCase().includes('kammar');
+    
+    // Include committee and important assignments
     const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
                                   assignment.typ === 'Riksdagsorgan' || 
                                   assignment.typ === 'Departement';
@@ -38,22 +55,24 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
   console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`);
 
-  // Get primary role (main committee assignment)
-  const primaryRole = activeAssignments.find(assignment => 
-    assignment.roll === 'Ledamot' || assignment.roll === 'Ordförande' || assignment.roll === 'Vice ordförande'
-  ) || activeAssignments[0]; // Fallback to first assignment if no standard committee role
-
+  // Get primary role (prioritize committee leadership roles)
   const getPriorityRole = (assignment: any) => {
     if (assignment.roll === 'Ordförande') return 1;
     if (assignment.roll === 'Vice ordförande') return 2;
     if (assignment.roll === 'Ledamot') return 3;
-    return 4;
+    if (assignment.roll === 'Suppleant') return 4;
+    return 5;
   };
 
   // Sort assignments by priority
   const sortedAssignments = activeAssignments.sort((a, b) => 
     getPriorityRole(a) - getPriorityRole(b)
   );
+
+  const primaryRole = sortedAssignments[0];
+
+  // Display up to 2 most important assignments
+  const displayAssignments = sortedAssignments.slice(0, 2);
 
   return (
     <Card 
@@ -91,25 +110,26 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           <span className="truncate">{member.constituency}</span>
         </div>
 
-        {primaryRole && (
-          <div className="flex items-center space-x-2 text-sm">
+        {/* Display active assignments */}
+        {displayAssignments.map((assignment, index) => (
+          <div key={index} className="flex items-center space-x-2 text-sm">
             <Building2 className="w-4 h-4 text-blue-600" />
             <div className="flex-1 min-w-0">
               <span className="font-medium text-blue-800 truncate block">
-                {primaryRole.organ}
+                {assignment.organ}
               </span>
               <span className="text-xs text-gray-600">
-                {primaryRole.roll}
+                {assignment.roll}
               </span>
             </div>
           </div>
-        )}
+        ))}
 
-        {activeAssignments.length > 1 && (
+        {activeAssignments.length > 2 && (
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Users className="w-4 h-4" />
             <span className="text-xs">
-              +{activeAssignments.length - 1} andra uppdrag
+              +{activeAssignments.length - 2} andra uppdrag
             </span>
           </div>
         )}
