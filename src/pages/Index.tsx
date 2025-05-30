@@ -1,9 +1,11 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
+  const navigate = useNavigate();
+
   const analysisTools = [
     {
       title: "Ledamöter",
@@ -67,6 +69,18 @@ const Index = () => {
     }
   ];
 
+  const handleToolClick = (href: string) => {
+    navigate(href);
+  };
+
+  const handleGetStarted = () => {
+    // Scroll to analysis tools section
+    const toolsSection = document.getElementById('analysis-tools');
+    if (toolsSection) {
+      toolsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Navigation */}
@@ -90,7 +104,10 @@ const Index = () => {
               <Button variant="ghost" className="text-gray-600 hover:text-blue-600">
                 API
               </Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
+              <Button 
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                onClick={handleGetStarted}
+              >
                 Kom igång
               </Button>
             </div>
@@ -114,7 +131,11 @@ const Index = () => {
               Perfekt för journalister, forskare och politiskt intresserade.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3">
+              <Button 
+                size="lg" 
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-3"
+                onClick={handleGetStarted}
+              >
                 Börja utforska
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
@@ -127,7 +148,7 @@ const Index = () => {
       </section>
 
       {/* Analysis Tools Grid */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      <section id="analysis-tools" className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -140,7 +161,11 @@ const Index = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {analysisTools.map((tool, index) => (
-              <Card key={tool.title} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <Card 
+                key={tool.title} 
+                className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-lg bg-white/80 backdrop-blur-sm cursor-pointer"
+                onClick={() => handleToolClick(tool.href)}
+              >
                 <CardHeader className="pb-4">
                   <div className={`w-12 h-12 ${tool.color} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                     <tool.icon className="w-6 h-6 text-white" />
@@ -156,6 +181,10 @@ const Index = () => {
                   <Button 
                     variant="ghost" 
                     className="w-full justify-between text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-0 h-auto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToolClick(tool.href);
+                    }}
                   >
                     Utforska
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -207,7 +236,12 @@ const Index = () => {
             <p className="text-xl text-blue-100 mb-8">
               Utforska riksdagens data och få nya insikter om svensk politik
             </p>
-            <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3">
+            <Button 
+              size="lg" 
+              variant="secondary" 
+              className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3"
+              onClick={handleGetStarted}
+            >
               Börja utforska nu
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
