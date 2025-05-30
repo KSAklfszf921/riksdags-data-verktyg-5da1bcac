@@ -22,28 +22,64 @@ const VoteSearch = () => {
   const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async () => {
+    console.log('=== STARTING VOTE SEARCH ===');
+    console.log('Search params:', JSON.stringify(searchParams, null, 2));
+    
     setLoading(true);
     setError(null);
+    setVotes([]);
+    setTotalCount(0);
     
     try {
-      console.log('Searching with params:', searchParams);
+      // Check if we have any search parameters
+      const hasSearchParams = Object.keys(searchParams).some(key => {
+        const value = searchParams[key as keyof VoteSearchParams];
+        return value !== undefined && value !== '' && 
+               (!Array.isArray(value) || value.length > 0);
+      });
+
+      if (!hasSearchParams) {
+        console.log('No search parameters provided, using default');
+        // If no search params, search for recent votes with a basic parameter
+        searchParams.rm = ['2024/25'];
+      }
+
+      console.log('Final search params being sent:', searchParams);
+      
       const result = await searchVotes({
         ...searchParams,
-        pageSize: 100 // Increase page size to get more comprehensive results
+        pageSize: 100
       });
-      console.log('Search result:', result);
-      setVotes(result.votes);
-      setTotalCount(result.totalCount);
+      
+      console.log('=== SEARCH RESULT ===');
+      console.log('Votes returned:', result.votes.length);
+      console.log('Total count:', result.totalCount);
+      console.log('First few votes:', result.votes.slice(0, 3));
+      
+      if (result.votes.length === 0) {
+        setError('Inga voteringar hittades med de angivna sökparamtrarna. Prova att ändra eller ta bort några filter.');
+      } else {
+        setVotes(result.votes);
+        setTotalCount(result.totalCount);
+        setError(null);
+      }
     } catch (err) {
-      setError('Kunde inte hämta voteringsdata. Kontrollera dina sökkriterier.');
-      console.error('Error searching votes:', err);
+      console.error('=== SEARCH ERROR ===');
+      console.error('Error details:', err);
+      console.error('Error message:', err instanceof Error ? err.message : 'Unknown error');
+      
+      setError(`Kunde inte hämta voteringsdata: ${err instanceof Error ? err.message : 'Okänt fel'}`);
+      setVotes([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
+      console.log('=== SEARCH COMPLETED ===');
     }
   };
 
   const groupVotesByBeteckningAndPunkt = (votes: RiksdagVote[]): GroupedVotes => {
-    return votes.reduce((acc, vote) => {
+    console.log('Grouping votes:', votes.length);
+    const grouped = votes.reduce((acc, vote) => {
       if (!acc[vote.beteckning]) {
         acc[vote.beteckning] = {};
       }
@@ -53,6 +89,9 @@ const VoteSearch = () => {
       acc[vote.beteckning][vote.punkt].push(vote);
       return acc;
     }, {} as GroupedVotes);
+    
+    console.log('Grouped result:', Object.keys(grouped).length, 'beteckningar');
+    return grouped;
   };
 
   const groupedVotes = groupVotesByBeteckningAndPunkt(votes);
@@ -86,20 +125,34 @@ const VoteSearch = () => {
             </Button>
             <Button 
               variant="outline" 
-              onClick={() => setSearchParams({})}
+              onClick={() => {
+                console.log('Clearing search filters');
+                setSearchParams({});
+                setVotes([]);
+                setTotalCount(0);
+                setError(null);
+              }}
             >
               Rensa filter
             </Button>
           </div>
+
+          {/* Debug information in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="text-xs text-gray-500 p-2 bg-gray-50 rounded">
+              <p>Debug: Aktiva sökparametrar</p>
+              <pre>{JSON.stringify(searchParams, null, 2)}</pre>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {error && (
         <Card>
           <CardContent className="text-center py-8">
-            <p className="text-red-600">{error}</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Försök med andra sökkriterier eller kontrollera att API:et är tillgängligt.
+            <p className="text-red-600 mb-2">{error}</p>
+            <p className="text-sm text-gray-500">
+              Förslag: Prova att söka på riksmöte "2024/25" eller en specifik beteckning som "AU1".
             </p>
           </CardContent>
         </Card>
@@ -139,8 +192,11 @@ const VoteSearch = () => {
       {votes.length === 0 && !loading && !error && (
         <Card>
           <CardContent className="text-center py-8">
-            <p className="text-gray-500">
-              Inga voteringar hittades. Försök med andra sökkriterier.
+            <p className="text-gray-500 mb-2">
+              Inga voteringar hittades. 
+            </p>
+            <p className="text-sm text-gray-400">
+              Klicka på "Sök voteringar" för att visa senaste voteringar eller ange specifika sökkriterier.
             </p>
           </CardContent>
         </Card>
