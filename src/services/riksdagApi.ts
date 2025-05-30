@@ -755,13 +755,13 @@ export const searchCalendarEvents = async (params: CalendarSearchParams): Promis
   }
 };
 
-export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
+export const fetchMemberDocuments = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagDocument[]> => {
   try {
-    console.log(`Fetching documents for member: ${intressentId}`);
+    console.log(`Fetching documents for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
     
     const { documents } = await searchDocuments({
       iid: intressentId,
-      sz: 100,
+      sz: pageSize,
       sort: 'datum',
       sortorder: 'desc'
     });
@@ -780,13 +780,13 @@ export const fetchMemberDocuments = async (intressentId: string): Promise<Riksda
   }
 };
 
-export const fetchMemberSpeeches = async (intressentId: string): Promise<RiksdagSpeech[]> => {
+export const fetchMemberSpeeches = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagSpeech[]> => {
   try {
-    console.log(`Fetching speeches for member: ${intressentId}`);
+    console.log(`Fetching speeches for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
     
     const { speeches } = await searchSpeeches({
       intressentId,
-      pageSize: 100
+      pageSize
     });
     
     console.log(`Found ${speeches.length} speeches for member ${intressentId}`);

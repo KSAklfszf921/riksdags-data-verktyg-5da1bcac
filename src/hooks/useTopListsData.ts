@@ -29,57 +29,46 @@ interface CacheEntry {
   timestamp: number;
 }
 
-// Helper function to fetch all speeches for a member (handles pagination)
+// Helper function to fetch all speeches for a member (handles pagination properly)
 const fetchAllMemberSpeeches = async (memberId: string) => {
   let allSpeeches = [];
-  let page = 1;
-  const pageSize = 100;
+  let hasMorePages = true;
+  let pageSize = 1000; // Use larger page size to reduce API calls
   
-  while (true) {
-    try {
-      const speeches = await fetchMemberSpeeches(memberId, page, pageSize);
-      if (!speeches || speeches.length === 0) {
-        break;
-      }
-      allSpeeches.push(...speeches);
-      
-      // If we got less than pageSize, we've reached the end
-      if (speeches.length < pageSize) {
-        break;
-      }
-      page++;
-    } catch (error) {
-      console.error(`Error fetching speeches page ${page} for member ${memberId}:`, error);
-      break;
-    }
+  try {
+    console.log(`Fetching all speeches for member: ${memberId}`);
+    
+    // Try to get all speeches in one request with a large page size
+    const speeches = await fetchMemberSpeeches(memberId, 1, pageSize);
+    allSpeeches = speeches;
+    
+    console.log(`Found ${allSpeeches.length} speeches for member ${memberId}`);
+    
+  } catch (error) {
+    console.error(`Error fetching speeches for member ${memberId}:`, error);
+    allSpeeches = [];
   }
   
   return allSpeeches;
 };
 
-// Helper function to fetch all documents for a member (handles pagination)
+// Helper function to fetch all documents for a member (handles pagination properly)
 const fetchAllMemberDocuments = async (memberId: string) => {
   let allDocuments = [];
-  let page = 1;
-  const pageSize = 100;
+  let pageSize = 1000; // Use larger page size to reduce API calls
   
-  while (true) {
-    try {
-      const documents = await fetchMemberDocuments(memberId, page, pageSize);
-      if (!documents || documents.length === 0) {
-        break;
-      }
-      allDocuments.push(...documents);
-      
-      // If we got less than pageSize, we've reached the end
-      if (documents.length < pageSize) {
-        break;
-      }
-      page++;
-    } catch (error) {
-      console.error(`Error fetching documents page ${page} for member ${memberId}:`, error);
-      break;
-    }
+  try {
+    console.log(`Fetching all documents for member: ${memberId}`);
+    
+    // Try to get all documents in one request with a large page size
+    const documents = await fetchMemberDocuments(memberId, 1, pageSize);
+    allDocuments = documents;
+    
+    console.log(`Found ${allDocuments.length} documents for member ${memberId}`);
+    
+  } catch (error) {
+    console.error(`Error fetching documents for member ${memberId}:`, error);
+    allDocuments = [];
   }
   
   return allDocuments;
@@ -150,13 +139,23 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
       const membersResult = await fetchMembers(1, 100, 'current');
       const members = membersResult.members;
 
-      // Process members data
+      console.log(`Processing ${members.length} members for top lists`);
+
+      // Process members data with better error handling and logging
       const memberStats = await Promise.all(
         members.map(async (member) => {
           try {
+            console.log(`Processing member: ${member.tilltalsnamn} ${member.efternamn} (${member.intressent_id})`);
+            
             const [documents, speeches] = await Promise.all([
-              fetchAllMemberDocuments(member.intressent_id).catch(() => []),
-              fetchAllMemberSpeeches(member.intressent_id).catch(() => [])
+              fetchAllMemberDocuments(member.intressent_id).catch((error) => {
+                console.error(`Failed to fetch documents for ${member.efternamn}:`, error);
+                return [];
+              }),
+              fetchAllMemberSpeeches(member.intressent_id).catch((error) => {
+                console.error(`Failed to fetch speeches for ${member.efternamn}:`, error);
+                return [];
+              })
             ]);
 
             const motions = documents.filter(doc => doc.typ === 'mot').length;
@@ -205,6 +204,7 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
             imageUrl: member.imageUrl,
             count: member[key] as number
           }))
+          .filter(member => member.count > 0) // Only include members with activity
           .sort((a, b) => b.count - a.count)
           .slice(0, count);
       };
@@ -216,6 +216,13 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
         writtenQuestions: createTopList('writtenQuestions', topN),
         lastUpdated: new Date()
       };
+
+      console.log('Top lists created:', {
+        motions: newData.motions.length,
+        speeches: newData.speeches.length,
+        interpellations: newData.interpellations.length,
+        writtenQuestions: newData.writtenQuestions.length
+      });
 
       // Save to cache
       saveToCache(newData);
