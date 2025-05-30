@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { RiksdagVote } from '../services/riksdagApi';
 
@@ -12,31 +12,60 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
   const [visibleStart, setVisibleStart] = React.useState(0);
   const [visibleEnd, setVisibleEnd] = React.useState(20);
   
-  const itemHeight = 60; // Approximate height of each vote item
+  const itemHeight = 60;
   const containerRef = React.useRef<HTMLDivElement>(null);
   
   const visibleVotes = useMemo(() => {
     return votes.slice(visibleStart, visibleEnd);
   }, [votes, visibleStart, visibleEnd]);
   
-  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
     const containerHeight = e.currentTarget.clientHeight;
     
-    const newVisibleStart = Math.floor(scrollTop / itemHeight);
+    const newVisibleStart = Math.max(0, Math.floor(scrollTop / itemHeight));
     const newVisibleEnd = Math.min(
       votes.length,
-      newVisibleStart + Math.ceil(containerHeight / itemHeight) + 5 // Buffer
+      newVisibleStart + Math.ceil(containerHeight / itemHeight) + 5 // Buffer for smooth scrolling
     );
     
-    setVisibleStart(newVisibleStart);
-    setVisibleEnd(newVisibleEnd);
-  }, [votes.length, itemHeight]);
+    if (newVisibleStart !== visibleStart || newVisibleEnd !== visibleEnd) {
+      setVisibleStart(newVisibleStart);
+      setVisibleEnd(newVisibleEnd);
+    }
+  }, [votes.length, itemHeight, visibleStart, visibleEnd]);
+  
+  const getRostBadgeStyle = useCallback((rost: string) => {
+    switch (rost?.toLowerCase()) {
+      case 'ja':
+        return { backgroundColor: '#10B981', color: 'white' };
+      case 'nej':
+        return { backgroundColor: '#EF4444', color: 'white' };
+      case 'avstår':
+        return { backgroundColor: '#F59E0B', color: 'white' };
+      case 'frånvarande':
+        return { backgroundColor: '#6B7280', color: 'white' };
+      default:
+        return { backgroundColor: '#9CA3AF', color: 'white' };
+    }
+  }, []);
+
+  const getRostVariant = useCallback((rost: string) => {
+    switch (rost?.toLowerCase()) {
+      case 'ja':
+        return 'default';
+      case 'nej':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
+  }, []);
   
   if (votes.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        Inga röster att visa
+      <div className="text-center py-8 text-gray-500 border rounded-lg bg-gray-50">
+        <p className="text-lg font-medium">Inga röster att visa</p>
+        <p className="text-sm mt-1">Prova att ändra dina sökkriterier</p>
       </div>
     );
   }
@@ -44,7 +73,7 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
   return (
     <div
       ref={containerRef}
-      className="overflow-auto border rounded-lg"
+      className="overflow-auto border rounded-lg bg-white"
       style={{ maxHeight }}
       onScroll={handleScroll}
     >
@@ -58,39 +87,46 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
         >
           {visibleVotes.map((vote, index) => {
             const actualIndex = visibleStart + index;
-            const voteKey = `${vote.intressent_id || `unknown-${actualIndex}`}-${vote.votering_id || 'no-voting'}-${vote.beteckning || 'no-bet'}`;
+            // Improved key generation for better performance
+            const voteKey = `${vote.votering_id || 'no-voting'}-${vote.intressent_id || 'no-member'}-${actualIndex}`;
             
             return (
               <div
                 key={voteKey}
-                className="flex items-center justify-between p-3 border-b bg-white hover:bg-gray-50"
+                className="flex items-center justify-between p-3 border-b bg-white hover:bg-gray-50 transition-colors"
                 style={{ height: itemHeight }}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
+                  <p className="font-medium text-sm truncate text-gray-900">
+                    {vote.namn || 'Okänt namn'} 
+                    {vote.parti && (
+                      <span className="text-gray-600 ml-1">({vote.parti})</span>
+                    )}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {vote.valkrets || 'Okänd valkrets'} • {vote.beteckning || 'Okänd beteckning'}
-                    {vote.punkt && ` - Punkt ${vote.punkt}`}
+                    {vote.valkrets || 'Okänd valkrets'}
+                    {vote.beteckning && (
+                      <span> • {vote.beteckning}</span>
+                    )}
+                    {vote.punkt && (
+                      <span> - Punkt {vote.punkt}</span>
+                    )}
                   </p>
                 </div>
-                <Badge 
-                  variant={
-                    vote.rost === 'Ja' ? 'default' : 
-                    vote.rost === 'Nej' ? 'destructive' : 
-                    'secondary'
-                  }
-                  style={{
-                    backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                   vote.rost === 'Nej' ? '#EF4444' : 
-                                   vote.rost === 'Avstår' ? '#F59E0B' :
-                                   '#6B7280',
-                    color: 'white'
-                  }}
-                >
-                  {vote.rost || 'Okänd'}
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  {vote.rm && (
+                    <Badge variant="outline" className="text-xs">
+                      {vote.rm}
+                    </Badge>
+                  )}
+                  <Badge 
+                    variant={getRostVariant(vote.rost || '')}
+                    style={getRostBadgeStyle(vote.rost || '')}
+                    className="min-w-[60px] text-center"
+                  >
+                    {vote.rost || 'Okänd'}
+                  </Badge>
+                </div>
               </div>
             );
           })}
