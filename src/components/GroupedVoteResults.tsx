@@ -133,6 +133,16 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
             const isExpanded = expandedGroups.has(groupKey);
             const proposalPointsArray = Array.from(group.proposalPoints).sort();
             
+            // Group votes by proposal point for better display
+            const votesByPoint = group.votes.reduce((acc, vote) => {
+              const punkt = vote.punkt || 'Ingen punkt angiven';
+              if (!acc[punkt]) {
+                acc[punkt] = [];
+              }
+              acc[punkt].push(vote);
+              return acc;
+            }, {} as { [key: string]: RiksdagVote[] });
+            
             return (
               <Collapsible key={groupKey} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
                 <CollapsibleTrigger asChild>
@@ -146,13 +156,17 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                           {group.avser}
                         </p>
                         
-                        {/* Proposal points info */}
+                        {/* Proposal points info - now more detailed */}
                         {proposalPointsArray.length > 0 && (
                           <div className="mb-3">
                             <p className="text-sm text-gray-700">
-                              <strong>Förslagspunkter:</strong> {proposalPointsArray.join(', ')} 
-                              <span className="text-gray-500 ml-1">
-                                ({proposalPointsArray.length} {proposalPointsArray.length === 1 ? 'punkt' : 'punkter'})
+                              <strong>Beslutspunkter:</strong> 
+                              <span className="ml-2">
+                                {proposalPointsArray.map((punkt, index) => (
+                                  <Badge key={punkt} variant="outline" className="ml-1">
+                                    {punkt}
+                                  </Badge>
+                                ))}
                               </span>
                             </p>
                           </div>
@@ -195,36 +209,49 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                 
                 <CollapsibleContent className="mt-2">
                   <div className="border rounded-lg bg-gray-50">
-                    <div className="p-4 space-y-2 max-h-64 overflow-y-auto">
-                      {group.votes.map((vote, index) => (
-                        <div key={`${vote.intressent_id || index}-${vote.votering_id || index}`} className="flex items-center justify-between bg-white p-3 rounded border">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">
-                              {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {vote.valkrets || 'Okänd valkrets'}
-                              {vote.punkt && (
-                                <span className="ml-2">• Punkt {vote.punkt}</span>
-                              )}
-                            </p>
+                    <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+                      {/* Show votes grouped by proposal point */}
+                      {Object.entries(votesByPoint).map(([punkt, punktVotes]) => (
+                        <div key={punkt} className="space-y-2">
+                          <div className="flex items-center space-x-2 pb-2 border-b border-gray-200">
+                            <Badge variant="secondary" className="text-xs">
+                              Beslutspunkt {punkt}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              ({punktVotes.length} röster)
+                            </span>
                           </div>
-                          <Badge 
-                            variant={
-                              vote.rost === 'Ja' ? 'default' : 
-                              vote.rost === 'Nej' ? 'destructive' : 
-                              'secondary'
-                            }
-                            style={{
-                              backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                             vote.rost === 'Nej' ? '#EF4444' : 
-                                             vote.rost === 'Avstår' ? '#F59E0B' :
-                                             '#6B7280',
-                              color: 'white'
-                            }}
-                          >
-                            {vote.rost || 'Okänd'}
-                          </Badge>
+                          
+                          <div className="space-y-2">
+                            {punktVotes.map((vote, index) => (
+                              <div key={`${vote.intressent_id || index}-${vote.votering_id || index}-${punkt}`} className="flex items-center justify-between bg-white p-3 rounded border">
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">
+                                    {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {vote.valkrets || 'Okänd valkrets'}
+                                  </p>
+                                </div>
+                                <Badge 
+                                  variant={
+                                    vote.rost === 'Ja' ? 'default' : 
+                                    vote.rost === 'Nej' ? 'destructive' : 
+                                    'secondary'
+                                  }
+                                  style={{
+                                    backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
+                                                   vote.rost === 'Nej' ? '#EF4444' : 
+                                                   vote.rost === 'Avstår' ? '#F59E0B' :
+                                                   '#6B7280',
+                                    color: 'white'
+                                  }}
+                                >
+                                  {vote.rost || 'Okänd'}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
