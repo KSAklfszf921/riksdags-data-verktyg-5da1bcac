@@ -1,415 +1,328 @@
-import { Member } from '../types/member';
-
-const API_BASE_URL = 'https://data.riksdagen.se';
-
-export interface RiksdagSearchResult {
-  personlista: {
-    '@hits': string;
-    person: RiksdagMember[];
-  };
-}
-
 export interface RiksdagMember {
-  hangar_guid: string;
-  sourceid: string;
   intressent_id: string;
-  hangar_id: string;
-  fodd_ar: string;
-  kon: string;
-  efternamn: string;
+  hangar_guid: string;
   tilltalsnamn: string;
-  sorteringsnamn: string;
-  iort: string;
+  efternamn: string;
   parti: string;
   valkrets: string;
   status: string;
-  person_url_xml: string;
-  bild_url_80: string;
-  bild_url_192: string;
-  bild_url_max: string;
+  kon: string;
+  fodd_ar: string;
+  datum_fran?: string;
+  datum_tom?: string;
+  fodd_datum: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
 }
 
-// Flattened document interface to match component usage
+export interface RiksdagMemberAssignment {
+  organ_kod: string;
+  roll: string;
+  status: string;
+  from: string;
+  tom: string;
+  typ: string;
+  ordning?: string;
+  uppgift: string;
+}
+
+export interface RiksdagMemberDetails {
+  intressent_id: string;
+  tilltalsnamn: string;
+  efternamn: string;
+  parti: string;
+  valkrets: string;
+  kon: string;
+  fodd_ar: string;
+  yrke?: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
+  assignments: RiksdagMemberAssignment[];
+  email: string;
+}
+
+export interface RiksdagPersonResponse {
+  personlista: {
+    person: (RiksdagMember & { 
+      personuppdrag?: { uppdrag: any[] }; 
+      personuppgift?: { uppgift: any[] } 
+    })[];
+    '@hits': string;
+  };
+}
+
 export interface RiksdagDocument {
   id: string;
   titel: string;
-  undertitel: string;
-  rm: string;
+  beteckning: string;
   datum: string;
   typ: string;
-  subtyp: string;
-  nummer: string;
-  beteckning: string;
+  intressent_id?: string;
   organ: string;
-  mottagare: string;
-  dokument_url_html: string;
-  dokument_url_text: string;
+  undertitel?: string;
+  hangar_id?: string;
+  hangar_guid?: string;
+  dokument_url_text?: string;
+  dokument_url_html?: string;
+  dokumentstatus?: string;
+  publicerad?: string;
+  kalla?: string;
+  rm?: string;
+  tempbet?: string;
+  nummer?: string;
+  slutdatum?: string;
+  systemdatum?: string;
+  summary?: string;
+  notis?: string;
+  notisrubrik?: string;
+  subtyp?: string;
+  doktyp?: string;
+  score?: string;
 }
 
-// API response structure (nested)
 export interface RiksdagDocumentResponse {
-  dok: {
-    id: string;
-    titel: string;
-    undertitel: string;
-    rm: string;
-    datum: string;
-    typ: string;
-    subtyp: string;
-    nummer: string;
-    beteckning: string;
-    organ: string;
-    mottagare: string;
-    dokument_url_html: string;
-    dokument_url_text: string;
+  dokumentlista: {
+    dokument: RiksdagDocument[];
+    '@hits'?: string;
   };
 }
 
-// Flattened speech interface to match component usage
 export interface RiksdagSpeech {
+  id: string;
   anforande_id: string;
-  dok_id: string;
-  anforande_nummer: string;
-  anforande_url_html: string;
-  anforandetext: string;
-  anforandedatum: string;
-  anforandeperspektiv: string;
-  anforandetyp: string;
   intressent_id: string;
-  replik: string;
-  rm: string;
-  sekvensnummer: string;
-  source: string;
-  talare: string;
-  titel: string;
-  undertitel: string;
   rel_dok_id: string;
-  rel_dok_rm: string;
-  rel_dok_titel: string;
-  rel_dok_subtitel: string;
-  rel_dok_dokument_url_html: string;
-  rel_dok_dokument_url_text: string;
-  kammaraktivitet: string;
-  anf_klockslag: string;
-  anf_sekunder: string;
-  avsnittsrubrik: string;
-  dok_titel: string;
+  namn: string;
   parti: string;
-  protokoll_url_www: string;
+  anforandedatum: string;
+  anforandetext: string;
+  anforandetyp: string;
+  kammaraktivitet: string;
+  anforande_nummer: string;
+  talare: string;
+  rel_dok_titel?: string;
+  rel_dok_beteckning?: string;
+  rel_dok_datum?: string;
+  anf_klockslag?: string;
+  anf_sekunder?: string;
+  anforande_url_html?: string;
+  dok_id?: string;
+  dok_titel?: string;
+  protokoll_url_www?: string;
+  avsnittsrubrik?: string;
+  replik?: string;
 }
 
-// API response structure for speeches (nested)
 export interface RiksdagSpeechResponse {
-  anforande: {
-    anforande_id: string;
-    dok_id: string;
-    anforandetext: string;
-    anforandedatum: string;
-    anforandeperspektiv: string;
-    anforandetyp: string;
-    intressent_id: string;
-    replik: string;
-    rm: string;
-    sekvensnummer: string;
-    source: string;
-    talare: string;
-    titel: string;
-    undertitel: string;
-    rel_dok_id: string;
-    rel_dok_rm: string;
-    rel_dok_titel: string;
-    rel_dok_subtitel: string;
-    rel_dok_dokument_url_html: string;
-    rel_dok_dokument_url_text: string;
-    kammaraktivitet: string;
-    anf_klockslag: string;
-    anf_sekunder: string;
+  anforandelista: {
+    anforande: RiksdagSpeech[];
+    '@hits'?: string;
   };
 }
 
-// Flattened calendar event interface
+export interface RiksdagVote {
+  votering_id: string;
+  hangar_id: string;
+  rm: string;
+  beteckning: string;
+  punkt: string;
+  votering: string;
+  namn: string;
+  parti: string;
+  valkrets: string;
+  rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  avser: string;
+  votering_url_xml: string;
+  dok_id: string;
+  systemdatum: string;
+  intressent_id: string;
+}
+
+export interface RiksdagVoteResponse {
+  voteringlista: {
+    votering: RiksdagVote[];
+    '@hits'?: string;
+  };
+}
+
 export interface RiksdagCalendarEvent {
   id: string;
   datum: string;
   tid: string;
-  typ: string;
-  titel: string;
-  undertitel: string;
-  organ: string;
-  beskrivning: string;
-  url: string;
-  summary: string;
-  aktivitet: string;
   plats: string;
-  description: string;
-}
-
-// API response structure for calendar events (nested)
-export interface RiksdagCalendarEventResponse {
-  event: {
-    id: string;
-    datum: string;
-    tid: string;
-    typ: string;
-    titel: string;
-    undertitel: string;
-    organ: string;
-    beskrivning: string;
-    url: string;
-  };
-}
-
-export interface RiksdagMemberDetails {
-  assignments: any[];
-  email: string | null;
-}
-
-export interface RiksdagCommitteeAssignments {
-  utskottsforslag: {
-    forslag: {
-      hangar_id: string;
-      intressent_id: string;
-      namn: string;
-      parti: string;
-      roll_kod: string;
-      ordningsnummer: string;
-      status: string;
-      from: string;
-      tom: string;
-    }[];
-  };
-}
-
-export interface RiksdagMemberBiography {
-  kod: string;
-  uppgift: string;
+  aktivitet: string;
   typ: string;
-  intressent_id?: string;
-  hangar_id?: string;
+  organ: string;
+  summary: string;
+  description?: string;
+  status: string;
+  url?: string;
+  sekretess?: string;
 }
 
-export interface RiksdagMemberDetailsWithBiography extends RiksdagMemberDetails {
-  biography?: RiksdagMemberBiography[];
+export interface RiksdagCalendarResponse {
+  kalenderlista: {
+    kalender: RiksdagCalendarEvent[];
+    '@hits'?: string;
+  };
 }
 
-// Search parameter interfaces
 export interface DocumentSearchParams {
-  query?: string;
+  searchTerm?: string;
   doktyp?: string;
-  rm?: string;
-  org?: string;
   fromDate?: string;
   toDate?: string;
-  pageSize?: number;
-  page?: number;
+  intressentId?: string;
+  org?: string;
+  parti?: string[];
+  rm?: string;
+  bet?: string;
+  tempbet?: string;
+  nr?: string;
+  ts?: string;
+  iid?: string;
+  talare?: string;
+  exakt?: string;
+  planering?: string;
+  facets?: string;
+  rapport?: string;
+  avd?: string;
+  webbtv?: string;
+  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag' | 'justeringsdag' | 'beredningsdag' | 'publiceringsdatum';
+  sortorder?: 'asc' | 'desc';
+  sz?: number;
 }
 
 export interface SpeechSearchParams {
-  intressentId?: string;
   rm?: string;
   anftyp?: 'Nej' | '';
-  party?: string;
   date?: string;
   systemDate?: string;
+  party?: string;
+  intressentId?: string;
   pageSize?: number;
-  page?: number;
+}
+
+export interface VoteSearchParams {
+  rm?: string[];
+  beteckning?: string;
+  punkt?: string;
+  party?: string[];
+  valkrets?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande' | '';
+  intressentId?: string;
+  pageSize?: number;
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet' | '';
 }
 
 export interface CalendarSearchParams {
-  fromDate?: string;
-  toDate?: string;
   org?: string[];
   akt?: string[];
+  fromDate?: string;
+  toDate?: string;
   pageSize?: number;
-  page?: number;
 }
 
-// Search result interfaces
-export interface DocumentSearchResult {
-  documents: RiksdagDocument[];
-  totalCount: number;
-}
+const BASE_URL = 'https://data.riksdagen.se';
 
-export interface SpeechSearchResult {
-  speeches: RiksdagSpeech[];
-  totalCount: number;
-}
+// Updated committee codes based on actual Riksdagen structure
+const VALID_COMMITTEE_CODES = [
+  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU', 'NU', 'SkU', 'SfU', 
+  'SoU', 'TU', 'UbU', 'UU', 'UFöU', 'EUN', 'SäU'
+];
 
-export interface CalendarSearchResult {
-  events: RiksdagCalendarEvent[];
-  totalCount: number;
-}
-
-// Search functions
-export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<CalendarSearchResult> => {
-  try {
-    let url = `${API_BASE_URL}/kalender/?utformat=json`;
-    
-    if (params.fromDate) {
-      url += `&from=${params.fromDate}`;
-    }
-    if (params.toDate) {
-      url += `&tom=${params.toDate}`;
-    }
-    if (params.org && params.org.length > 0) {
-      url += `&org=${params.org.join(',')}`;
-    }
-    if (params.akt && params.akt.length > 0) {
-      url += `&akt=${params.akt.join(',')}`;
-    }
-    if (params.pageSize) {
-      url += `&size=${params.pageSize}`;
-    }
-    if (params.page) {
-      url += `&p=${params.page}`;
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to search calendar events: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const eventList = data.kalender?.event || [];
-    const totalCount = parseInt(data.kalender?.['@hits'], 10) || 0;
-
-    // Flatten the nested structure
-    const events: RiksdagCalendarEvent[] = eventList.map((eventResponse: RiksdagCalendarEventResponse) => ({
-      id: eventResponse.event.id,
-      datum: eventResponse.event.datum,
-      tid: eventResponse.event.tid,
-      typ: eventResponse.event.typ,
-      titel: eventResponse.event.titel,
-      undertitel: eventResponse.event.undertitel,
-      organ: eventResponse.event.organ,
-      beskrivning: eventResponse.event.beskrivning,
-      url: eventResponse.event.url,
-      summary: eventResponse.event.titel, // Use titel as summary
-      aktivitet: eventResponse.event.typ, // Use typ as aktivitet
-      plats: '', // Default empty, not in API response
-      description: eventResponse.event.beskrivning
-    }));
-
-    return { events, totalCount };
-  } catch (error) {
-    console.error('Error searching calendar events:', error);
-    throw error;
-  }
+// Simplified committee mapping
+const COMMITTEE_MAPPING: { [key: string]: string } = {
+  'AU': 'Arbetsmarknadsutskottet',
+  'CU': 'Civilutskottet', 
+  'FiU': 'Finansutskottet',
+  'FöU': 'Försvarsutskottet',
+  'JuU': 'Justitieutskottet',
+  'KU': 'Konstitutionsutskottet',
+  'KrU': 'Kulturutskottet',
+  'MjU': 'Miljö- och jordbruksutskottet',
+  'NU': 'Näringsutskottet',
+  'SkU': 'Skatteutskottet',
+  'SfU': 'Socialförsäkringsutskottet',
+  'SoU': 'Socialutskottet',
+  'TU': 'Trafikutskottet',
+  'UbU': 'Utbildningsutskottet',
+  'UU': 'Utrikesutskottet',
+  'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
+  'EUN': 'EU-nämnden',
+  'SäU': 'Säkerhetsutskottet'
 };
 
-export const searchSpeeches = async (params: SpeechSearchParams): Promise<SpeechSearchResult> => {
-  try {
-    let url = `${API_BASE_URL}/anforandefilter/?utformat=json`;
-    
-    if (params.intressentId) {
-      url += `&iid=${params.intressentId}`;
-    }
-    if (params.rm) {
-      url += `&rm=${params.rm}`;
-    }
-    if (params.anftyp) {
-      url += `&anftyp=${params.anftyp}`;
-    }
-    if (params.party) {
-      url += `&parti=${params.party}`;
-    }
-    if (params.date) {
-      url += `&from=${params.date}`;
-    }
-    if (params.systemDate) {
-      url += `&systemdate=${params.systemDate}`;
-    }
-    if (params.pageSize) {
-      url += `&size=${params.pageSize}`;
-    }
-    if (params.page) {
-      url += `&p=${params.page}`;
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to search speeches: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const speechList = data.anforanden?.anforande || [];
-    const totalCount = parseInt(data.anforanden?.['@hits'], 10) || 0;
-
-    // Flatten the nested structure
-    const speeches: RiksdagSpeech[] = speechList.map((speechResponse: RiksdagSpeechResponse) => ({
-      anforande_id: speechResponse.anforande.anforande_id,
-      dok_id: speechResponse.anforande.dok_id,
-      anforande_nummer: speechResponse.anforande.anforande_id, // Use anforande_id as nummer
-      anforande_url_html: `https://data.riksdagen.se/anforande/${speechResponse.anforande.anforande_id}/html`,
-      anforandetext: speechResponse.anforande.anforandetext,
-      anforandedatum: speechResponse.anforande.anforandedatum,
-      anforandeperspektiv: speechResponse.anforande.anforandeperspektiv,
-      anforandetyp: speechResponse.anforande.anforandetyp,
-      intressent_id: speechResponse.anforande.intressent_id,
-      replik: speechResponse.anforande.replik,
-      rm: speechResponse.anforande.rm,
-      sekvensnummer: speechResponse.anforande.sekvensnummer,
-      source: speechResponse.anforande.source,
-      talare: speechResponse.anforande.talare,
-      titel: speechResponse.anforande.titel,
-      undertitel: speechResponse.anforande.undertitel,
-      rel_dok_id: speechResponse.anforande.rel_dok_id,
-      rel_dok_rm: speechResponse.anforande.rel_dok_rm,
-      rel_dok_titel: speechResponse.anforande.rel_dok_titel,
-      rel_dok_subtitel: speechResponse.anforande.rel_dok_subtitel,
-      rel_dok_dokument_url_html: speechResponse.anforande.rel_dok_dokument_url_html,
-      rel_dok_dokument_url_text: speechResponse.anforande.rel_dok_dokument_url_text,
-      kammaraktivitet: speechResponse.anforande.kammaraktivitet,
-      anf_klockslag: speechResponse.anforande.anf_klockslag,
-      anf_sekunder: speechResponse.anforande.anf_sekunder,
-      avsnittsrubrik: speechResponse.anforande.titel || 'Okänt ämne', // Use titel as avsnittsrubrik
-      dok_titel: speechResponse.anforande.rel_dok_titel,
-      parti: '', // Will be populated from member data
-      protokoll_url_www: speechResponse.anforande.rel_dok_dokument_url_html || ''
-    }));
-
-    return { speeches, totalCount };
-  } catch (error) {
-    console.error('Error searching speeches:', error);
-    throw error;
-  }
+// Utility function for generating standardized emails
+const generateEmail = (firstName: string, lastName: string): string => {
+  const cleanFirst = firstName.toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  const cleanLast = lastName.toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  return `${cleanFirst}.${cleanLast}@riksdagen.se`;
 };
 
-export const fetchMembers = async (
-  page: number = 1,
-  pageSize: number = 20,
-  status: 'current' | 'all' | 'former' = 'current'
-): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
-  try {
-    let url = `${API_BASE_URL}/personlista/?utformat=json&size=${pageSize}&p=${page}`;
-    if (status === 'current') {
-      url += '&rdlstatus=aktiv';
-    } else if (status === 'former') {
-      url += '&rdlstatus=f.d.';
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch members: ${response.status}`);
-    }
-    const data: RiksdagSearchResult = await response.json();
-    const members = data.personlista?.person || [];
-    const totalCount = parseInt(data.personlista['@hits'], 10) || 0;
-
-    return { members, totalCount };
-  } catch (error) {
-    console.error('Error fetching members:', error);
-    throw error;
-  }
+// Helper function to filter active assignments
+const filterActiveAssignments = (rawAssignments: any[]): RiksdagMemberAssignment[] => {
+  const currentDate = new Date();
+  
+  return rawAssignments
+    .filter(assignment => {
+      if (!assignment) return false;
+      
+      const organKod = assignment.organ_kod || assignment.organ;
+      if (!organKod || !VALID_COMMITTEE_CODES.includes(organKod)) {
+        return false;
+      }
+      
+      // Check if assignment is current (no end date or end date in future)
+      if (assignment.tom && assignment.tom.trim() !== '') {
+        try {
+          const endDate = new Date(assignment.tom);
+          if (!isNaN(endDate.getTime()) && endDate <= currentDate) {
+            return false; // Assignment has ended
+          }
+        } catch (e) {
+          // If date parsing fails, assume it's current
+        }
+      }
+      
+      return true;
+    })
+    .map(assignment => {
+      const organKod = assignment.organ_kod || assignment.organ;
+      
+      return {
+        organ_kod: organKod,
+        roll: assignment.roll_kod || assignment.roll || 'ledamot',
+        status: assignment.status || 'aktiv',
+        from: assignment.from || assignment.datum_fran || '',
+        tom: assignment.tom || assignment.datum_tom || '',
+        typ: assignment.typ || 'uppdrag',
+        ordning: assignment.ordningsnummer || assignment.ordning,
+        uppgift: COMMITTEE_MAPPING[organKod] || organKod
+      };
+    });
 };
 
 export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
+  if (query.length < 1) return [];
+  
+  const url = `${BASE_URL}/personlista/?fnamn=${encodeURIComponent(query)}&utformat=json`;
+  
   try {
-    const response = await fetch(`${API_BASE_URL}/personlista/?utformat=json&fnamn=${query}&enamn=${query}`);
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to fetch member suggestions: ${response.status}`);
+      throw new Error('Kunde inte hämta ledamöter');
     }
-    const data: RiksdagSearchResult = await response.json();
+    const data: RiksdagPersonResponse = await response.json();
     return data.personlista?.person || [];
   } catch (error) {
     console.error('Error fetching member suggestions:', error);
@@ -417,259 +330,516 @@ export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMemb
   }
 };
 
-export const fetchMemberDocuments = async (memberId: string): Promise<any[]> => {
+// Simplified and more reliable fetchMemberDetails
+export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagMemberDetails | null> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/dokumentlista/?sok=${memberId}&doktyp=mot,prop,ip,fr,frs&utformat=json&sort=datum&sortorder=desc`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch member documents: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.dokumentlista?.dokument || [];
-  } catch (error) {
-    console.error('Error fetching member documents:', error);
-    return [];
-  }
-};
-
-export const fetchMemberSpeeches = async (memberId: string): Promise<any[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/anforandefilter/?iid=${memberId}&utformat=json&sort=datum&sortorder=desc&from=2022-09-26`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch member speeches: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.anforanden?.anforande || [];
-  } catch (error) {
-    console.error('Error fetching member speeches:', error);
-    return [];
-  }
-};
-
-export const fetchMemberCalendarEvents = async (memberId: string): Promise<any[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/ Kalender/?iid=${memberId}&utformat=json`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch member calendar events: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.kalender?.event || [];
-  } catch (error) {
-    console.error('Error fetching member calendar events:', error);
-    return [];
-  }
-};
-
-export const fetchMemberDetails = async (intressent_id: string): Promise<RiksdagMemberDetailsWithBiography> => {
-  try {
-    const response = await fetch(`https://data.riksdagen.se/person/${intressent_id}?utformat=json`);
+    console.log(`Fetching member details for: ${intressentId}`);
+    const url = `${BASE_URL}/personlista/?iid=${intressentId}&utformat=json`;
+    const response = await fetch(url);
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch member details: ${response.status}`);
+      console.error(`Failed to fetch member details for ${intressentId}: ${response.status}`);
+      return null;
     }
-
-    const data = await response.json();
-    const person = data.person?.personlista?.person;
+    
+    const data: RiksdagPersonResponse = await response.json();
+    const person = data.personlista?.person?.[0];
     
     if (!person) {
-      throw new Error('No person data found');
+      console.log(`No person found for intressent_id: ${intressentId}`);
+      return null;
     }
 
-    console.log(`Fetched details for member ${intressent_id}:`, person);
-
-    // Extract assignments
-    const assignments = person.personuppdrag?.uppdrag || [];
-    const mappedAssignments = assignments.map((assignment: any) => ({
-      organ_kod: assignment.organ_kod,
-      roll: assignment.roll_kod,
-      status: assignment.status || 'Aktiv',
-      from: assignment.from,
-      tom: assignment.tom,
-      typ: assignment.typ,
-      ordning: assignment.ordningsnummer,
-      uppgift: assignment.uppgift || getCommitteeName(assignment.organ_kod)
-    }));
-
-    // Extract biography information
-    const personuppgift = person.personuppgift?.uppgift || [];
-    const biographyData = personuppgift
-      .filter((item: any) => item.typ === 'biografi')
-      .map((item: any) => ({
-        kod: item.kod,
-        uppgift: item.uppgift,
-        typ: item.typ,
-        intressent_id: item.intressent_id,
-        hangar_id: item.hangar_id
-      }));
-
-    // Extract email from personuppgift
-    const emailData = personuppgift.find((item: any) => item.typ === 'eadress');
-    const email = emailData?.uppgift?.replace('[på]', '@') || null;
-
-    console.log(`Biography data for ${intressent_id}:`, biographyData);
+    // Extract assignments with more robust parsing
+    let rawAssignments: any[] = [];
+    
+    if (person.personuppdrag?.uppdrag) {
+      rawAssignments = Array.isArray(person.personuppdrag.uppdrag) 
+        ? person.personuppdrag.uppdrag 
+        : [person.personuppdrag.uppdrag];
+    }
+    
+    console.log(`Raw assignments count for ${intressentId}:`, rawAssignments.length);
+    
+    const assignments = filterActiveAssignments(rawAssignments);
+    console.log(`Processed ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
 
     return {
-      assignments: mappedAssignments,
-      email: email,
-      biography: biographyData
+      intressent_id: person.intressent_id,
+      tilltalsnamn: person.tilltalsnamn, // Fixed typo here
+      efternamn: person.efternamn,
+      parti: person.parti,
+      valkrets: person.valkrets,
+      kon: person.kon,
+      fodd_ar: person.fodd_ar,
+      bild_url_80: person.bild_url_80,
+      bild_url_192: person.bild_url_192,
+      bild_url_max: person.bild_url_max,
+      assignments,
+      email: generateEmail(person.tilltalsnamn, person.efternamn)
     };
   } catch (error) {
-    console.error(`Error fetching member details for ${intressent_id}:`, error);
-    return { assignments: [], email: null, biography: [] };
+    console.error(`Error fetching member details for ${intressentId}:`, error);
+    return null;
   }
 };
 
-export const fetchAllCommittees = async (): Promise<string[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/organlista/?utformat=json`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch committees: ${response.status}`);
-    }
-    const data = await response.json();
-    const organs = data.organlista?.organ || [];
-    // Extract organ codes (e.g., "AU", "FiU")
-    return organs.map((organ: any) => organ.kod);
-  } catch (error) {
-    console.error('Error fetching committees:', error);
-    return [];
-  }
-};
-
+// Optimized committee member fetching
 export const fetchMembersWithCommittees = async (
   page: number = 1,
   pageSize: number = 20,
   status: 'current' | 'all' | 'former' = 'current',
-  committeeCode: string
+  committee?: string
 ): Promise<{ members: RiksdagMemberDetails[]; totalCount: number }> => {
   try {
-    let url = `${API_BASE_URL}/personlista/?utformat=json&size=${pageSize}&p=${page}&org=${committeeCode}`;
-    if (status === 'current') {
-      url += '&rdlstatus=aktiv';
-    } else if (status === 'former') {
-      url += '&rdlstatus=f.d.';
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch members by committee: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const members = data.personlista?.person || [];
-    const totalCount = parseInt(data.personlista['@hits'], 10) || 0;
-
-    // Fetch additional details for each member
-    const detailedMembers = await Promise.all(
-      members.map(async (member: RiksdagMember) => {
-        try {
-          const detailsResponse = await fetch(`${API_BASE_URL}/person/${member.intressent_id}?utformat=json`);
-          if (!detailsResponse.ok) {
-            console.warn(`Failed to fetch details for member ${member.intressent_id}: ${detailsResponse.status}`);
-            return { ...member, assignments: [], email: null };
-          }
-          const detailsData = await detailsResponse.json();
-          const person = detailsData.person?.personlista?.person;
-
-          // Extract assignments
-          const assignments = person.personuppdrag?.uppdrag || [];
-          const mappedAssignments = assignments.map((assignment: any) => ({
-            organ_kod: assignment.organ_kod,
-            roll: assignment.roll_kod,
-            status: assignment.status || 'Aktiv',
-            from: assignment.from,
-            tom: assignment.tom,
-            typ: assignment.typ,
-            ordning: assignment.ordningsnummer,
-            uppgift: assignment.uppgift || getCommitteeName(assignment.organ_kod)
-          }));
-
-          // Extract email from personuppgift
-          const personuppgift = person.personuppgift?.uppgift || [];
-          const emailData = personuppgift.find((item: any) => item.typ === 'eadress');
-          const email = emailData?.uppgift?.replace('[på]', '@') || null;
-
-          return { ...member, assignments: mappedAssignments, email: email };
-        } catch (detailsError) {
-          console.error(`Error fetching details for member ${member.intressent_id}:`, detailsError);
-          return { ...member, assignments: [], email: null };
+    console.log(`Fetching members with committees: page=${page}, status=${status}, committee=${committee}`);
+    
+    // Fetch all members first
+    const membersResult = await fetchMembers(1, 1000, status); // Get a large batch
+    
+    console.log(`Initial fetch returned ${membersResult.members.length} members`);
+    
+    // Batch fetch member details with improved error handling
+    const batchSize = 5; // Reduced to avoid rate limiting
+    const detailedMembers: RiksdagMemberDetails[] = [];
+    
+    for (let i = 0; i < membersResult.members.length; i += batchSize) {
+      const batch = membersResult.members.slice(i, i + batchSize);
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(membersResult.members.length/batchSize)}`);
+      
+      const batchDetails = await Promise.allSettled(
+        batch.map(member => fetchMemberDetails(member.intressent_id))
+      );
+      
+      // Process results and handle errors gracefully
+      batchDetails.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          detailedMembers.push(result.value);
+        } else {
+          const member = batch[index];
+          console.warn(`Failed to fetch details for ${member.tilltalsnamn} ${member.efternamn}`);
+          // Create a fallback member object
+          detailedMembers.push({
+            intressent_id: member.intressent_id,
+            tilltalsnamn: member.tilltalsnamn,
+            efternamn: member.efternamn,
+            parti: member.parti,
+            valkrets: member.valkrets,
+            kon: member.kon,
+            fodd_ar: member.fodd_ar,
+            bild_url_80: member.bild_url_80,
+            bild_url_192: member.bild_url_192,
+            bild_url_max: member.bild_url_max,
+            assignments: [],
+            email: generateEmail(member.tilltalsnamn, member.efternamn)
+          });
         }
-      })
-    );
-
-    return { members: detailedMembers, totalCount };
+      });
+      
+      // Add delay between batches to avoid overwhelming the API
+      if (i + batchSize < membersResult.members.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    // Filter by committee if specified
+    let filteredMembers = detailedMembers;
+    if (committee && committee !== 'all' && VALID_COMMITTEE_CODES.includes(committee)) {
+      console.log(`Filtering by committee: ${committee}`);
+      filteredMembers = detailedMembers.filter(member => 
+        member.assignments.some(assignment => assignment.organ_kod === committee)
+      );
+      console.log(`After committee filtering: ${filteredMembers.length} members`);
+    }
+    
+    // Apply pagination
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
+    
+    return {
+      members: paginatedMembers,
+      totalCount: filteredMembers.length
+    };
   } catch (error) {
-    console.error('Error fetching members by committee:', error);
-    throw error;
+    console.error('Error fetching members with committees:', error);
+    return { members: [], totalCount: 0 };
   }
 };
 
-export const isValidCommitteeCode = (code: string): boolean => {
-  return Object.keys(COMMITTEE_MAPPING).includes(code);
+// Use hardcoded committees instead of API endpoint that returns 404
+export const fetchAllCommittees = async (): Promise<string[]> => {
+  const committees = Object.values(COMMITTEE_MAPPING);
+  console.log(`Returning ${committees.length} committees`);
+  return committees;
 };
 
-export const getMemberCommitteeAssignments = async (memberId: string): Promise<any[]> => {
+export const fetchMembers = async (
+  page: number = 1,
+  pageSize: number = 20,
+  status: 'current' | 'all' | 'former' = 'current'
+): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
+  let url = `${BASE_URL}/personlista/?utformat=json`;
+  
+  console.log(`Fetching members with status: ${status}`);
+  
   try {
-    const response = await fetch(`${API_BASE_URL}/utskottsforslag/?iid=${memberId}&utformat=json`);
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to fetch committee assignments: ${response.status}`);
+      throw new Error('Kunde inte hämta ledamöter');
     }
-    const data: RiksdagCommitteeAssignments = await response.json();
-    return data.utskottsforslag?.forslag || [];
+    const data: RiksdagPersonResponse = await response.json();
+    let allMembers = data.personlista?.person || [];
+    
+    console.log(`Initial fetch returned ${allMembers.length} members`);
+    
+    const currentDate = new Date();
+    
+    if (status === 'current') {
+      allMembers = allMembers.filter(member => {
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return true;
+        }
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate > currentDate;
+        } catch {
+          return true;
+        }
+      });
+    } else if (status === 'former') {
+      allMembers = allMembers.filter(member => {
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return false;
+        }
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate <= currentDate;
+        } catch {
+          return false;
+        }
+      });
+    }
+    
+    console.log(`After filtering for ${status}: ${allMembers.length} members`);
+    
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedMembers = allMembers.slice(startIndex, endIndex);
+    
+    console.log(`Returning page ${page}: ${paginatedMembers.length} members (${startIndex}-${endIndex})`);
+    
+    return {
+      members: paginatedMembers,
+      totalCount: allMembers.length
+    };
   } catch (error) {
-    console.error('Error fetching committee assignments:', error);
+    console.error('Error fetching members:', error);
+    return { members: [], totalCount: 0 };
+  }
+};
+
+export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
+  const url = `${BASE_URL}/personlista/?utformat=json&rdlstatus=tjanstgorande`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Kunde inte hämta ledamöter');
+    }
+    const data: RiksdagPersonResponse = await response.json();
+    let members = data.personlista?.person || [];
+    
+    const currentDate = new Date();
+    members = members.filter(member => {
+      if (!member.datum_tom || member.datum_tom.trim() === '') {
+        return true;
+      }
+      const endDate = new Date(member.datum_tom);
+      return endDate > currentDate;
+    });
+    
+    return members;
+  } catch (error) {
+    console.error('Error fetching all members:', error);
     return [];
   }
 };
 
-export const getCommitteeName = (code: string): string => {
-  return COMMITTEE_MAPPING[code] || code;
+export const searchDocuments = async (params: DocumentSearchParams): Promise<{documents: RiksdagDocument[], totalCount: number}> => {
+  let url = `${BASE_URL}/dokumentlista/?utformat=json`;
+  
+  // Use 10 results per page for pagination
+  if (params.sz) {
+    url += `&sz=${params.sz}`;
+  } else {
+    url += '&sz=10';
+  }
+  
+  if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
+  if (params.doktyp) url += `&doktyp=${params.doktyp}`;
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.org) url += `&org=${params.org}`;
+  if (params.rm) url += `&rm=${params.rm}`;
+  if (params.bet) url += `&bet=${encodeURIComponent(params.bet)}`;
+  if (params.tempbet) url += `&tempbet=${params.tempbet}`;
+  if (params.nr) url += `&nr=${params.nr}`;
+  if (params.ts) url += `&ts=${params.ts}`;
+  if (params.iid) url += `&iid=${params.iid}`;
+  if (params.talare) url += `&talare=${encodeURIComponent(params.talare)}`;
+  if (params.exakt) url += `&exakt=${params.exakt}`;
+  if (params.planering) url += `&planering=${params.planering}`;
+  if (params.facets) url += `&facets=${params.facets}`;
+  if (params.rapport) url += `&rapport=${params.rapport}`;
+  if (params.avd) url += `&avd=${params.avd}`;
+  if (params.webbtv) url += `&webbtv=${params.webbtv}`;
+  
+  if (params.parti && params.parti.length > 0) {
+    params.parti.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  if (params.sort) url += `&sort=${params.sort}`;
+  if (params.sortorder) url += `&sortorder=${params.sortorder}`;
+  
+  console.log('API URL:', url);
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagDocumentResponse = await response.json();
+    const documents = data.dokumentlista?.dokument || [];
+    const totalCount = parseInt(data.dokumentlista?.['@hits'] || '0');
+    
+    console.log('API Response:', { documents: documents.length, totalCount });
+    
+    return { documents, totalCount };
+  } catch (error) {
+    console.error('Error searching documents:', error);
+    throw error;
+  }
 };
 
-export const COMMITTEE_MAPPING: { [key: string]: string } = {
-  "AU": "Arbetsmarknadsutskottet",
-  "CU": "Civilutskottet",
-  "FiU": "Finansutskottet",
-  "FöU": "Försvarsutskottet",
-  "JuU": "Justitieutskottet",
-  "KU": "Konstitutionsutskottet",
-  "KrU": "Kulturutskottet",
-  "MjU": "Miljö- och jordbruksutskottet",
-  "NU": "Näringsutskottet",
-  "SkU": "Skatteutskottet",
-  "SfU": "Socialförsäkringsutskottet",
-  "SoU": "Socialutskottet",
-  "TU": "Trafikutskottet",
-  "UbU": "Utbildningsutskottet",
-  "UU": "Utrikesutskottet",
-  "CKrU": "Sammansatta civil- och kulturutskottet",
-  "UFöU": "Sammansatta utrikes- och försvarsutskottet",
-  "eun": "EU-nämnden",
-  "Europol": "Delegationen till den gemensamma parlamentariska kontrollgruppen för Europol",
-  "DN": "Domarnämnden",
-  "KD": "Krigsdelegationen",
-  "LR": "Ledamotsrådet",
-  "NR": "Nordiska rådets svenska delegation",
-  "NL": "Nämnden för lön till riksdagens ombudsmän och riksrevisorn",
-  "NSÖ": "Nämnden för prövning av statsråds och vissa andra befattningshavares övergångsrestriktioner",
-  "PN": "Partibidragsnämnden",
-  "RB": "Riksbanksfullmäktige",
-  "RAN": "Riksdagens ansvarsnämnd",
-  "RAR": "Riksdagens arvodesnämnd",
-  "CPAR": "Riksdagens delegation till Arktiska parlamentarikerkonferensen",
-  "PA-UfM": "Riksdagens delegation till den parlamentariska församlingen för Unionen för Medelhavet",
-  "ER": "Riksdagens delegation till Europarådets parlamentariska församling",
-  "IPU": "Riksdagens delegation till Interparlamentariska unionen",
-  "NATO": "Riksdagens delegation till Natos parlamentariska församling",
-  "OSSE": "Riksdagens delegation till OSSE:s parlamentariska församling",
-  "BSPC": "Riksdagens delegation till parlamentariska Östersjökonferensen",
-  "JO": "Riksdagens ombudsmän",
-  "DEM": "Riksdagens styrgrupp för det bilaterala demokratifrämjande samarbetet",
-  "ÖN": "Riksdagens överklagandenämnd",
-  "RS": "Riksdagsstyrelsen",
-  "RR": "Riksrevisionen",
-  "RRPR": "Riksrevisionens parlamentariska råd",
-  "SN": "Statsrådsarvodesnämnden",
-  "RJ": "Styrelsen för Stiftelsen Riksbankens Jubileumsfond",
-  "UN": "Utrikesnämnden",
-  "VB": "Valberedningen",
-  "VPN": "Valprövningsnämnden",
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speeches: RiksdagSpeech[], totalCount: number}> => {
+  let url = `${BASE_URL}/anforandelista/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.rm) url += `&rm=${encodeURIComponent(params.rm)}`;
+  if (params.anftyp) url += `&anftyp=${params.anftyp}`;
+  if (params.date) url += `&d=${params.date}`;
+  if (params.systemDate) url += `&ts=${params.systemDate}`;
+  if (params.party) url += `&parti=${params.party}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagSpeechResponse = await response.json();
+    const speeches = data.anforandelista?.anforande || [];
+    const totalCount = parseInt(data.anforandelista?.['@hits'] || '0');
+    
+    return { speeches, totalCount };
+  } catch (error) {
+    console.error('Error searching speeches:', error);
+    throw error;
+  }
 };
+
+export const searchVotes = async (params: VoteSearchParams): Promise<{votes: RiksdagVote[], totalCount: number}> => {
+  let url = `${BASE_URL}/voteringlista/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.rm && params.rm.length > 0) {
+    params.rm.forEach(rm => {
+      url += `&rm=${encodeURIComponent(rm)}`;
+    });
+  }
+  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
+  if (params.punkt) url += `&punkt=${params.punkt}`;
+  if (params.valkrets) url += `&valkrets=${encodeURIComponent(params.valkrets)}`;
+  if (params.rost) url += `&rost=${params.rost}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.gruppering) url += `&gruppering=${params.gruppering}`;
+  
+  if (params.party && params.party.length > 0) {
+    params.party.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagVoteResponse = await response.json();
+    const votes = data.voteringlista?.votering || [];
+    const totalCount = parseInt(data.voteringlista?.['@hits'] || '0');
+    
+    return { votes, totalCount };
+  } catch (error) {
+    console.error('Error searching votes:', error);
+    throw error;
+  }
+};
+
+export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<{events: RiksdagCalendarEvent[], totalCount: number}> => {
+  let url = `${BASE_URL}/kalender/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.org && params.org.length > 0) {
+    params.org.forEach(org => {
+      url += `&org=${encodeURIComponent(org)}`;
+    });
+  }
+  
+  if (params.akt && params.akt.length > 0) {
+    params.akt.forEach(akt => {
+      url += `&akt=${encodeURIComponent(akt)}`;
+    });
+  }
+  
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  
+  try {
+    console.log(`Fetching calendar events from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Calendar API error: ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Calendar API did not return JSON:', contentType);
+      console.log('Response text preview:', await response.text().then(text => text.substring(0, 200)));
+      return { events: [], totalCount: 0 };
+    }
+    
+    const data: RiksdagCalendarResponse = await response.json();
+    const events = data.kalenderlista?.kalender || [];
+    const totalCount = parseInt(data.kalenderlista?.['@hits'] || '0');
+    
+    console.log(`Calendar events fetched: ${events.length}, total: ${totalCount}`);
+    return { events, totalCount };
+  } catch (error) {
+    console.error('Error searching calendar events:', error);
+    // Return empty result instead of throwing to prevent blocking member loading
+    return { events: [], totalCount: 0 };
+  }
+};
+
+export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
+  try {
+    console.log(`Fetching documents for member: ${intressentId}`);
+    
+    const { documents } = await searchDocuments({
+      iid: intressentId,
+      sz: 100,
+      sort: 'datum',
+      sortorder: 'desc'
+    });
+    
+    console.log(`Found ${documents.length} documents for member ${intressentId}`);
+    
+    const enrichedDocuments = documents.map(doc => ({
+      ...doc,
+      intressent_id: intressentId
+    }));
+    
+    return enrichedDocuments;
+  } catch (error) {
+    console.error(`Error fetching documents for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberSpeeches = async (intressentId: string): Promise<RiksdagSpeech[]> => {
+  try {
+    console.log(`Fetching speeches for member: ${intressentId}`);
+    
+    const { speeches } = await searchSpeeches({
+      intressentId,
+      pageSize: 100
+    });
+    
+    console.log(`Found ${speeches.length} speeches for member ${intressentId}`);
+    return speeches;
+  } catch (error) {
+    console.error(`Error fetching speeches for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVote[]> => {
+  try {
+    console.log(`Fetching votes for member: ${intressentId}`);
+    
+    const { votes } = await searchVotes({
+      intressentId,
+      pageSize: 100
+    });
+    
+    console.log(`Found ${votes.length} votes for member ${intressentId}`);
+    return votes;
+  } catch (error) {
+    console.error(`Error fetching votes for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
+  try {
+    console.log(`Fetching calendar events for member: ${intressentId}`);
+    // Calendar events in Riksdag API are not member-specific, so return empty array
+    // The API doesn't support filtering by member ID for calendar events
+    return [];
+  } catch (error) {
+    console.error(`Error fetching calendar events for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+// New utility function to get committee assignments for a member
+export const getMemberCommitteeAssignments = async (intressentId: string): Promise<RiksdagMemberAssignment[]> => {
+  const memberDetails = await fetchMemberDetails(intressentId);
+  if (!memberDetails) {
+    return [];
+  }
+  
+  // Return committee assignments, already filtered and validated
+  return memberDetails.assignments;
+};
+
+// Updated utility function to validate committee codes
+export const isValidCommitteeCode = (code: string): boolean => {
+  return VALID_COMMITTEE_CODES.includes(code);
+};
+
+// Export committee utilities
+export { COMMITTEE_MAPPING, VALID_COMMITTEE_CODES };

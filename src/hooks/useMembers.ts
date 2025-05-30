@@ -7,7 +7,7 @@ const COMMITTEE_CODE_MAPPING: { [key: string]: string } = Object.fromEntries(
   Object.entries(COMMITTEE_MAPPING).map(([code, name]) => [name, code])
 );
 
-const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetailsWithBiography): Promise<Member> => {
+const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetails): Promise<Member> => {
   // Use the real image URLs from Riksdag API when available
   let imageUrl = `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
   
@@ -111,8 +111,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
       typ: assignment.typ,
       ordning: assignment.ordning,
       uppgift: assignment.uppgift
-    })) || [],
-    biography: memberDetails?.biography || []
+    })) || []
   };
 };
 
