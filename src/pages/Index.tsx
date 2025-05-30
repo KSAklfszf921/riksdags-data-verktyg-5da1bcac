@@ -1,6 +1,7 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp } from "lucide-react";
+import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp, FileText, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
@@ -22,6 +23,13 @@ const Index = () => {
       href: "/voteringar"
     },
     {
+      title: "Dokument",
+      description: "Sök riksdagsdokument",
+      icon: FileText,
+      color: "bg-green-500",
+      href: "/dokument"
+    },
+    {
       title: "Anföranden",
       description: "Sök riksdagstal",
       icon: Search,
@@ -29,18 +37,11 @@ const Index = () => {
       href: "/anforanden"
     },
     {
-      title: "Debatter",
-      description: "Utforska debatter",
-      icon: MessageSquare,
-      color: "bg-blue-600",
-      href: "/debatter"
-    },
-    {
-      title: "Partianalys",
-      description: "Analysera partier", 
-      icon: BarChart3,
-      color: "bg-indigo-600",
-      href: "/partianalys"
+      title: "Kalender",
+      description: "Utforska kalenderhändelser",
+      icon: Calendar,
+      color: "bg-orange-500",
+      href: "/kalender"
     },
     {
       title: "Topplistor",

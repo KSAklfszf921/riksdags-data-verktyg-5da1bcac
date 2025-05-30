@@ -1,10 +1,10 @@
 
 import { Button } from "@/components/ui/button";
-import { Vote, ArrowLeft } from "lucide-react";
+import { Calendar, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import VoteSearch from "../components/VoteSearch";
+import CalendarSearch from "../components/CalendarSearch";
 
-const Voteringar = () => {
+const Kalender = () => {
   const navigate = useNavigate();
 
   return (
@@ -21,20 +21,20 @@ const Voteringar = () => {
           </Button>
           
           <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-indigo-500 rounded-lg flex items-center justify-center">
-              <Vote className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-orange-500 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Voteringar</h1>
-              <p className="text-gray-600">Sök och analysera riksdagsvoteringar med avancerade filter</p>
+              <h1 className="text-3xl font-bold text-gray-900">Kalender</h1>
+              <p className="text-gray-600">Sök och utforska riksdagens kalenderhändelser</p>
             </div>
           </div>
         </div>
 
-        <VoteSearch />
+        <CalendarSearch />
       </div>
     </div>
   );
 };
 
-export default Voteringar;
+export default Kalender;

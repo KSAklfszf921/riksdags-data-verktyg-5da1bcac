@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, RiksdagMember } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, RiksdagMember } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
 const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<Member> => {
@@ -14,10 +15,11 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     imageUrl = riksdagMember.bild_url_80;
   }
 
-  // Fetch member's documents and speeches in parallel
-  const [documents, speeches] = await Promise.all([
+  // Fetch member's documents, speeches and calendar events in parallel
+  const [documents, speeches, calendarEvents] = await Promise.all([
     fetchMemberDocuments(riksdagMember.intressent_id).catch(() => []),
-    fetchMemberSpeeches(riksdagMember.intressent_id).catch(() => [])
+    fetchMemberSpeeches(riksdagMember.intressent_id).catch(() => []),
+    fetchMemberCalendarEvents(riksdagMember.intressent_id).catch(() => [])
   ]);
 
   const mappedDocuments = documents.slice(0, 10).map(doc => ({
@@ -41,6 +43,18 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     time: speech.anf_klockslag
   }));
 
+  const mappedCalendarEvents = calendarEvents.slice(0, 10).map(event => ({
+    id: event.id,
+    title: event.summary || event.aktivitet,
+    date: event.datum,
+    time: event.tid,
+    location: event.plats,
+    type: event.typ,
+    organ: event.organ,
+    description: event.description,
+    url: event.url
+  }));
+
   return {
     id: riksdagMember.intressent_id,
     firstName: riksdagMember.tilltalsnamn,
@@ -56,6 +70,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     votes: [],
     proposals: [],
     documents: mappedDocuments,
+    calendarEvents: mappedCalendarEvents,
     activityScore: Math.random() * 10
   };
 };

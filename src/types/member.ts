@@ -16,6 +16,7 @@ export interface Member {
   proposals: Proposal[];
   activityScore: number;
   documents?: RiksdagDocumentSummary[];
+  calendarEvents?: CalendarEvent[];
 }
 
 export interface Speech {
@@ -53,6 +54,18 @@ export interface RiksdagDocumentSummary {
   type: string;
   date: string;
   beteckning: string;
+  url?: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  type: string;
+  organ: string;
+  description?: string;
   url?: string;
 }
 

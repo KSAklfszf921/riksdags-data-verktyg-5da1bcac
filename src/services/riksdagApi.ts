@@ -1,4 +1,3 @@
-
 export interface RiksdagMember {
   intressent_id: string;
   hangar_guid: string;
@@ -81,6 +80,53 @@ export interface RiksdagSpeechResponse {
   };
 }
 
+export interface RiksdagVote {
+  votering_id: string;
+  hangar_id: string;
+  rm: string;
+  beteckning: string;
+  punkt: string;
+  votering: string;
+  namn: string;
+  parti: string;
+  valkrets: string;
+  rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  avser: string;
+  votering_url_xml: string;
+  dok_id: string;
+  systemdatum: string;
+  intressent_id: string;
+}
+
+export interface RiksdagVoteResponse {
+  voteringlista: {
+    votering: RiksdagVote[];
+    '@hits'?: string;
+  };
+}
+
+export interface RiksdagCalendarEvent {
+  id: string;
+  datum: string;
+  tid: string;
+  plats: string;
+  aktivitet: string;
+  typ: string;
+  organ: string;
+  summary: string;
+  description?: string;
+  status: string;
+  url?: string;
+  sekretess?: string;
+}
+
+export interface RiksdagCalendarResponse {
+  kalenderlista: {
+    kalender: RiksdagCalendarEvent[];
+    '@hits'?: string;
+  };
+}
+
 export interface DocumentSearchParams {
   searchTerm?: string;
   docType?: string;
@@ -105,6 +151,26 @@ export interface SpeechSearchParams {
   systemDate?: string;
   party?: string;
   intressentId?: string;
+  pageSize?: number;
+}
+
+export interface VoteSearchParams {
+  rm?: string[];
+  beteckning?: string;
+  punkt?: string;
+  party?: string[];
+  valkrets?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande' | '';
+  intressentId?: string;
+  pageSize?: number;
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet' | '';
+}
+
+export interface CalendarSearchParams {
+  org?: string[];
+  akt?: string[];
+  fromDate?: string;
+  toDate?: string;
   pageSize?: number;
 }
 
@@ -297,6 +363,94 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speec
   }
 };
 
+export const searchVotes = async (params: VoteSearchParams): Promise<{votes: RiksdagVote[], totalCount: number}> => {
+  let url = `${BASE_URL}/voteringlista/?utformat=json`;
+  
+  // Add page size
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  // Add search parameters
+  if (params.rm && params.rm.length > 0) {
+    params.rm.forEach(rm => {
+      url += `&rm=${encodeURIComponent(rm)}`;
+    });
+  }
+  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
+  if (params.punkt) url += `&punkt=${params.punkt}`;
+  if (params.valkrets) url += `&valkrets=${encodeURIComponent(params.valkrets)}`;
+  if (params.rost) url += `&rost=${params.rost}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.gruppering) url += `&gruppering=${params.gruppering}`;
+  
+  // Add party filters
+  if (params.party && params.party.length > 0) {
+    params.party.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagVoteResponse = await response.json();
+    const votes = data.voteringlista?.votering || [];
+    const totalCount = parseInt(data.voteringlista?.['@hits'] || '0');
+    
+    return { votes, totalCount };
+  } catch (error) {
+    console.error('Error searching votes:', error);
+    throw error;
+  }
+};
+
+export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<{events: RiksdagCalendarEvent[], totalCount: number}> => {
+  let url = `${BASE_URL}/kalender/?utformat=json`;
+  
+  // Add page size
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  // Add search parameters
+  if (params.org && params.org.length > 0) {
+    params.org.forEach(org => {
+      url += `&org=${encodeURIComponent(org)}`;
+    });
+  }
+  
+  if (params.akt && params.akt.length > 0) {
+    params.akt.forEach(akt => {
+      url += `&akt=${encodeURIComponent(akt)}`;
+    });
+  }
+  
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagCalendarResponse = await response.json();
+    const events = data.kalenderlista?.kalender || [];
+    const totalCount = parseInt(data.kalenderlista?.['@hits'] || '0');
+    
+    return { events, totalCount };
+  } catch (error) {
+    console.error('Error searching calendar events:', error);
+    throw error;
+  }
+};
+
 export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
   const { documents } = await searchDocuments({
     intressentId,
@@ -313,4 +467,21 @@ export const fetchMemberSpeeches = async (intressentId: string): Promise<Riksdag
     pageSize: 100
   });
   return speeches;
+};
+
+export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVote[]> => {
+  const { votes } = await searchVotes({
+    intressentId,
+    pageSize: 100
+  });
+  return votes;
+};
+
+export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
+  // Calendar events are not directly linked to members in the API,
+  // but we can try to search for events where the member might be involved
+  const { events } = await searchCalendarEvents({
+    pageSize: 100
+  });
+  return events;
 };
