@@ -14,10 +14,11 @@ import {
   Users, 
   Loader2,
   ExternalLink,
-  Clock,
-  Eye
+  Eye,
+  User
 } from 'lucide-react';
 import { searchSpeeches, SpeechSearchParams, RiksdagSpeech } from '../services/riksdagApi';
+import MemberAutocomplete from './MemberAutocomplete';
 
 interface SpeechSearchProps {
   initialMemberId?: string;
@@ -140,14 +141,6 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
     }
   };
 
-  const formatTime = (timeString?: string) => {
-    if (!timeString) return '';
-    if (timeString.length >= 5) {
-      return timeString.substring(0, 5);
-    }
-    return timeString;
-  };
-
   const getSpeechTypeLabel = (type: string) => {
     const typeMap: { [key: string]: string } = {
       'Anförande': 'Anförande',
@@ -174,6 +167,32 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
         return 'secondary';
     }
   };
+
+  // Group speeches by debate
+  const groupSpeechesByDebate = (speeches: RiksdagSpeech[]) => {
+    const groups: { [key: string]: RiksdagSpeech[] } = {};
+    
+    speeches.forEach(speech => {
+      const debateKey = speech.kammaraktivitet || 'Okänd debatt';
+      if (!groups[debateKey]) {
+        groups[debateKey] = [];
+      }
+      groups[debateKey].push(speech);
+    });
+
+    // Sort speeches within each group by date and time
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        const dateA = new Date(a.anforandedatum + ' ' + (a.anf_klockslag || '00:00'));
+        const dateB = new Date(b.anforandedatum + ' ' + (b.anf_klockslag || '00:00'));
+        return dateA.getTime() - dateB.getTime();
+      });
+    });
+
+    return groups;
+  };
+
+  const groupedSpeeches = groupSpeechesByDebate(speeches);
 
   return (
     <div className="space-y-6">
@@ -243,6 +262,22 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
             </div>
           </div>
 
+          {/* Ledamot filter */}
+          {showMemberFilter && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <User className="w-4 h-4 inline mr-1" />
+                Ledamot
+              </label>
+              <MemberAutocomplete
+                onSelectMember={(member) => {
+                  updateSearchParams('intressentId', member?.intressent_id);
+                }}
+                placeholder="Sök ledamot..."
+              />
+            </div>
+          )}
+
           {/* Datum */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -303,75 +338,76 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
       )}
 
       {speeches.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageSquare className="w-5 h-5" />
-              <span>Sökresultat</span>
-            </CardTitle>
-            <CardDescription>
-              Visar {speeches.length} av {totalCount} anföranden
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Talare</TableHead>
-                  <TableHead>Parti</TableHead>
-                  <TableHead>Typ</TableHead>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Tid</TableHead>
-                  <TableHead>Debatt</TableHead>
-                  <TableHead>Åtgärder</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {speeches.map((speech) => (
-                  <TableRow key={speech.anforande_id}>
-                    <TableCell className="font-medium">{speech.talare}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {speech.parti.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getSpeechTypeColor(speech.anforandetyp) as any}>
-                        {getSpeechTypeLabel(speech.anforandetyp)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(speech.anforandedatum)}</TableCell>
-                    <TableCell>
-                      {speech.anf_klockslag && (
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span className="text-sm">{formatTime(speech.anf_klockslag)}</span>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-xs">
-                      <p className="text-sm truncate">{speech.kammaraktivitet}</p>
-                      {speech.rel_dok_titel && (
-                        <p className="text-xs text-gray-500 truncate">{speech.rel_dok_titel}</p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => openSpeech(speech)}
-                        className="flex items-center space-x-1"
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>Öppna</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {Object.entries(groupedSpeeches).map(([debateTitle, debateSpeeches]) => (
+            <Card key={debateTitle}>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-lg">
+                  <MessageSquare className="w-5 h-5 text-purple-600" />
+                  <span className="truncate">{debateTitle}</span>
+                </CardTitle>
+                <CardDescription>
+                  {debateSpeeches.length} anföranden • {formatDate(debateSpeeches[0]?.anforandedatum)}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Talare</TableHead>
+                      <TableHead>Parti</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Åtgärder</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {debateSpeeches.map((speech) => (
+                      <TableRow key={speech.anforande_id}>
+                        <TableCell className="font-medium">{speech.talare}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {speech.parti.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getSpeechTypeColor(speech.anforandetyp) as any}>
+                            {getSpeechTypeLabel(speech.anforandetyp)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span className="text-sm">{formatDate(speech.anforandedatum)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => openSpeech(speech)}
+                            className="flex items-center space-x-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Öppna</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ))}
+          
+          <Card>
+            <CardContent className="text-center py-4">
+              <p className="text-sm text-gray-600">
+                Visar {speeches.length} av {totalCount} anföranden grupperade efter debatt
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Dialog för att visa anförande */}
