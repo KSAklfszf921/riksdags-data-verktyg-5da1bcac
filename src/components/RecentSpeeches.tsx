@@ -4,18 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
 import { ExternalLink, Clock, MessageSquare } from 'lucide-react';
-
-interface Speech {
-  id: string;
-  title: string;
-  date: string;
-  debate: string;
-  duration: number;
-  url: string;
-  type: string;
-  text: string;
-  time?: string;
-}
+import { Speech } from '../types/member';
 
 interface RecentSpeechesProps {
   speeches: Speech[];
