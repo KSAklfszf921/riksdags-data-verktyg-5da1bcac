@@ -494,9 +494,9 @@ export const searchCalendarEvents = async (params: CalendarSearchParams): Promis
 export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
   const { documents } = await searchDocuments({
     intressentId,
-    pageSize: 100,
+    sz: 100,
     sort: 'datum',
-    sortOrder: 'desc'
+    sortorder: 'desc'
   });
   return documents;
 };

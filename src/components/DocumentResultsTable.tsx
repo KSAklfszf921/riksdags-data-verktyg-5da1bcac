@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -50,13 +49,13 @@ const DocumentResultsTable = ({
 
     // Visa beteckning för de flesta dokumenttyper utom vissa
     const noBeteckningTypes = ['prot', 'fr', 'frs'];
-    if (!searchParams.docType || !noBeteckningTypes.includes(searchParams.docType)) {
+    if (!searchParams.doktyp || !noBeteckningTypes.includes(searchParams.doktyp)) {
       columns.beteckning = true;
     }
 
     // Visa utskott endast för utskottsrelaterade dokument
     const utskottTypes = ['bet', 'yttr', 'utskdok'];
-    if (!searchParams.docType || utskottTypes.includes(searchParams.docType)) {
+    if (!searchParams.doktyp || utskottTypes.includes(searchParams.doktyp)) {
       columns.utskott = true;
     }
 
