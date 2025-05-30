@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Search, Filter, Download, BarChart3 } from "lucide-react";
+import { Loader2, Search, Filter, Download, BarChart3, Zap } from "lucide-react";
 import { searchVotes, VoteSearchParams, RiksdagVote } from "../services/riksdagApi";
+import { optimizedVoteSearch, shouldUseOptimizedSearch, OptimizedVoteResult } from "../services/optimizedVoteApi";
 import { Badge } from "@/components/ui/badge";
 import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,8 @@ const VoteSearch = () => {
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [optimizedResult, setOptimizedResult] = useState<OptimizedVoteResult | null>(null);
+  const [useOptimized, setUseOptimized] = useState(false);
 
   const riksmoten = [
     '2024/25', '2023/24', '2022/23', '2021/22', '2020/21', '2019/20', '2018/19',
@@ -40,65 +43,88 @@ const VoteSearch = () => {
     'Örebro län', 'Östergötlands län'
   ];
 
+  // Check if current params are suitable for optimized search
+  useEffect(() => {
+    const canUseOptimized = shouldUseOptimizedSearch(searchParams);
+    setUseOptimized(canUseOptimized);
+  }, [searchParams]);
+
   const handleSearch = async () => {
     setLoading(true);
     setError(null);
+    setOptimizedResult(null);
     
     console.log('=== VOTE SEARCH START ===');
     console.log('Starting search with params:', searchParams);
+    console.log('Using optimized search:', useOptimized);
     
     try {
-      const result = await searchVotes(searchParams);
-      console.log('=== API RESPONSE ANALYSIS ===');
-      console.log('Search result summary:', {
-        votesCount: result.votes.length,
-        totalCount: result.totalCount,
-        hasVotes: result.votes.length > 0
-      });
-      
-      if (result.votes.length > 0) {
-        console.log('=== SAMPLE VOTES ANALYSIS ===');
-        result.votes.slice(0, 5).forEach((vote, index) => {
-          console.log(`Vote ${index + 1}:`, {
-            beteckning: vote.beteckning,
-            rm: vote.rm,
-            punkt: vote.punkt,
-            namn: vote.namn,
-            rost: vote.rost,
-            avser: vote.avser ? vote.avser.substring(0, 100) + '...' : 'No avser'
-          });
+      if (useOptimized && searchParams.beteckning && searchParams.rm && searchParams.rm.length === 1) {
+        // Use optimized search
+        const result = await optimizedVoteSearch({
+          beteckningPattern: searchParams.beteckning,
+          rm: searchParams.rm[0],
+          limit: 5
         });
         
-        // Check for AU10 specifically if searched
-        if (searchParams.beteckning?.includes('AU10') || searchParams.beteckning === 'AU10') {
-          console.log('=== AU10 SPECIFIC ANALYSIS ===');
-          const au10Votes = result.votes.filter(v => v.beteckning === 'AU10');
-          console.log(`Found ${au10Votes.length} AU10 votes`);
+        setOptimizedResult(result);
+        setVotes(result.votes);
+        setTotalCount(result.totalCount);
+        
+      } else {
+        // Use regular search
+        const result = await searchVotes(searchParams);
+        console.log('=== API RESPONSE ANALYSIS ===');
+        console.log('Search result summary:', {
+          votesCount: result.votes.length,
+          totalCount: result.totalCount,
+          hasVotes: result.votes.length > 0
+        });
+        
+        if (result.votes.length > 0) {
+          console.log('=== SAMPLE VOTES ANALYSIS ===');
+          result.votes.slice(0, 5).forEach((vote, index) => {
+            console.log(`Vote ${index + 1}:`, {
+              beteckning: vote.beteckning,
+              rm: vote.rm,
+              punkt: vote.punkt,
+              namn: vote.namn,
+              rost: vote.rost,
+              avser: vote.avser ? vote.avser.substring(0, 100) + '...' : 'No avser'
+            });
+          });
           
-          const punktValues = au10Votes.map(v => v.punkt).filter(Boolean);
-          const uniquePunkts = [...new Set(punktValues)];
-          console.log('AU10 punkt values found:', punktValues);
-          console.log('AU10 unique punkts:', uniquePunkts);
-          console.log('AU10 punkt distribution:', punktValues.reduce((acc, punkt) => {
-            acc[punkt] = (acc[punkt] || 0) + 1;
-            return acc;
-          }, {} as any));
+          // Check for AU10 specifically if searched
+          if (searchParams.beteckning?.includes('AU10') || searchParams.beteckning === 'AU10') {
+            console.log('=== AU10 SPECIFIC ANALYSIS ===');
+            const au10Votes = result.votes.filter(v => v.beteckning === 'AU10');
+            console.log(`Found ${au10Votes.length} AU10 votes`);
+            
+            const punktValues = au10Votes.map(v => v.punkt).filter(Boolean);
+            const uniquePunkts = [...new Set(punktValues)];
+            console.log('AU10 punkt values found:', punktValues);
+            console.log('AU10 unique punkts:', uniquePunkts);
+            console.log('AU10 punkt distribution:', punktValues.reduce((acc, punkt) => {
+              acc[punkt] = (acc[punkt] || 0) + 1;
+              return acc;
+            }, {} as any));
+          }
+          
+          // General analysis of all beteckningar found
+          console.log('=== ALL BETECKNINGAR ANALYSIS ===');
+          const beteckningar = [...new Set(result.votes.map(v => v.beteckning))];
+          console.log('All beteckningar found:', beteckningar);
+          
+          beteckningar.forEach(bet => {
+            const votesForBet = result.votes.filter(v => v.beteckning === bet);
+            const punktsForBet = [...new Set(votesForBet.map(v => v.punkt).filter(Boolean))];
+            console.log(`${bet}: ${votesForBet.length} votes, ${punktsForBet.length} unique punkts: [${punktsForBet.join(', ')}]`);
+          });
         }
         
-        // General analysis of all beteckningar found
-        console.log('=== ALL BETECKNINGAR ANALYSIS ===');
-        const beteckningar = [...new Set(result.votes.map(v => v.beteckning))];
-        console.log('All beteckningar found:', beteckningar);
-        
-        beteckningar.forEach(bet => {
-          const votesForBet = result.votes.filter(v => v.beteckning === bet);
-          const punktsForBet = [...new Set(votesForBet.map(v => v.punkt).filter(Boolean))];
-          console.log(`${bet}: ${votesForBet.length} votes, ${punktsForBet.length} unique punkts: [${punktsForBet.join(', ')}]`);
-        });
+        setVotes(result.votes);
+        setTotalCount(result.totalCount);
       }
-      
-      setVotes(result.votes);
-      setTotalCount(result.totalCount);
       
       console.log('=== VOTE SEARCH END ===');
       
@@ -155,9 +181,20 @@ const VoteSearch = () => {
           <CardTitle className="flex items-center space-x-2">
             <Search className="w-5 h-5" />
             <span>Sök voteringar</span>
+            {useOptimized && (
+              <Badge variant="secondary" className="flex items-center space-x-1">
+                <Zap className="w-3 h-3" />
+                <span>Optimerad sökning</span>
+              </Badge>
+            )}
           </CardTitle>
           <CardDescription>
             Filtrera och sök bland riksdagens voteringar med avancerade kriterier
+            {useOptimized && (
+              <div className="mt-2 text-sm text-blue-600">
+                Optimerad sökning aktiverad: Hämtar senaste beteckningar först, sedan beslutspunkter och slutligen voteringsresultat
+              </div>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -310,10 +347,12 @@ const VoteSearch = () => {
             <Button onClick={handleSearch} disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : useOptimized ? (
+                <Zap className="w-4 h-4 mr-2" />
               ) : (
                 <Search className="w-4 h-4 mr-2" />
               )}
-              Sök voteringar
+              {useOptimized ? 'Optimerad sökning' : 'Sök voteringar'}
             </Button>
             <Button 
               variant="outline" 
@@ -329,6 +368,47 @@ const VoteSearch = () => {
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {optimizedResult && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5" />
+              <span>Optimerade sökresultat</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{optimizedResult.designations.length}</div>
+                <div className="text-sm text-gray-600">Beteckningar</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {Object.values(optimizedResult.proposalPoints).flat().length}
+                </div>
+                <div className="text-sm text-gray-600">Beslutspunkter</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{optimizedResult.votes.length}</div>
+                <div className="text-sm text-gray-600">Voteringsresultat</div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h4 className="font-semibold">Funna beteckningar och beslutspunkter:</h4>
+              {optimizedResult.designations.map(designation => (
+                <div key={designation} className="flex items-center space-x-2">
+                  <Badge variant="outline">{designation}</Badge>
+                  <span className="text-sm text-gray-600">
+                    Punkter: {optimizedResult.proposalPoints[designation]?.join(', ') || 'Inga'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
