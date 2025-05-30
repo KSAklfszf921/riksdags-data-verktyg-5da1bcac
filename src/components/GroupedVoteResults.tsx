@@ -2,9 +2,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronDown, ChevronUp, ChevronRight, BarChart3 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { RiksdagVote } from "../services/riksdagApi";
+import VirtualizedVoteList from "./VirtualizedVoteList";
+import VoteStatistics from "./VoteStatistics";
 
 interface VoteGroup {
   beteckning: string;
@@ -28,6 +31,7 @@ interface GroupedVoteResultsProps {
 const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedPoints, setExpandedPoints] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState("grouped");
 
   // Memoize grouped votes calculation for performance
   const groupedVotes = useMemo(() => {
@@ -120,7 +124,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Grupperade voteringsresultat</span>
+          <span>Voteringsresultat</span>
           <Badge variant="secondary">{totalCount} träffar i {groupsArray.length} voteringar</Badge>
         </CardTitle>
         <CardDescription>
@@ -128,216 +132,196 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {groupsArray.map((group) => {
-            const groupKey = `${group.beteckning}-${group.riksmote}`;
-            const isGroupExpanded = expandedGroups.has(groupKey);
-            const proposalPointsArray = Array.from(group.proposalPoints).sort((a, b) => parseInt(a) - parseInt(b));
-            
-            // Group votes by proposal point for better display - memoized per group
-            const votesByPoint = useMemo(() => {
-              return group.votes.reduce((acc, vote) => {
-                const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
-                if (!acc[punkt]) {
-                  acc[punkt] = [];
-                }
-                acc[punkt].push(vote);
-                return acc;
-              }, {} as { [key: string]: RiksdagVote[] });
-            }, [group.votes]);
-            
-            return (
-              <div key={groupKey} className="border rounded-lg">
-                {/* Group Header */}
-                <Collapsible open={isGroupExpanded} onOpenChange={() => toggleGroup(groupKey)}>
-                  <CollapsibleTrigger asChild>
-                    <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 mb-2">
-                            {group.beteckning} - Riksmöte {group.riksmote}
-                          </h3>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                            {group.avser}
-                          </p>
-                          
-                          {/* Proposal points count */}
-                          {proposalPointsArray.length > 0 && (
-                            <div className="mb-3">
-                              <p className="text-sm text-gray-700">
-                                <strong>Beslutspunkter:</strong> 
-                                <Badge variant="outline" className="ml-2">
-                                  {proposalPointsArray.length} punkter
-                                </Badge>
-                              </p>
-                            </div>
-                          )}
-                          
-                          {/* Vote statistics */}
-                          <div className="flex space-x-4 text-sm">
-                            <div className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                              <span>Ja: {group.voteStats.ja}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                              <span>Nej: {group.voteStats.nej}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                              <span>Avstår: {group.voteStats.avstar}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                              <span>Frånvarande: {group.voteStats.franvarande}</span>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="grouped">Grupperade resultat</TabsTrigger>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="statistics">Statistik</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="grouped" className="space-y-4 mt-4">
+            {groupsArray.map((group) => {
+              const groupKey = `${group.beteckning}-${group.riksmote}`;
+              const isGroupExpanded = expandedGroups.has(groupKey);
+              const proposalPointsArray = Array.from(group.proposalPoints).sort((a, b) => parseInt(a) - parseInt(b));
+              
+              // Group votes by proposal point for better display - memoized per group
+              const votesByPoint = useMemo(() => {
+                return group.votes.reduce((acc, vote) => {
+                  const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
+                  if (!acc[punkt]) {
+                    acc[punkt] = [];
+                  }
+                  acc[punkt].push(vote);
+                  return acc;
+                }, {} as { [key: string]: RiksdagVote[] });
+              }, [group.votes]);
+              
+              return (
+                <div key={groupKey} className="border rounded-lg">
+                  {/* Group Header */}
+                  <Collapsible open={isGroupExpanded} onOpenChange={() => toggleGroup(groupKey)}>
+                    <CollapsibleTrigger asChild>
+                      <div className="p-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="font-medium text-gray-900 mb-2">
+                              {group.beteckning} - Riksmöte {group.riksmote}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                              {group.avser}
+                            </p>
+                            
+                            {/* Proposal points count */}
+                            {proposalPointsArray.length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-sm text-gray-700">
+                                  <strong>Beslutspunkter:</strong> 
+                                  <Badge variant="outline" className="ml-2">
+                                    {proposalPointsArray.length} punkter
+                                  </Badge>
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* Vote statistics */}
+                            <div className="flex space-x-4 text-sm">
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <span>Ja: {group.voteStats.ja}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                <span>Nej: {group.voteStats.nej}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                <span>Avstår: {group.voteStats.avstar}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                <span>Frånvarande: {group.voteStats.franvarande}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="outline">
-                            {group.votes.length} ledamöter
-                          </Badge>
-                          {isGroupExpanded ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
+                          
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline">
+                              {group.votes.length} ledamöter
+                            </Badge>
+                            {isGroupExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CollapsibleTrigger>
-                  
-                  <CollapsibleContent>
-                    <div className="border-t bg-gray-50 p-4">
-                      <h4 className="font-medium text-gray-900 mb-3">Beslutspunkter</h4>
-                      <div className="space-y-2">
-                        {Object.entries(votesByPoint).map(([punkt, punktVotes]) => {
-                          const pointKey = `${groupKey}-${punkt}`;
-                          const isPointExpanded = expandedPoints.has(pointKey);
-                          
-                          // Calculate vote stats for this point - memoized
-                          const pointStats = useMemo(() => {
-                            return punktVotes.reduce((stats, vote) => {
-                              const rostLower = (vote.rost || '').toLowerCase();
-                              switch (rostLower) {
-                                case 'ja':
-                                  stats.ja++;
-                                  break;
-                                case 'nej':
-                                  stats.nej++;
-                                  break;
-                                case 'avstår':
-                                  stats.avstar++;
-                                  break;
-                                case 'frånvarande':
-                                  stats.franvarande++;
-                                  break;
-                              }
-                              return stats;
-                            }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
-                          }, [punktVotes]);
-                          
-                          return (
-                            <div key={pointKey}>
-                              {/* Point Header */}
-                              <Collapsible open={isPointExpanded} onOpenChange={() => togglePoint(pointKey)}>
-                                <CollapsibleTrigger asChild>
-                                  <div className="bg-white p-3 rounded border cursor-pointer hover:bg-gray-50 transition-colors">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex-1">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                          <Badge variant="secondary" className="text-xs">
-                                            Beslutspunkt {punkt}
-                                          </Badge>
-                                          <span className="text-sm text-gray-600">
-                                            ({punktVotes.length} röster)
-                                          </span>
-                                        </div>
-                                        
-                                        {/* Point vote statistics */}
-                                        <div className="flex space-x-3 text-xs">
-                                          <div className="flex items-center space-x-1">
-                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                            <span>Ja: {pointStats.ja}</span>
-                                          </div>
-                                          <div className="flex items-center space-x-1">
-                                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                            <span>Nej: {pointStats.nej}</span>
-                                          </div>
-                                          <div className="flex items-center space-x-1">
-                                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                                            <span>Avstår: {pointStats.avstar}</span>
-                                          </div>
-                                          <div className="flex items-center space-x-1">
-                                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                            <span>Frånvarande: {pointStats.franvarande}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      <div className="flex items-center">
-                                        {isPointExpanded ? (
-                                          <ChevronUp className="w-4 h-4" />
-                                        ) : (
-                                          <ChevronRight className="w-4 h-4" />
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CollapsibleTrigger>
-                                
-                                <CollapsibleContent className="mt-2">
-                                  <div className="bg-gray-50 p-3 rounded border max-h-96 overflow-y-auto">
-                                    <div className="space-y-2">
-                                      {punktVotes.map((vote, index) => {
-                                        // Generate better unique key for individual votes
-                                        const voteKey = `${vote.intressent_id || `unknown-${index}`}-${vote.votering_id || 'no-voting'}-${punkt}-${vote.namn || 'no-name'}`;
-                                        
-                                        return (
-                                          <div key={voteKey} className="flex items-center justify-between bg-white p-3 rounded border">
-                                            <div className="flex-1">
-                                              <p className="font-medium text-sm">
-                                                {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
-                                              </p>
-                                              <p className="text-xs text-gray-500">
-                                                {vote.valkrets || 'Okänd valkrets'}
-                                              </p>
-                                            </div>
-                                            <Badge 
-                                              variant={
-                                                vote.rost === 'Ja' ? 'default' : 
-                                                vote.rost === 'Nej' ? 'destructive' : 
-                                                'secondary'
-                                              }
-                                              style={{
-                                                backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                                               vote.rost === 'Nej' ? '#EF4444' : 
-                                                               vote.rost === 'Avstår' ? '#F59E0B' :
-                                                               '#6B7280',
-                                                color: 'white'
-                                              }}
-                                            >
-                                              {vote.rost || 'Okänd'}
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent>
+                      <div className="border-t bg-gray-50 p-4">
+                        <h4 className="font-medium text-gray-900 mb-3">Beslutspunkter</h4>
+                        <div className="space-y-2">
+                          {Object.entries(votesByPoint).map(([punkt, punktVotes]) => {
+                            const pointKey = `${groupKey}-${punkt}`;
+                            const isPointExpanded = expandedPoints.has(pointKey);
+                            
+                            // Calculate vote stats for this point - memoized
+                            const pointStats = useMemo(() => {
+                              return punktVotes.reduce((stats, vote) => {
+                                const rostLower = (vote.rost || '').toLowerCase();
+                                switch (rostLower) {
+                                  case 'ja':
+                                    stats.ja++;
+                                    break;
+                                  case 'nej':
+                                    stats.nej++;
+                                    break;
+                                  case 'avstår':
+                                    stats.avstar++;
+                                    break;
+                                  case 'frånvarande':
+                                    stats.franvarande++;
+                                    break;
+                                }
+                                return stats;
+                              }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
+                            }, [punktVotes]);
+                            
+                            return (
+                              <div key={pointKey}>
+                                {/* Point Header */}
+                                <Collapsible open={isPointExpanded} onOpenChange={() => togglePoint(pointKey)}>
+                                  <CollapsibleTrigger asChild>
+                                    <div className="bg-white p-3 rounded border cursor-pointer hover:bg-gray-50 transition-colors">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center space-x-2 mb-2">
+                                            <Badge variant="secondary" className="text-xs">
+                                              Beslutspunkt {punkt}
                                             </Badge>
+                                            <span className="text-sm text-gray-600">
+                                              ({punktVotes.length} röster)
+                                            </span>
                                           </div>
-                                        );
-                                      })}
+                                          
+                                          {/* Point vote statistics */}
+                                          <div className="flex space-x-3 text-xs">
+                                            <div className="flex items-center space-x-1">
+                                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                              <span>Ja: {pointStats.ja}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                              <span>Nej: {pointStats.nej}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                              <span>Avstår: {pointStats.avstar}</span>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                              <span>Frånvarande: {pointStats.franvarande}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center">
+                                          {isPointExpanded ? (
+                                            <ChevronUp className="w-4 h-4" />
+                                          ) : (
+                                            <ChevronRight className="w-4 h-4" />
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            </div>
-                          );
-                        })}
+                                  </CollapsibleTrigger>
+                                  
+                                  <CollapsibleContent className="mt-2">
+                                    <VirtualizedVoteList votes={punktVotes} maxHeight={300} />
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
-            );
-          })}
-        </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              );
+            })}
+          </TabsContent>
+          
+          <TabsContent value="list" className="mt-4">
+            <VirtualizedVoteList votes={votes} maxHeight={600} />
+          </TabsContent>
+          
+          <TabsContent value="statistics" className="mt-4">
+            <VoteStatistics votes={votes} totalCount={totalCount} />
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );

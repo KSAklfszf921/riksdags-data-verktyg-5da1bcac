@@ -14,6 +14,7 @@ import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GroupedVoteResults from "./GroupedVoteResults";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const VoteSearch = () => {
   const [searchParams, setSearchParams] = useState<VoteSearchParams>({});
@@ -23,6 +24,8 @@ const VoteSearch = () => {
   const [error, setError] = useState<string | null>(null);
   const [optimizedResult, setOptimizedResult] = useState<OptimizedVoteResult | null>(null);
   const [useOptimized, setUseOptimized] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(100);
   const { toast } = useToast();
 
   const riksmoten = [
@@ -66,6 +69,7 @@ const VoteSearch = () => {
     setLoading(true);
     setError(null);
     setOptimizedResult(null);
+    setCurrentPage(1);
     
     console.log('Starting vote search with params:', searchParams);
     console.log('Using optimized search:', useOptimized);
@@ -91,10 +95,13 @@ const VoteSearch = () => {
         });
         
       } else {
-        // Use regular search
-        console.log('Using regular search');
+        // Use regular search with pagination
+        console.log('Using regular search with pagination');
         
-        const result = await searchVotes(searchParams);
+        const result = await searchVotes({
+          ...searchParams,
+          pageSize: pageSize
+        });
         console.log(`Regular search complete: ${result.votes.length} votes found`);
         
         setVotes(result.votes);
@@ -114,6 +121,38 @@ const VoteSearch = () => {
       toast({
         title: "Sökfel",
         description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (loading || useOptimized) return;
+    
+    setLoading(true);
+    
+    try {
+      const result = await searchVotes({
+        ...searchParams,
+        pageSize: pageSize,
+        page: currentPage + 1
+      });
+      
+      setVotes(prev => [...prev, ...result.votes]);
+      setCurrentPage(prev => prev + 1);
+      
+      toast({
+        title: "Fler resultat laddade",
+        description: `Laddade ${result.votes.length} fler röster.`
+      });
+      
+    } catch (err) {
+      console.error('Error loading more votes:', err);
+      toast({
+        title: "Fel vid laddning",
+        description: "Kunde inte ladda fler resultat.",
         variant: "destructive"
       });
     } finally {
@@ -162,7 +201,7 @@ const VoteSearch = () => {
     }
 
     try {
-      // Create CSV content
+      // Create CSV content - Fixed property name from 'datum' to 'systemdatum'
       const headers = ['Namn', 'Parti', 'Valkrets', 'Beteckning', 'Punkt', 'Röst', 'Riksmöte', 'Datum'];
       const csvContent = [
         headers.join(';'),
@@ -174,7 +213,7 @@ const VoteSearch = () => {
           vote.punkt || '',
           vote.rost || '',
           vote.rm || '',
-          vote.datum || ''
+          vote.systemdatum || ''
         ].join(';'))
       ].join('\n');
 
@@ -207,261 +246,308 @@ const VoteSearch = () => {
     return partyInfo[party]?.fullName || party;
   };
 
+  const hasMoreResults = votes.length < totalCount && !useOptimized;
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Search className="w-5 h-5" />
-            <span>Sök voteringar</span>
-            {useOptimized && (
-              <Badge variant="secondary" className="flex items-center space-x-1">
-                <Zap className="w-3 h-3" />
-                <span>Optimerad sökning</span>
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Filtrera och sök bland riksdagens voteringar med avancerade kriterier
-            {useOptimized && (
-              <div className="mt-2 text-sm text-blue-600">
-                Optimerad sökning aktiverad: Hämtar senaste beteckningar först, sedan beslutspunkter och slutligen voteringsresultat
-              </div>
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">Grundläggande</TabsTrigger>
-              <TabsTrigger value="advanced">Avancerat</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="basic" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="beteckning">Beteckning</Label>
-                  <Input
-                    id="beteckning"
-                    placeholder="ex. AU1"
-                    value={searchParams.beteckning || ''}
-                    onChange={(e) => setSearchParams({
-                      ...searchParams,
-                      beteckning: e.target.value
-                    })}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="punkt">Förslagspunkt</Label>
-                  <Input
-                    id="punkt"
-                    placeholder="ex. 2"
-                    value={searchParams.punkt || ''}
-                    onChange={(e) => setSearchParams({
-                      ...searchParams,
-                      punkt: e.target.value
-                    })}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="valkrets">Valkrets</Label>
-                  <Select 
-                    value={searchParams.valkrets || 'all'} 
-                    onValueChange={(value) => setSearchParams({
-                      ...searchParams,
-                      valkrets: value === 'all' ? undefined : value
-                    })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Välj valkrets" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alla valkretsar</SelectItem>
-                      {valkretsar.map((valkrets) => (
-                        <SelectItem key={valkrets} value={valkrets}>
-                          {valkrets}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="rost">Röst</Label>
-                  <Select 
-                    value={searchParams.rost || 'all'} 
-                    onValueChange={(value) => setSearchParams({
-                      ...searchParams,
-                      rost: value === 'all' ? undefined : value as any
-                    })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Alla röster" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alla</SelectItem>
-                      <SelectItem value="Ja">Ja</SelectItem>
-                      <SelectItem value="Nej">Nej</SelectItem>
-                      <SelectItem value="Avstår">Avstår</SelectItem>
-                      <SelectItem value="Frånvarande">Frånvarande</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="advanced" className="space-y-4">
-              <div>
-                <Label>Riksmöte</Label>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
-                  {riksmoten.slice(0, 12).map((rm) => (
-                    <div key={rm} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`rm-${rm}`}
-                        checked={searchParams.rm?.includes(rm) || false}
-                        onCheckedChange={(checked) => handleRmChange(rm, checked as boolean)}
-                      />
-                      <Label htmlFor={`rm-${rm}`} className="text-sm">
-                        {rm}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label>Parti</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                  {parties.map((party) => (
-                    <div key={party} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`party-${party}`}
-                        checked={searchParams.party?.includes(party) || false}
-                        onCheckedChange={(checked) => handlePartyChange(party, checked as boolean)}
-                      />
-                      <Label htmlFor={`party-${party}`} className="text-sm">
-                        {getPartyName(party)} ({party})
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="gruppering">Gruppering</Label>
-                <Select 
-                  value={searchParams.gruppering || 'none'} 
-                  onValueChange={(value) => setSearchParams({
-                    ...searchParams,
-                    gruppering: value === 'none' ? undefined : value as any
-                  })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Ingen gruppering" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ingen gruppering</SelectItem>
-                    <SelectItem value="iid">Ledamot - ID</SelectItem>
-                    <SelectItem value="namn">Ledamot - namn</SelectItem>
-                    <SelectItem value="parti">Parti</SelectItem>
-                    <SelectItem value="valkrets">Valkrets</SelectItem>
-                    <SelectItem value="rm">Riksmöte</SelectItem>
-                    <SelectItem value="votering_id">Votering (ID)</SelectItem>
-                    <SelectItem value="bet">Votering (bet + punkt)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleSearch} disabled={loading}>
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : useOptimized ? (
-                <Zap className="w-4 h-4 mr-2" />
-              ) : (
-                <Search className="w-4 h-4 mr-2" />
-              )}
-              {useOptimized ? 'Optimerad sökning' : 'Sök voteringar'}
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={() => setSearchParams({})}
-            >
-              Rensa filter
-            </Button>
-            
-            {votes.length > 0 && (
-              <Button 
-                variant="outline" 
-                onClick={handleExportResults}
-                className="flex items-center space-x-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Exportera CSV</span>
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {error && (
-        <Card>
-          <CardContent className="text-center py-8">
-            <p className="text-red-600">{error}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {optimizedResult && (
+    <TooltipProvider>
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <BarChart3 className="w-5 h-5" />
-              <span>Optimerade sökresultat</span>
+              <Search className="w-5 h-5" />
+              <span>Sök voteringar</span>
+              {useOptimized && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="secondary" className="flex items-center space-x-1">
+                      <Zap className="w-3 h-3" />
+                      <span>Optimerad sökning</span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Hämtar senaste beteckningar först för snabbare resultat</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </CardTitle>
+            <CardDescription>
+              Filtrera och sök bland riksdagens voteringar med avancerade kriterier
+              {useOptimized && (
+                <div className="mt-2 text-sm text-blue-600">
+                  Optimerad sökning aktiverad: Hämtar senaste beteckningar först, sedan beslutspunkter och slutligen voteringsresultat
+                </div>
+              )}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{optimizedResult.designations.length}</div>
-                <div className="text-sm text-gray-600">Beteckningar</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {Object.values(optimizedResult.proposalPoints).flat().length}
+          <CardContent className="space-y-6">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">Grundläggande</TabsTrigger>
+                <TabsTrigger value="advanced">Avancerat</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="basic" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="beteckning">Beteckning</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input
+                          id="beteckning"
+                          placeholder="ex. AU1"
+                          value={searchParams.beteckning || ''}
+                          onChange={(e) => setSearchParams({
+                            ...searchParams,
+                            beteckning: e.target.value
+                          })}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ange beteckning som AU1, TU3, etc. för att söka specifika utskott</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="punkt">Förslagspunkt</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Input
+                          id="punkt"
+                          placeholder="ex. 2"
+                          value={searchParams.punkt || ''}
+                          onChange={(e) => setSearchParams({
+                            ...searchParams,
+                            punkt: e.target.value
+                          })}
+                        />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Ange punktnummer för specifik beslutspunkt</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="valkrets">Valkrets</Label>
+                    <Select 
+                      value={searchParams.valkrets || 'all'} 
+                      onValueChange={(value) => setSearchParams({
+                        ...searchParams,
+                        valkrets: value === 'all' ? undefined : value
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Välj valkrets" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alla valkretsar</SelectItem>
+                        {valkretsar.map((valkrets) => (
+                          <SelectItem key={valkrets} value={valkrets}>
+                            {valkrets}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="rost">Röst</Label>
+                    <Select 
+                      value={searchParams.rost || 'all'} 
+                      onValueChange={(value) => setSearchParams({
+                        ...searchParams,
+                        rost: value === 'all' ? undefined : value as any
+                      })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Alla röster" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alla</SelectItem>
+                        <SelectItem value="Ja">Ja</SelectItem>
+                        <SelectItem value="Nej">Nej</SelectItem>
+                        <SelectItem value="Avstår">Avstår</SelectItem>
+                        <SelectItem value="Frånvarande">Frånvarande</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">Beslutspunkter</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{optimizedResult.votes.length}</div>
-                <div className="text-sm text-gray-600">Voteringsresultat</div>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <h4 className="font-semibold">Funna beteckningar och beslutspunkter:</h4>
-              {optimizedResult.designations.map(designation => (
-                <div key={designation} className="flex items-center space-x-2">
-                  <Badge variant="outline">{designation}</Badge>
-                  <span className="text-sm text-gray-600">
-                    Punkter: {optimizedResult.proposalPoints[designation]?.join(', ') || 'Inga'}
-                  </span>
+              </TabsContent>
+
+              <TabsContent value="advanced" className="space-y-4">
+                <div>
+                  <Label>Riksmöte</Label>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-2">
+                    {riksmoten.slice(0, 12).map((rm) => (
+                      <div key={rm} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`rm-${rm}`}
+                          checked={searchParams.rm?.includes(rm) || false}
+                          onCheckedChange={(checked) => handleRmChange(rm, checked as boolean)}
+                        />
+                        <Label htmlFor={`rm-${rm}`} className="text-sm">
+                          {rm}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+
+                <div>
+                  <Label>Parti</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                    {parties.map((party) => (
+                      <div key={party} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`party-${party}`}
+                          checked={searchParams.party?.includes(party) || false}
+                          onCheckedChange={(checked) => handlePartyChange(party, checked as boolean)}
+                        />
+                        <Label htmlFor={`party-${party}`} className="text-sm">
+                          {getPartyName(party)} ({party})
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="gruppering">Gruppering</Label>
+                  <Select 
+                    value={searchParams.gruppering || 'none'} 
+                    onValueChange={(value) => setSearchParams({
+                      ...searchParams,
+                      gruppering: value === 'none' ? undefined : value as any
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ingen gruppering" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ingen gruppering</SelectItem>
+                      <SelectItem value="iid">Ledamot - ID</SelectItem>
+                      <SelectItem value="namn">Ledamot - namn</SelectItem>
+                      <SelectItem value="parti">Parti</SelectItem>
+                      <SelectItem value="valkrets">Valkrets</SelectItem>
+                      <SelectItem value="rm">Riksmöte</SelectItem>
+                      <SelectItem value="votering_id">Votering (ID)</SelectItem>
+                      <SelectItem value="bet">Votering (bet + punkt)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleSearch} disabled={loading}>
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : useOptimized ? (
+                  <Zap className="w-4 h-4 mr-2" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                {useOptimized ? 'Optimerad sökning' : 'Sök voteringar'}
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSearchParams({});
+                  setVotes([]);
+                  setOptimizedResult(null);
+                  setCurrentPage(1);
+                }}
+              >
+                Rensa filter
+              </Button>
+              
+              {votes.length > 0 && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleExportResults}
+                    className="flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Exportera CSV</span>
+                  </Button>
+                  
+                  {hasMoreResults && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleLoadMore}
+                      disabled={loading}
+                      className="flex items-center space-x-2"
+                    >
+                      {loading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <span>Ladda fler resultat</span>
+                      )}
+                    </Button>
+                  )}
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {votes.length > 0 && (
-        <GroupedVoteResults votes={votes} totalCount={totalCount} />
-      )}
-    </div>
+        {error && (
+          <Card>
+            <CardContent className="text-center py-8">
+              <p className="text-red-600">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {optimizedResult && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <BarChart3 className="w-5 h-5" />
+                <span>Optimerade sökresultat</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{optimizedResult.designations.length}</div>
+                  <div className="text-sm text-gray-600">Beteckningar</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {Object.values(optimizedResult.proposalPoints).flat().length}
+                  </div>
+                  <div className="text-sm text-gray-600">Beslutspunkter</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">{optimizedResult.votes.length}</div>
+                  <div className="text-sm text-gray-600">Voteringsresultat</div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-semibold">Funna beteckningar och beslutspunkter:</h4>
+                {optimizedResult.designations.map(designation => (
+                  <div key={designation} className="flex items-center space-x-2">
+                    <Badge variant="outline">{designation}</Badge>
+                    <span className="text-sm text-gray-600">
+                      Punkter: {optimizedResult.proposalPoints[designation]?.join(', ') || 'Inga'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {votes.length > 0 && (
+          <GroupedVoteResults votes={votes} totalCount={totalCount} />
+        )}
+      </div>
+    </TooltipProvider>
   );
 };
 
