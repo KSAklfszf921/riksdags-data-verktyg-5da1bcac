@@ -135,9 +135,9 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
   console.log(`Final active committee assignments for ${riksdagMember.efternamn}:`, activeCommitteeAssignments.map(a => `${a.organ_kod} (${a.roll})`));
   console.log(`Current committees for ${riksdagMember.efternamn}:`, currentCommittees);
 
-  // Convert assignments to match the Member interface
+  // Convert assignments to match the Member interface - keep organ_kod as is
   const convertedAssignments = assignments.map(assignment => ({
-    organ: assignment.organ_kod, // Map organ_kod to organ for compatibility
+    organ_kod: assignment.organ_kod,
     roll: assignment.roll,
     status: assignment.status,
     from: assignment.from,

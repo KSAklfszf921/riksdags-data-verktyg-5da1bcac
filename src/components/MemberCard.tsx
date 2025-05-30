@@ -41,9 +41,9 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
     const isActive = !endDate || endDate > currentDate;
     
     // Filter out chamber assignments (Kammaren/kam)
-    const isNotChamber = assignment.organ !== 'Kammaren' && 
-                        assignment.organ !== 'kam' && 
-                        !assignment.organ.toLowerCase().includes('kammar');
+    const isNotChamber = assignment.organ_kod !== 'Kammaren' && 
+                        assignment.organ_kod !== 'kam' && 
+                        !assignment.organ_kod.toLowerCase().includes('kammar');
     
     // Include committee and important assignments
     const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
@@ -116,7 +116,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
             <Building2 className="w-4 h-4 text-blue-600" />
             <div className="flex-1 min-w-0">
               <span className="font-medium text-blue-800 truncate block">
-                {assignment.organ}
+                {assignment.uppgift || assignment.organ_kod}
               </span>
               <span className="text-xs text-gray-600">
                 {assignment.roll}

@@ -249,7 +249,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   <TableBody>
                     {activeAssignments.map((assignment, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">{assignment.organ}</TableCell>
+                        <TableCell className="font-medium">{assignment.uppgift || assignment.organ_kod}</TableCell>
                         <TableCell>{assignment.roll}</TableCell>
                         <TableCell>
                           <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
@@ -289,7 +289,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   <TableBody>
                     {formerAssignments.slice(0, 10).map((assignment, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">{assignment.organ}</TableCell>
+                        <TableCell className="font-medium">{assignment.uppgift || assignment.organ_kod}</TableCell>
                         <TableCell>{assignment.roll}</TableCell>
                         <TableCell>
                           <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
