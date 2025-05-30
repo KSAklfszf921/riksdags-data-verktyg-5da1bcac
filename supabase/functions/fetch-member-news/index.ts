@@ -70,11 +70,76 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
   }
 }
 
+// Simple XML parser for Deno (replaces DOMParser)
+function parseXMLSimple(xmlText: string): { items: any[] } {
+  try {
+    // Clean up XML text
+    xmlText = xmlText.trim();
+    
+    // Simple regex-based XML parsing for RSS items
+    const itemMatches = xmlText.match(/<item[^>]*>[\s\S]*?<\/item>/gi);
+    
+    if (!itemMatches) {
+      console.log('No RSS items found in XML');
+      return { items: [] };
+    }
+    
+    const items = itemMatches.map(itemXml => {
+      // Extract title
+      const titleMatch = itemXml.match(/<title[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/i);
+      const title = titleMatch ? titleMatch[1].trim() : 'No title';
+      
+      // Extract link
+      const linkMatch = itemXml.match(/<link[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/link>/i);
+      const link = linkMatch ? linkMatch[1].trim() : '#';
+      
+      // Extract pubDate
+      const pubDateMatch = itemXml.match(/<pubDate[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/pubDate>/i);
+      const pubDate = pubDateMatch ? pubDateMatch[1].trim() : new Date().toISOString();
+      
+      // Extract description
+      const descriptionMatch = itemXml.match(/<description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/i);
+      let description = descriptionMatch ? descriptionMatch[1].trim() : '';
+      
+      // Extract image from description
+      const imgMatch = description.match(/<img[^>]+src=["'](.*?)["']/i);
+      const imageUrl = imgMatch ? imgMatch[1] : undefined;
+      
+      // Clean HTML from description
+      description = description
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      // Truncate description
+      if (description.length > 200) {
+        description = description.substring(0, 200) + '...';
+      }
+      
+      return {
+        title,
+        link,
+        pubDate,
+        description,
+        imageUrl
+      };
+    });
+    
+    return { items };
+  } catch (error) {
+    console.error('XML parsing error:', error);
+    throw new Error(`XML parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
 async function tryFetchRSS(memberName: string, maxRetries: number = 3): Promise<NewsItem[]> {
   const encodedName = encodeURIComponent(`"${memberName}"`);
   const rssUrl = `https://news.google.com/rss/search?q=${encodedName}&hl=sv&gl=SE`;
   
-  // Förbättrade CORS-proxies med fallback-strategi
+  console.log(`Starting RSS fetch for: ${memberName}`);
+  console.log(`RSS URL: ${rssUrl}`);
+  
+  // Improved CORS proxies with better error handling
   const corsProxies = [
     { 
       url: 'https://api.allorigins.win/get?url=',
@@ -90,15 +155,6 @@ async function tryFetchRSS(memberName: string, maxRetries: number = 3): Promise<
       headers: {
         'Accept': 'application/rss+xml, application/xml, text/xml',
         'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
-      }
-    },
-    {
-      url: 'https://cors-anywhere.herokuapp.com/',
-      format: 'direct',
-      headers: {
-        'Accept': 'application/rss+xml, application/xml, text/xml',
-        'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
-        'X-Requested-With': 'XMLHttpRequest'
       }
     }
   ];
@@ -117,27 +173,31 @@ async function tryFetchRSS(memberName: string, maxRetries: number = 3): Promise<
           finalUrl = `${proxy.url}${rssUrl}`;
         }
 
-        console.log(`Trying proxy: ${proxy.url} for ${memberName}`);
+        console.log(`Trying proxy: ${proxy.url}`);
         
         const response = await fetchWithTimeout(finalUrl, {
           method: 'GET',
           headers: proxy.headers
-        }, 8000); // 8 sekunder timeout
+        }, 15000); // Increased timeout to 15 seconds
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          console.log(`HTTP ${response.status}: ${response.statusText}`);
+          continue;
         }
 
         let xmlText = await response.text();
+        console.log(`Received ${xmlText.length} characters from ${proxy.url}`);
         
-        // Hantera allorigins-format
+        // Handle allorigins format
         if (proxy.format === 'allorigins') {
           try {
             const jsonResponse = JSON.parse(xmlText);
             if (jsonResponse.contents) {
               xmlText = jsonResponse.contents;
+              console.log('Successfully extracted XML from allorigins response');
             } else {
-              throw new Error('Invalid allorigins response format');
+              console.log('Invalid allorigins response format');
+              continue;
             }
           } catch (e) {
             console.log('Failed to parse allorigins response:', e);
@@ -145,121 +205,45 @@ async function tryFetchRSS(memberName: string, maxRetries: number = 3): Promise<
           }
         }
 
-        // Förbättrad XML-parsing
-        const newsItems = parseRSSFeed(xmlText, memberName);
+        // Parse XML using our simple parser
+        const parsed = parseXMLSimple(xmlText);
+        console.log(`Parsed ${parsed.items.length} items from XML`);
         
-        if (newsItems.length > 0) {
-          console.log(`Successfully fetched ${newsItems.length} items with proxy: ${proxy.url}`);
-          setCachedNews(memberName, newsItems);
-          return newsItems;
+        if (parsed.items.length > 0) {
+          // Limit to 5 items and validate data
+          const newsItems: NewsItem[] = parsed.items.slice(0, 5)
+            .filter(item => item.title && item.title !== 'No title' && item.link && item.link !== '#')
+            .map(item => ({
+              title: item.title,
+              link: item.link,
+              pubDate: item.pubDate,
+              description: item.description || '',
+              imageUrl: item.imageUrl
+            }));
+          
+          if (newsItems.length > 0) {
+            console.log(`Successfully fetched ${newsItems.length} valid news items with proxy: ${proxy.url}`);
+            setCachedNews(memberName, newsItems);
+            return newsItems;
+          }
         }
         
       } catch (err) {
         console.log(`Failed with proxy ${proxy.url}:`, err);
         lastError = err as Error;
-        
-        // Vänta innan nästa försök (exponential backoff)
-        if (attempt < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-        }
         continue;
       }
+    }
+    
+    // Wait before next retry (exponential backoff)
+    if (attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Waiting ${delay}ms before next attempt`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 
   throw lastError || new Error('All proxies and retries failed');
-}
-
-function parseRSSFeed(xmlText: string, memberName: string): NewsItem[] {
-  try {
-    // Rensa upp XML-texten
-    xmlText = xmlText.trim();
-    
-    // Kontrollera om det finns XML-deklaration
-    if (!xmlText.startsWith('<?xml') && !xmlText.startsWith('<rss')) {
-      throw new Error('Invalid XML format - missing XML declaration or RSS root');
-    }
-    
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(xmlText, 'text/xml');
-    
-    // Kontrollera XML-parsing-fel
-    const parseError = xml.querySelector('parsererror');
-    if (parseError) {
-      console.error('XML Parse Error:', parseError.textContent);
-      throw new Error(`XML Parse Error: ${parseError.textContent}`);
-    }
-    
-    // Kontrollera RSS-struktur
-    const rssElement = xml.querySelector('rss');
-    if (!rssElement) {
-      throw new Error('Invalid RSS format - missing RSS element');
-    }
-    
-    const items = xml.querySelectorAll('item');
-    console.log(`Found ${items.length} RSS items for ${memberName}`);
-    
-    if (items.length === 0) {
-      return [];
-    }
-
-    const newsData: NewsItem[] = [];
-    
-    // Begränsa till 5 senaste artiklarna
-    const itemsToProcess = Math.min(items.length, 5);
-    
-    for (let i = 0; i < itemsToProcess; i++) {
-      const item = items[i];
-      
-      try {
-        const title = item.querySelector('title')?.textContent?.trim() || 'No title';
-        const link = item.querySelector('link')?.textContent?.trim() || '#';
-        const pubDate = item.querySelector('pubDate')?.textContent?.trim() || new Date().toISOString();
-        const description = item.querySelector('description')?.textContent?.trim() || '';
-        
-        // Extrahera bild från beskrivning
-        const imgMatch = description.match(/<img[^>]+src=["'](.*?)["']/i);
-        const imageUrl = imgMatch ? imgMatch[1] : undefined;
-        
-        // Rensa HTML från beskrivning med förbättrad metod
-        let cleanDescription = '';
-        if (description) {
-          try {
-            const tempDiv = parser.parseFromString(`<div>${description}</div>`, 'text/html');
-            cleanDescription = tempDiv.body?.textContent || tempDiv.body?.innerText || '';
-          } catch {
-            // Fallback: enkel HTML-tag-borttagning
-            cleanDescription = description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-          }
-        }
-        
-        const truncatedDescription = cleanDescription.length > 200 
-          ? cleanDescription.substring(0, 200) + '...' 
-          : cleanDescription;
-        
-        // Validera att vi har rimlig data
-        if (title && title !== 'No title' && link && link !== '#') {
-          newsData.push({
-            title,
-            link,
-            pubDate,
-            description: truncatedDescription,
-            imageUrl
-          });
-        }
-        
-      } catch (itemError) {
-        console.warn(`Error parsing RSS item ${i}:`, itemError);
-        // Fortsätt med nästa item
-      }
-    }
-
-    return newsData;
-    
-  } catch (error) {
-    console.error('RSS parsing error:', error);
-    throw new Error(`RSS parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
 }
 
 serve(async (req) => {
@@ -278,11 +262,12 @@ serve(async (req) => {
       )
     }
 
-    console.log(`Fetching news for ${memberName} (${memberId})`)
+    console.log(`=== Fetching news for ${memberName} (${memberId}) ===`)
 
     // Rate limiting check
     const rateLimitKey = `${memberId}-${memberName}`;
     if (!checkRateLimit(rateLimitKey)) {
+      console.log(`Rate limit exceeded for ${rateLimitKey}`);
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -292,7 +277,7 @@ serve(async (req) => {
     // Check cache first
     const cachedNews = getCachedNews(memberName);
     if (cachedNews) {
-      console.log(`Returning cached news for ${memberName}`);
+      console.log(`Returning ${cachedNews.length} cached news items for ${memberName}`);
       return new Response(
         JSON.stringify({ 
           newsItems: cachedNews, 
@@ -309,9 +294,11 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Fetch news from RSS
+    console.log('Fetching news from RSS feeds...');
     const newsData = await tryFetchRSS(memberName);
     
     if (newsData.length === 0) {
+      console.log(`No news found for ${memberName}`);
       return new Response(
         JSON.stringify({ 
           message: `No news found for ${memberName}`, 
@@ -322,7 +309,9 @@ serve(async (req) => {
       )
     }
 
-    // Lagra i databasen med förbättrade operationer
+    console.log(`Attempting to store ${newsData.length} news items in database...`);
+
+    // Prepare data for database insertion
     const newsInserts = newsData.map(item => ({
       member_id: memberId,
       member_name: memberName,
@@ -334,7 +323,7 @@ serve(async (req) => {
       source: 'google_news'
     }));
 
-    // Använd upsert för att undvika dubbletter
+    // Use upsert with the new unique constraint to avoid duplicates
     const { data, error } = await supabase
       .from('member_news')
       .upsert(newsInserts, { 
@@ -357,20 +346,22 @@ serve(async (req) => {
       )
     }
 
-    console.log(`Successfully stored ${newsData.length} news items for ${memberName}`)
+    const insertedCount = data ? data.length : newsData.length;
+    console.log(`Successfully stored ${insertedCount} news items in database for ${memberName}`);
 
     return new Response(
       JSON.stringify({ 
         newsItems: newsData, 
         message: `Successfully fetched and stored ${newsData.length} news items for ${memberName}`,
         source: 'rss',
-        cached: false
+        cached: false,
+        stored: insertedCount
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (err) {
-    console.error('Error in fetch-member-news:', err)
+    console.error('=== Error in fetch-member-news ===', err)
     
     let errorMessage = 'Unknown error occurred'
     if (err instanceof Error) {

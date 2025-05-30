@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 
 interface NewsItem {
@@ -25,6 +24,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'database' | 'live' | 'cache'>('database');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -99,6 +99,12 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         setDataSource(data.source === 'cache' ? 'cache' : 'live');
         setLastFetchTime(new Date());
         
+        // Show success message with storage info
+        if (data.stored && data.stored > 0) {
+          setSuccess(`${data.stored} nya artiklar sparades i databasen`);
+          setTimeout(() => setSuccess(null), 5000);
+        }
+        
         // Refresh database data after successful API fetch if it was live data
         if (data.source !== 'cache') {
           setTimeout(() => fetchNewsFromDatabase(), 2000);
@@ -119,6 +125,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
   const fetchNews = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    setSuccess(null);
     
     try {
       // Försök först med databasen om inte force refresh
@@ -274,6 +281,15 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+            <div className="flex items-center">
+              <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+              <p className="text-green-700 text-sm">{success}</p>
+            </div>
+          </div>
+        )}
+        
         {loading && newsItems.length === 0 ? (
           <div className="text-center py-8">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
