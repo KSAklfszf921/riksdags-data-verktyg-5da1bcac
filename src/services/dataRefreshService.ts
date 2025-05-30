@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   getDataFreshness, 
@@ -169,34 +168,21 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
   let totalStats = {};
 
   try {
-    // 1. Refresh core party and member data (includes documents, votes, speeches)
-    console.log('Step 1: Refreshing core party data...');
-    const { data: partyResult, error: partyError } = await supabase.functions.invoke('fetch-party-data');
+    // Use the new comprehensive data sync function
+    console.log('Step 1: Refreshing all core data...');
+    const { data: comprehensiveResult, error: comprehensiveError } = await supabase.functions.invoke('fetch-comprehensive-data');
     
-    if (partyError) {
-      const errorMsg = `Party data sync failed: ${partyError.message}`;
+    if (comprehensiveError) {
+      const errorMsg = `Comprehensive data sync failed: ${comprehensiveError.message}`;
       console.error(errorMsg);
       errors.push(errorMsg);
-    } else if (partyResult?.stats) {
-      totalStats = { ...totalStats, ...partyResult.stats };
-      console.log('Party data sync completed:', partyResult.stats);
+    } else if (comprehensiveResult?.stats) {
+      totalStats = { ...totalStats, ...comprehensiveResult.stats };
+      console.log('Comprehensive data sync completed:', comprehensiveResult.stats);
     }
 
-    // 2. Refresh calendar data
-    console.log('Step 2: Refreshing calendar data...');
-    const { data: calendarResult, error: calendarError } = await supabase.functions.invoke('fetch-calendar-data');
-    
-    if (calendarError) {
-      const errorMsg = `Calendar data sync failed: ${calendarError.message}`;
-      console.error(errorMsg);
-      errors.push(errorMsg);
-    } else if (calendarResult?.stats) {
-      totalStats = { ...totalStats, ...calendarResult.stats };
-      console.log('Calendar data sync completed:', calendarResult.stats);
-    }
-
-    // 3. Trigger news refresh for active members
-    console.log('Step 3: Triggering news refresh for members...');
+    // 2. Trigger news refresh for active members
+    console.log('Step 2: Triggering news refresh for members...');
     try {
       const { data: members } = await supabase
         .from('member_data')
@@ -297,10 +283,9 @@ export const refreshSpecificDataType = async (dataType: string): Promise<Refresh
       case 'vote':
       case 'document':
       case 'speech':
-        result = await supabase.functions.invoke('fetch-party-data');
-        break;
       case 'calendar':
-        result = await supabase.functions.invoke('fetch-calendar-data');
+        // Use the comprehensive data sync for all core data types
+        result = await supabase.functions.invoke('fetch-comprehensive-data');
         break;
       default:
         throw new Error(`Unknown data type: ${dataType}`);
