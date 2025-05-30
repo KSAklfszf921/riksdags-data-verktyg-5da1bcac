@@ -12,7 +12,12 @@ interface MemberCardProps {
 }
 
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
-  const party = partyInfo[member.party];
+  // Provide fallback for unknown parties
+  const party = partyInfo[member.party] || {
+    name: member.party,
+    fullName: member.party,
+    color: 'bg-gray-500'
+  };
 
   return (
     <Card 
@@ -35,7 +40,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
               </h3>
               <div className="flex items-center space-x-1">
                 <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                <span className="text-sm text-gray-600">{member.activityScore}</span>
+                <span className="text-sm text-gray-600">{member.activityScore.toFixed(1)}</span>
               </div>
             </div>
             
