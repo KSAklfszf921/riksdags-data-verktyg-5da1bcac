@@ -476,29 +476,64 @@ export const searchCalendarEvents = async (params: CalendarSearchParams): Promis
 };
 
 export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
-  const { documents } = await searchDocuments({
-    intressentId,
-    sz: 100,
-    sort: 'datum',
-    sortorder: 'desc'
-  });
-  return documents;
+  try {
+    console.log(`Fetching documents for member: ${intressentId}`);
+    
+    const { documents } = await searchDocuments({
+      iid: intressentId, // Använd iid istället för intressentId
+      sz: 100,
+      sort: 'datum',
+      sortorder: 'desc'
+    });
+    
+    console.log(`Found ${documents.length} documents for member ${intressentId}`);
+    
+    // Filtrera och berika dokumenten
+    const enrichedDocuments = documents.map(doc => ({
+      ...doc,
+      // Säkerställ att intressent_id är satt korrekt
+      intressent_id: intressentId
+    }));
+    
+    return enrichedDocuments;
+  } catch (error) {
+    console.error(`Error fetching documents for member ${intressentId}:`, error);
+    return [];
+  }
 };
 
 export const fetchMemberSpeeches = async (intressentId: string): Promise<RiksdagSpeech[]> => {
-  const { speeches } = await searchSpeeches({
-    intressentId,
-    pageSize: 100
-  });
-  return speeches;
+  try {
+    console.log(`Fetching speeches for member: ${intressentId}`);
+    
+    const { speeches } = await searchSpeeches({
+      intressentId, // Använd intressentId parameter
+      pageSize: 100
+    });
+    
+    console.log(`Found ${speeches.length} speeches for member ${intressentId}`);
+    return speeches;
+  } catch (error) {
+    console.error(`Error fetching speeches for member ${intressentId}:`, error);
+    return [];
+  }
 };
 
 export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVote[]> => {
-  const { votes } = await searchVotes({
-    intressentId,
-    pageSize: 100
-  });
-  return votes;
+  try {
+    console.log(`Fetching votes for member: ${intressentId}`);
+    
+    const { votes } = await searchVotes({
+      intressentId,
+      pageSize: 100
+    });
+    
+    console.log(`Found ${votes.length} votes for member ${intressentId}`);
+    return votes;
+  } catch (error) {
+    console.error(`Error fetching votes for member ${intressentId}:`, error);
+    return [];
+  }
 };
 
 export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {

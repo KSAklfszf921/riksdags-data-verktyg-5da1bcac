@@ -16,11 +16,15 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
   }
 
   // For performance, fetch limited data initially
+  console.log(`Mapping member: ${riksdagMember.tilltalsnamn} ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
+  
   const [documents, speeches, calendarEvents] = await Promise.all([
-    fetchMemberDocuments(riksdagMember.intressent_id).then(docs => docs.slice(0, 5)).catch(() => []),
-    fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 5)).catch(() => []),
+    fetchMemberDocuments(riksdagMember.intressent_id).then(docs => docs.slice(0, 10)).catch(() => []),
+    fetchMemberSpeeches(riksdagMember.intressent_id).then(speeches => speeches.slice(0, 10)).catch(() => []),
     fetchMemberCalendarEvents(riksdagMember.intressent_id).then(events => events.slice(0, 5)).catch(() => [])
   ]);
+
+  console.log(`Member ${riksdagMember.efternamn}: ${documents.length} documents, ${speeches.length} speeches`);
 
   const mappedDocuments = documents.map(doc => ({
     id: doc.id,
@@ -55,10 +59,12 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     url: event.url
   }));
 
-  // Count specific document types for stats
+  // Count specific document types for stats - förbättrad räkning
   const motions = documents.filter(doc => doc.typ === 'mot').length;
   const interpellations = documents.filter(doc => doc.typ === 'ip').length;
   const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
+
+  console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
   return {
     id: riksdagMember.intressent_id,
