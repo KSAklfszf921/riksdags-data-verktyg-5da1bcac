@@ -29,7 +29,25 @@ export interface RiksdagMember {
   bild_url_max: string;
 }
 
+// Flattened document interface to match component usage
 export interface RiksdagDocument {
+  id: string;
+  titel: string;
+  undertitel: string;
+  rm: string;
+  datum: string;
+  typ: string;
+  subtyp: string;
+  nummer: string;
+  beteckning: string;
+  organ: string;
+  mottagare: string;
+  dokument_url_html: string;
+  dokument_url_text: string;
+}
+
+// API response structure (nested)
+export interface RiksdagDocumentResponse {
   dok: {
     id: string;
     titel: string;
@@ -47,7 +65,41 @@ export interface RiksdagDocument {
   };
 }
 
+// Flattened speech interface to match component usage
 export interface RiksdagSpeech {
+  anforande_id: string;
+  dok_id: string;
+  anforande_nummer: string;
+  anforande_url_html: string;
+  anforandetext: string;
+  anforandedatum: string;
+  anforandeperspektiv: string;
+  anforandetyp: string;
+  intressent_id: string;
+  replik: string;
+  rm: string;
+  sekvensnummer: string;
+  source: string;
+  talare: string;
+  titel: string;
+  undertitel: string;
+  rel_dok_id: string;
+  rel_dok_rm: string;
+  rel_dok_titel: string;
+  rel_dok_subtitel: string;
+  rel_dok_dokument_url_html: string;
+  rel_dok_dokument_url_text: string;
+  kammaraktivitet: string;
+  anf_klockslag: string;
+  anf_sekunder: string;
+  avsnittsrubrik: string;
+  dok_titel: string;
+  parti: string;
+  protokoll_url_www: string;
+}
+
+// API response structure for speeches (nested)
+export interface RiksdagSpeechResponse {
   anforande: {
     anforande_id: string;
     dok_id: string;
@@ -75,7 +127,25 @@ export interface RiksdagSpeech {
   };
 }
 
+// Flattened calendar event interface
 export interface RiksdagCalendarEvent {
+  id: string;
+  datum: string;
+  tid: string;
+  typ: string;
+  titel: string;
+  undertitel: string;
+  organ: string;
+  beskrivning: string;
+  url: string;
+  summary: string;
+  aktivitet: string;
+  plats: string;
+  description: string;
+}
+
+// API response structure for calendar events (nested)
+export interface RiksdagCalendarEventResponse {
   event: {
     id: string;
     datum: string;
@@ -121,6 +191,189 @@ export interface RiksdagMemberBiography {
 export interface RiksdagMemberDetailsWithBiography extends RiksdagMemberDetails {
   biography?: RiksdagMemberBiography[];
 }
+
+// Search parameter interfaces
+export interface DocumentSearchParams {
+  query?: string;
+  doktyp?: string;
+  rm?: string;
+  org?: string;
+  fromDate?: string;
+  toDate?: string;
+  pageSize?: number;
+  page?: number;
+}
+
+export interface SpeechSearchParams {
+  intressentId?: string;
+  rm?: string;
+  anftyp?: 'Nej' | '';
+  party?: string;
+  date?: string;
+  systemDate?: string;
+  pageSize?: number;
+  page?: number;
+}
+
+export interface CalendarSearchParams {
+  fromDate?: string;
+  toDate?: string;
+  org?: string[];
+  akt?: string[];
+  pageSize?: number;
+  page?: number;
+}
+
+// Search result interfaces
+export interface DocumentSearchResult {
+  documents: RiksdagDocument[];
+  totalCount: number;
+}
+
+export interface SpeechSearchResult {
+  speeches: RiksdagSpeech[];
+  totalCount: number;
+}
+
+export interface CalendarSearchResult {
+  events: RiksdagCalendarEvent[];
+  totalCount: number;
+}
+
+// Search functions
+export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<CalendarSearchResult> => {
+  try {
+    let url = `${API_BASE_URL}/kalender/?utformat=json`;
+    
+    if (params.fromDate) {
+      url += `&from=${params.fromDate}`;
+    }
+    if (params.toDate) {
+      url += `&tom=${params.toDate}`;
+    }
+    if (params.org && params.org.length > 0) {
+      url += `&org=${params.org.join(',')}`;
+    }
+    if (params.akt && params.akt.length > 0) {
+      url += `&akt=${params.akt.join(',')}`;
+    }
+    if (params.pageSize) {
+      url += `&size=${params.pageSize}`;
+    }
+    if (params.page) {
+      url += `&p=${params.page}`;
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to search calendar events: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const eventList = data.kalender?.event || [];
+    const totalCount = parseInt(data.kalender?.['@hits'], 10) || 0;
+
+    // Flatten the nested structure
+    const events: RiksdagCalendarEvent[] = eventList.map((eventResponse: RiksdagCalendarEventResponse) => ({
+      id: eventResponse.event.id,
+      datum: eventResponse.event.datum,
+      tid: eventResponse.event.tid,
+      typ: eventResponse.event.typ,
+      titel: eventResponse.event.titel,
+      undertitel: eventResponse.event.undertitel,
+      organ: eventResponse.event.organ,
+      beskrivning: eventResponse.event.beskrivning,
+      url: eventResponse.event.url,
+      summary: eventResponse.event.titel, // Use titel as summary
+      aktivitet: eventResponse.event.typ, // Use typ as aktivitet
+      plats: '', // Default empty, not in API response
+      description: eventResponse.event.beskrivning
+    }));
+
+    return { events, totalCount };
+  } catch (error) {
+    console.error('Error searching calendar events:', error);
+    throw error;
+  }
+};
+
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<SpeechSearchResult> => {
+  try {
+    let url = `${API_BASE_URL}/anforandefilter/?utformat=json`;
+    
+    if (params.intressentId) {
+      url += `&iid=${params.intressentId}`;
+    }
+    if (params.rm) {
+      url += `&rm=${params.rm}`;
+    }
+    if (params.anftyp) {
+      url += `&anftyp=${params.anftyp}`;
+    }
+    if (params.party) {
+      url += `&parti=${params.party}`;
+    }
+    if (params.date) {
+      url += `&from=${params.date}`;
+    }
+    if (params.systemDate) {
+      url += `&systemdate=${params.systemDate}`;
+    }
+    if (params.pageSize) {
+      url += `&size=${params.pageSize}`;
+    }
+    if (params.page) {
+      url += `&p=${params.page}`;
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to search speeches: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const speechList = data.anforanden?.anforande || [];
+    const totalCount = parseInt(data.anforanden?.['@hits'], 10) || 0;
+
+    // Flatten the nested structure
+    const speeches: RiksdagSpeech[] = speechList.map((speechResponse: RiksdagSpeechResponse) => ({
+      anforande_id: speechResponse.anforande.anforande_id,
+      dok_id: speechResponse.anforande.dok_id,
+      anforande_nummer: speechResponse.anforande.anforande_id, // Use anforande_id as nummer
+      anforande_url_html: `https://data.riksdagen.se/anforande/${speechResponse.anforande.anforande_id}/html`,
+      anforandetext: speechResponse.anforande.anforandetext,
+      anforandedatum: speechResponse.anforande.anforandedatum,
+      anforandeperspektiv: speechResponse.anforande.anforandeperspektiv,
+      anforandetyp: speechResponse.anforande.anforandetyp,
+      intressent_id: speechResponse.anforande.intressent_id,
+      replik: speechResponse.anforande.replik,
+      rm: speechResponse.anforande.rm,
+      sekvensnummer: speechResponse.anforande.sekvensnummer,
+      source: speechResponse.anforande.source,
+      talare: speechResponse.anforande.talare,
+      titel: speechResponse.anforande.titel,
+      undertitel: speechResponse.anforande.undertitel,
+      rel_dok_id: speechResponse.anforande.rel_dok_id,
+      rel_dok_rm: speechResponse.anforande.rel_dok_rm,
+      rel_dok_titel: speechResponse.anforande.rel_dok_titel,
+      rel_dok_subtitel: speechResponse.anforande.rel_dok_subtitel,
+      rel_dok_dokument_url_html: speechResponse.anforande.rel_dok_dokument_url_html,
+      rel_dok_dokument_url_text: speechResponse.anforande.rel_dok_dokument_url_text,
+      kammaraktivitet: speechResponse.anforande.kammaraktivitet,
+      anf_klockslag: speechResponse.anforande.anf_klockslag,
+      anf_sekunder: speechResponse.anforande.anf_sekunder,
+      avsnittsrubrik: speechResponse.anforande.titel || 'Okänt ämne', // Use titel as avsnittsrubrik
+      dok_titel: speechResponse.anforande.rel_dok_titel,
+      parti: '', // Will be populated from member data
+      protokoll_url_www: speechResponse.anforande.rel_dok_dokument_url_html || ''
+    }));
+
+    return { speeches, totalCount };
+  } catch (error) {
+    console.error('Error searching speeches:', error);
+    throw error;
+  }
+};
 
 export const fetchMembers = async (
   page: number = 1,
