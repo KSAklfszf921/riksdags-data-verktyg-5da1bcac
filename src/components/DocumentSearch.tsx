@@ -17,6 +17,7 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
     error,
     selectedParties,
     currentPage,
+    hasSearched,
     updateSearchParams,
     toggleParty,
     handleSearch,
@@ -30,21 +31,24 @@ const DocumentSearch = ({ initialMemberId, showMemberFilter = true }: DocumentSe
         searchParams={searchParams}
         selectedParties={selectedParties}
         loading={loading}
+        hasSearched={hasSearched}
         onUpdateSearchParams={updateSearchParams}
         onToggleParty={toggleParty}
         onSearch={() => handleSearch(true)}
         onReset={resetSearch}
       />
 
-      <DocumentResultsTable
-        documents={documents}
-        totalCount={totalCount}
-        loading={loading}
-        error={error}
-        currentPage={currentPage}
-        searchParams={searchParams}
-        onPageChange={handlePageChange}
-      />
+      {hasSearched && (
+        <DocumentResultsTable
+          documents={documents}
+          totalCount={totalCount}
+          loading={loading}
+          error={error}
+          currentPage={currentPage}
+          searchParams={searchParams}
+          onPageChange={handlePageChange}
+        />
+      )}
     </div>
   );
 };

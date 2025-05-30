@@ -4,10 +4,10 @@ import { searchDocuments, DocumentSearchParams, RiksdagDocument } from '../servi
 
 export const useDocumentSearch = (initialMemberId?: string) => {
   const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
-    intressentId: initialMemberId,
+    iid: initialMemberId,
     sort: 'datum',
-    sortOrder: 'desc',
-    pageSize: 20
+    sortorder: 'desc',
+    sz: 20
   });
   const [documents, setDocuments] = useState<RiksdagDocument[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -15,28 +15,34 @@ export const useDocumentSearch = (initialMemberId?: string) => {
   const [error, setError] = useState<string | null>(null);
   const [selectedParties, setSelectedParties] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // Load initial documents on component mount
+  // Only auto-search if we have a member ID
   useEffect(() => {
-    handleSearch(true);
-  }, []);
+    if (initialMemberId) {
+      handleSearch(true);
+    }
+  }, [initialMemberId]);
 
-  // Live search when parameters change
+  // Live search when parameters change (but only after first manual search)
   useEffect(() => {
+    if (!hasSearched) return;
+    
     const timeoutId = setTimeout(() => {
-      if (searchParams.searchTerm !== undefined || selectedParties.length > 0 || 
-          searchParams.docType || searchParams.organ || searchParams.fromDate || 
-          searchParams.toDate || searchParams.rm || searchParams.beteckning) {
+      if (searchParams.searchTerm || selectedParties.length > 0 || 
+          searchParams.doktyp || searchParams.org || searchParams.fromDate || 
+          searchParams.toDate || searchParams.rm || searchParams.bet) {
         handleSearch(true);
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchParams, selectedParties]);
+  }, [searchParams, selectedParties, hasSearched]);
 
   const handleSearch = async (resetPage = false) => {
     setLoading(true);
     setError(null);
+    setHasSearched(true);
     
     if (resetPage) {
       setCurrentPage(1);
@@ -45,13 +51,17 @@ export const useDocumentSearch = (initialMemberId?: string) => {
     try {
       const params = {
         ...searchParams,
-        party: selectedParties.length > 0 ? selectedParties : undefined,
-        pageSize: 20
+        parti: selectedParties.length > 0 ? selectedParties : undefined,
+        sz: 20
       };
+      
+      console.log('Searching with params:', params);
       
       const result = await searchDocuments(params);
       setDocuments(result.documents);
       setTotalCount(result.totalCount);
+      
+      console.log('Search results:', result);
     } catch (err) {
       setError('Kunde inte söka dokument');
       console.error('Error searching documents:', err);
@@ -61,7 +71,11 @@ export const useDocumentSearch = (initialMemberId?: string) => {
   };
 
   const updateSearchParams = (key: keyof DocumentSearchParams, value: any) => {
-    setSearchParams(prev => ({ ...prev, [key]: value }));
+    console.log('Updating search param:', key, value);
+    setSearchParams(prev => ({ 
+      ...prev, 
+      [key]: value === '' ? undefined : value 
+    }));
   };
 
   const toggleParty = (party: string) => {
@@ -75,17 +89,20 @@ export const useDocumentSearch = (initialMemberId?: string) => {
   const resetSearch = () => {
     setSearchParams({
       sort: 'datum',
-      sortOrder: 'desc',
-      pageSize: 20
+      sortorder: 'desc',
+      sz: 20
     });
     setSelectedParties([]);
     setCurrentPage(1);
-    handleSearch(true);
+    setDocuments([]);
+    setTotalCount(0);
+    setHasSearched(false);
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    // Implement actual pagination with API call here if needed
+    // Note: Actual pagination would require API support for page offset
+    console.log('Page change requested:', page);
   };
 
   return {
@@ -96,6 +113,7 @@ export const useDocumentSearch = (initialMemberId?: string) => {
     error,
     selectedParties,
     currentPage,
+    hasSearched,
     updateSearchParams,
     toggleParty,
     handleSearch,

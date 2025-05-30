@@ -8,7 +8,7 @@ import { DocumentSearchParams } from '../services/riksdagApi';
 import { useDocumentTypes } from '../hooks/useDocumentTypes';
 import DocumentSearchFilters from './DocumentSearchFilters';
 
-// Available committees without composite ones
+// Available committees - updated to match API
 const COMMITTEES = [
   { value: 'AU', label: 'Arbetsmarknadsutskottet' },
   { value: 'BoU', label: 'Bostadsutskottet' },
@@ -40,16 +40,21 @@ const RIKSMOTE_YEARS = [
 ];
 
 const SORT_OPTIONS = [
+  { value: 'rel', label: 'Relevans' },
   { value: 'datum', label: 'Datum' },
   { value: 'systemdatum', label: 'Systemdatum' },
   { value: 'bet', label: 'Beteckning' },
-  { value: 'rel', label: 'Relevans' }
+  { value: 'debattdag', label: 'Debattdag' },
+  { value: 'debattdagtid', label: 'Debattdagtid' },
+  { value: 'beslutsdag', label: 'Beslutsdag' },
+  { value: 'publiceringsdatum', label: 'Publiceringsdatum' }
 ];
 
 interface DocumentSearchFormProps {
   searchParams: DocumentSearchParams;
   selectedParties: string[];
   loading: boolean;
+  hasSearched: boolean;
   onUpdateSearchParams: (key: keyof DocumentSearchParams, value: any) => void;
   onToggleParty: (party: string) => void;
   onSearch: () => void;
@@ -60,6 +65,7 @@ const DocumentSearchForm = ({
   searchParams,
   selectedParties,
   loading,
+  hasSearched,
   onUpdateSearchParams,
   onToggleParty,
   onSearch,
@@ -97,13 +103,13 @@ const DocumentSearchForm = ({
               Dokumenttyp {typesLoading && <span className="text-xs text-gray-500">(laddar...)</span>}
             </label>
             <Select 
-              value={searchParams.docType || 'all'} 
-              onValueChange={(value) => onUpdateSearchParams('docType', value === 'all' ? undefined : value)}
+              value={searchParams.doktyp || 'all'} 
+              onValueChange={(value) => onUpdateSearchParams('doktyp', value === 'all' ? undefined : value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Välj dokumenttyp" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="all">Alla typer</SelectItem>
                 {documentTypes.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
@@ -116,16 +122,16 @@ const DocumentSearchForm = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Utskott
+              Utskott/Organ
             </label>
             <Select 
-              value={searchParams.organ || 'all'} 
-              onValueChange={(value) => onUpdateSearchParams('organ', value === 'all' ? undefined : value)}
+              value={searchParams.org || 'all'} 
+              onValueChange={(value) => onUpdateSearchParams('org', value === 'all' ? undefined : value)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Välj utskott" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="all">Alla utskott</SelectItem>
                 {COMMITTEES.map((committee) => (
                   <SelectItem key={committee.value} value={committee.value}>
@@ -167,8 +173,8 @@ const DocumentSearchForm = ({
             </label>
             <Input
               placeholder="ex. 2023/24:1"
-              value={searchParams.beteckning || ''}
-              onChange={(e) => onUpdateSearchParams('beteckning', e.target.value || undefined)}
+              value={searchParams.bet || ''}
+              onChange={(e) => onUpdateSearchParams('bet', e.target.value || undefined)}
             />
           </div>
 
@@ -183,7 +189,7 @@ const DocumentSearchForm = ({
               <SelectTrigger>
                 <SelectValue placeholder="Välj riksmöte" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="all">Alla riksmöten</SelectItem>
                 {RIKSMOTE_YEARS.map((year) => (
                   <SelectItem key={year} value={year}>
@@ -214,7 +220,7 @@ const DocumentSearchForm = ({
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 {SORT_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -229,13 +235,13 @@ const DocumentSearchForm = ({
               Ordning
             </label>
             <Select 
-              value={searchParams.sortOrder || 'desc'} 
-              onValueChange={(value: any) => onUpdateSearchParams('sortOrder', value)}
+              value={searchParams.sortorder || 'desc'} 
+              onValueChange={(value: any) => onUpdateSearchParams('sortorder', value)}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white z-50">
                 <SelectItem value="desc">Fallande (nyast först)</SelectItem>
                 <SelectItem value="asc">Stigande (äldst först)</SelectItem>
               </SelectContent>
@@ -256,6 +262,12 @@ const DocumentSearchForm = ({
             Rensa
           </Button>
         </div>
+
+        {!hasSearched && !loading && (
+          <div className="text-center py-4 text-gray-500">
+            <p>Fyll i sökkriterier och klicka på "Sök dokument" för att börja</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

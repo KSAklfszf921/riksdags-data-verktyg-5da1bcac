@@ -44,6 +44,12 @@ export interface RiksdagDocument {
   nummer?: string;
   slutdatum?: string;
   systemdatum?: string;
+  summary?: string;
+  notis?: string;
+  notisrubrik?: string;
+  subtyp?: string;
+  doktyp?: string;
+  score?: string;
 }
 
 export interface RiksdagDocumentResponse {
@@ -129,19 +135,28 @@ export interface RiksdagCalendarResponse {
 
 export interface DocumentSearchParams {
   searchTerm?: string;
-  docType?: string;
+  doktyp?: string;
   fromDate?: string;
   toDate?: string;
   intressentId?: string;
-  organ?: string;
-  party?: string[];
+  org?: string;
+  parti?: string[];
   rm?: string;
-  beteckning?: string;
-  nummer?: string;
+  bet?: string;
   tempbet?: string;
-  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag';
-  sortOrder?: 'asc' | 'desc';
-  pageSize?: number;
+  nr?: string;
+  ts?: string;
+  iid?: string;
+  talare?: string;
+  exakt?: string;
+  planering?: string;
+  facets?: string;
+  rapport?: string;
+  avd?: string;
+  webbtv?: string;
+  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag' | 'justeringsdag' | 'beredningsdag' | 'publiceringsdatum';
+  sortorder?: 'asc' | 'desc';
+  sz?: number;
 }
 
 export interface SpeechSearchParams {
@@ -296,34 +311,45 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
   let url = `${BASE_URL}/dokumentlista/?utformat=json`;
   
   // Add page size
-  if (params.pageSize) {
-    url += `&sz=${params.pageSize}`;
+  if (params.sz) {
+    url += `&sz=${params.sz}`;
   } else {
-    url += '&sz=50';
+    url += '&sz=20';
   }
   
-  // Add search parameters
+  // Add search parameters - using correct API parameter names
   if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
-  if (params.docType) url += `&doktyp=${params.docType}`;
+  if (params.doktyp) url += `&doktyp=${params.doktyp}`;
   if (params.fromDate) url += `&from=${params.fromDate}`;
   if (params.toDate) url += `&tom=${params.toDate}`;
   if (params.intressentId) url += `&iid=${params.intressentId}`;
-  if (params.organ) url += `&org=${params.organ}`;
+  if (params.org) url += `&org=${params.org}`;
   if (params.rm) url += `&rm=${params.rm}`;
-  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
-  if (params.nummer) url += `&nr=${params.nummer}`;
+  if (params.bet) url += `&bet=${encodeURIComponent(params.bet)}`;
   if (params.tempbet) url += `&tempbet=${params.tempbet}`;
+  if (params.nr) url += `&nr=${params.nr}`;
+  if (params.ts) url += `&ts=${params.ts}`;
+  if (params.iid) url += `&iid=${params.iid}`;
+  if (params.talare) url += `&talare=${encodeURIComponent(params.talare)}`;
+  if (params.exakt) url += `&exakt=${params.exakt}`;
+  if (params.planering) url += `&planering=${params.planering}`;
+  if (params.facets) url += `&facets=${params.facets}`;
+  if (params.rapport) url += `&rapport=${params.rapport}`;
+  if (params.avd) url += `&avd=${params.avd}`;
+  if (params.webbtv) url += `&webbtv=${params.webbtv}`;
   
-  // Add party filters
-  if (params.party && params.party.length > 0) {
-    params.party.forEach(p => {
+  // Add party filters - correct parameter name
+  if (params.parti && params.parti.length > 0) {
+    params.parti.forEach(p => {
       url += `&parti=${p}`;
     });
   }
   
   // Add sorting
   if (params.sort) url += `&sort=${params.sort}`;
-  if (params.sortOrder) url += `&sortorder=${params.sortOrder}`;
+  if (params.sortorder) url += `&sortorder=${params.sortorder}`;
+  
+  console.log('API URL:', url);
   
   try {
     const response = await fetch(url);
@@ -333,6 +359,8 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{do
     const data: RiksdagDocumentResponse = await response.json();
     const documents = data.dokumentlista?.dokument || [];
     const totalCount = parseInt(data.dokumentlista?.['@hits'] || '0');
+    
+    console.log('API Response:', { documents: documents.length, totalCount });
     
     return { documents, totalCount };
   } catch (error) {

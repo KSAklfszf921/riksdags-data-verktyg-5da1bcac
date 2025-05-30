@@ -16,6 +16,7 @@ export const useDocumentTypes = () => {
     const fetchDocumentTypeCounts = async () => {
       setLoading(true);
       
+      // Updated with correct document types from the API
       const types = [
         { value: 'bet', label: 'Betänkande' },
         { value: 'prop', label: 'Proposition' },
@@ -29,9 +30,12 @@ export const useDocumentTypes = () => {
         { value: 'ds', label: 'Departementsserien' },
         { value: 'rskr', label: 'Riksdagsskrivelse' },
         { value: 'yttr', label: 'Yttrande' },
-        { value: 'fpm', label: 'Faktapromemoria' },
-        { value: 'krs', label: 'Kunskapsrapport' },
-        { value: 'ub', label: 'Utredningsbetänkande' }
+        { value: 'fpm', label: 'Fakta-PM om EU-förslag' },
+        { value: 'kom', label: 'EU-förslag' },
+        { value: 'SFS', label: 'Svensk författningssamling' },
+        { value: 'utskdok', label: 'Utskottsdokument' },
+        { value: 'eundok', label: 'EU-nämndens dokument' },
+        { value: 'uprotokoll', label: 'Utskottens protokoll' }
       ];
 
       const typeStats: DocumentTypeStats[] = [];
@@ -39,8 +43,8 @@ export const useDocumentTypes = () => {
       for (const type of types) {
         try {
           const result = await searchDocuments({
-            docType: type.value,
-            pageSize: 1
+            doktyp: type.value,
+            sz: 1
           });
           typeStats.push({
             ...type,

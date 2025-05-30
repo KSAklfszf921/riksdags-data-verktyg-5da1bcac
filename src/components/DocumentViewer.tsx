@@ -21,39 +21,42 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     setError(null);
     
     try {
-      // Prioritera text-format över HTML för bättre läsbarhet
+      // Show summary if available, otherwise try to fetch full content
+      if (document.summary || document.notis) {
+        setDocumentContent(document.summary || document.notis || '');
+        setLoading(false);
+        return;
+      }
+
+      // Try to fetch full document if URL is available
       const url = document.dokument_url_text || document.dokument_url_html;
       if (!url) {
         throw new Error('Ingen dokument-URL tillgänglig');
       }
       
-      const response = await fetch(url);
+      const fullUrl = url.startsWith('//') ? `https:${url}` : url;
+      const response = await fetch(fullUrl);
       if (!response.ok) {
         throw new Error('Kunde inte hämta dokumentet');
       }
       
       let content = await response.text();
       
-      // Rensa bort XML-taggar och onödig information från innehållet
-      if (content.includes('<dokumentstatus>')) {
-        // Extrahera endast relevant textinnehåll från XML-strukturen
-        const textMatch = content.match(/<text>(.*?)<\/text>/s);
+      // Process content based on format
+      if (content.includes('<dokumentstatus>') || content.includes('<?xml')) {
+        // Extract relevant content from XML
+        const textMatch = content.match(/<text>(.*?)<\/text>/s) ||
+                         content.match(/<summary>(.*?)<\/summary>/s) ||
+                         content.match(/<notis>(.*?)<\/notis>/s);
+        
         if (textMatch) {
           content = textMatch[1];
         } else {
-          // Om ingen text-tag finns, försök hitta beskrivning eller sammandrag
-          const summaryMatch = content.match(/<summary>(.*?)<\/summary>/s) || 
-                              content.match(/<notis>(.*?)<\/notis>/s) ||
-                              content.match(/<beskrivning>(.*?)<\/beskrivning>/s);
-          if (summaryMatch) {
-            content = summaryMatch[1];
-          } else {
-            content = 'Dokumentinnehåll kunde inte extraheras korrekt. Använd länken för att öppna i ny flik.';
-          }
+          content = 'Dokumentinnehåll kunde inte extraheras. Använd länken för att öppna i ny flik.';
         }
       }
       
-      // Rensa HTML-entiteter och formatera texten
+      // Clean up content
       content = content
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
@@ -67,10 +70,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
         .replace(/&Aring;/g, 'Å')
         .replace(/<BR\/>/g, '\n')
         .replace(/<br>/g, '\n')
-        .replace(/<[^>]*>/g, '') // Ta bort återstående HTML-taggar
+        .replace(/<[^>]*>/g, '')
         .trim();
 
-      if (!content || content.length < 50) {
+      if (!content || content.length < 20) {
         throw new Error('Dokumentet verkar vara tomt eller innehåller endast metadata');
       }
       
@@ -104,7 +107,9 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       'frs': 'Svar på skriftlig fråga',
       'ip': 'Interpellation',
       'yttr': 'Yttrande',
-      'fpm': 'Faktapromemoria'
+      'fpm': 'Faktapromemoria',
+      'SFS': 'Svensk författningssamling',
+      'sfs': 'Svensk författningssamling'
     };
     return types[type] || type;
   };
@@ -176,7 +181,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
               {(document.dokument_url_html || document.dokument_url_text) && (
                 <Button variant="outline" size="sm" asChild>
                   <a 
-                    href={document.dokument_url_html || document.dokument_url_text} 
+                    href={`https:${document.dokument_url_html || document.dokument_url_text}`} 
                     target="_blank" 
                     rel="noopener noreferrer"
                   >
