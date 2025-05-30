@@ -27,9 +27,6 @@ export interface RiksdagMember {
   bild_url_80: string;
   bild_url_192: string;
   bild_url_max: string;
-  datum_fran?: string;
-  datum_tom?: string;
-  fodd_datum?: string;
 }
 
 // Flattened document interface to match component usage
@@ -165,20 +162,6 @@ export interface RiksdagCalendarEventResponse {
 export interface RiksdagMemberDetails {
   assignments: any[];
   email: string | null;
-  intressent_id: string;
-  tilltalsnamn: string;
-  efternamn: string;
-  parti: string;
-  valkrets: string;
-  kon: string;
-  fodd_ar: string;
-  bild_url_80: string;
-  bild_url_192: string;
-  bild_url_max: string;
-}
-
-export interface RiksdagMemberDetailsWithBiography extends RiksdagMemberDetails {
-  biography?: RiksdagMemberBiography[];
 }
 
 export interface RiksdagCommitteeAssignments {
@@ -205,34 +188,18 @@ export interface RiksdagMemberBiography {
   hangar_id?: string;
 }
 
-// Vote interface for VoteSearch
-export interface RiksdagVote {
-  id: string;
-  titel: string;
-  datum: string;
-  typ: string;
-  beteckning: string;
-  utfall: string;
-  ja: number;
-  nej: number;
-  frånvarande: number;
-  avstår: number;
+export interface RiksdagMemberDetailsWithBiography extends RiksdagMemberDetails {
+  biography?: RiksdagMemberBiography[];
 }
 
-// Updated search parameter interfaces to match component usage
+// Search parameter interfaces
 export interface DocumentSearchParams {
-  searchTerm?: string;
-  iid?: string;
+  query?: string;
   doktyp?: string;
   rm?: string;
   org?: string;
   fromDate?: string;
   toDate?: string;
-  bet?: string;
-  sort?: string;
-  sortorder?: string;
-  parti?: string[];
-  sz?: number;
   pageSize?: number;
   page?: number;
 }
@@ -257,16 +224,6 @@ export interface CalendarSearchParams {
   page?: number;
 }
 
-export interface VoteSearchParams {
-  rm?: string;
-  org?: string;
-  typ?: string;
-  fromDate?: string;
-  toDate?: string;
-  pageSize?: number;
-  page?: number;
-}
-
 // Search result interfaces
 export interface DocumentSearchResult {
   documents: RiksdagDocument[];
@@ -283,138 +240,7 @@ export interface CalendarSearchResult {
   totalCount: number;
 }
 
-export interface VoteSearchResult {
-  votes: RiksdagVote[];
-  totalCount: number;
-}
-
 // Search functions
-export const searchDocuments = async (params: DocumentSearchParams): Promise<DocumentSearchResult> => {
-  try {
-    let url = `${API_BASE_URL}/dokumentlista/?utformat=json`;
-    
-    if (params.searchTerm) {
-      url += `&sok=${encodeURIComponent(params.searchTerm)}`;
-    }
-    if (params.iid) {
-      url += `&iid=${params.iid}`;
-    }
-    if (params.doktyp) {
-      url += `&doktyp=${params.doktyp}`;
-    }
-    if (params.rm) {
-      url += `&rm=${params.rm}`;
-    }
-    if (params.org) {
-      url += `&org=${params.org}`;
-    }
-    if (params.fromDate) {
-      url += `&from=${params.fromDate}`;
-    }
-    if (params.toDate) {
-      url += `&tom=${params.toDate}`;
-    }
-    if (params.bet) {
-      url += `&bet=${params.bet}`;
-    }
-    if (params.sort) {
-      url += `&sort=${params.sort}`;
-    }
-    if (params.sortorder) {
-      url += `&sortorder=${params.sortorder}`;
-    }
-    if (params.parti && params.parti.length > 0) {
-      url += `&parti=${params.parti.join(',')}`;
-    }
-    if (params.sz) {
-      url += `&sz=${params.sz}`;
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to search documents: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const documentList = data.dokumentlista?.dokument || [];
-    const totalCount = parseInt(data.dokumentlista?.['@hits'], 10) || 0;
-
-    // Flatten the nested structure
-    const documents: RiksdagDocument[] = documentList.map((docResponse: RiksdagDocumentResponse) => ({
-      id: docResponse.dok.id,
-      titel: docResponse.dok.titel,
-      undertitel: docResponse.dok.undertitel || '',
-      rm: docResponse.dok.rm || '',
-      datum: docResponse.dok.datum,
-      typ: docResponse.dok.typ,
-      subtyp: docResponse.dok.subtyp || '',
-      nummer: docResponse.dok.nummer || '',
-      beteckning: docResponse.dok.beteckning,
-      organ: docResponse.dok.organ || '',
-      mottagare: docResponse.dok.mottagare || '',
-      dokument_url_html: docResponse.dok.dokument_url_html,
-      dokument_url_text: docResponse.dok.dokument_url_text || ''
-    }));
-
-    return { documents, totalCount };
-  } catch (error) {
-    console.error('Error searching documents:', error);
-    throw error;
-  }
-};
-
-export const searchVotes = async (params: VoteSearchParams): Promise<VoteSearchResult> => {
-  try {
-    let url = `${API_BASE_URL}/voteringlista/?utformat=json`;
-    
-    if (params.rm) {
-      url += `&rm=${params.rm}`;
-    }
-    if (params.org) {
-      url += `&org=${params.org}`;
-    }
-    if (params.typ) {
-      url += `&typ=${params.typ}`;
-    }
-    if (params.fromDate) {
-      url += `&from=${params.fromDate}`;
-    }
-    if (params.toDate) {
-      url += `&tom=${params.toDate}`;
-    }
-    if (params.pageSize) {
-      url += `&sz=${params.pageSize}`;
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to search votes: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const voteList = data.voteringlista?.votering || [];
-    const totalCount = parseInt(data.voteringlista?.['@hits'], 10) || 0;
-
-    const votes: RiksdagVote[] = voteList.map((vote: any) => ({
-      id: vote.votering_id,
-      titel: vote.titel || 'Okänd votering',
-      datum: vote.datum,
-      typ: vote.typ,
-      beteckning: vote.beteckning || '',
-      utfall: vote.utfall || 'Okänt',
-      ja: parseInt(vote.ja) || 0,
-      nej: parseInt(vote.nej) || 0,
-      frånvarande: parseInt(vote.franvarande) || 0,
-      avstår: parseInt(vote.avstar) || 0
-    }));
-
-    return { votes, totalCount };
-  } catch (error) {
-    console.error('Error searching votes:', error);
-    throw error;
-  }
-};
-
 export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<CalendarSearchResult> => {
   try {
     let url = `${API_BASE_URL}/kalender/?utformat=json`;
