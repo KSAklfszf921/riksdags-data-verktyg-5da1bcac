@@ -29,6 +29,62 @@ interface CacheEntry {
   timestamp: number;
 }
 
+// Helper function to fetch all speeches for a member (handles pagination)
+const fetchAllMemberSpeeches = async (memberId: string) => {
+  let allSpeeches = [];
+  let page = 1;
+  const pageSize = 100;
+  
+  while (true) {
+    try {
+      const speeches = await fetchMemberSpeeches(memberId, page, pageSize);
+      if (!speeches || speeches.length === 0) {
+        break;
+      }
+      allSpeeches.push(...speeches);
+      
+      // If we got less than pageSize, we've reached the end
+      if (speeches.length < pageSize) {
+        break;
+      }
+      page++;
+    } catch (error) {
+      console.error(`Error fetching speeches page ${page} for member ${memberId}:`, error);
+      break;
+    }
+  }
+  
+  return allSpeeches;
+};
+
+// Helper function to fetch all documents for a member (handles pagination)
+const fetchAllMemberDocuments = async (memberId: string) => {
+  let allDocuments = [];
+  let page = 1;
+  const pageSize = 100;
+  
+  while (true) {
+    try {
+      const documents = await fetchMemberDocuments(memberId, page, pageSize);
+      if (!documents || documents.length === 0) {
+        break;
+      }
+      allDocuments.push(...documents);
+      
+      // If we got less than pageSize, we've reached the end
+      if (documents.length < pageSize) {
+        break;
+      }
+      page++;
+    } catch (error) {
+      console.error(`Error fetching documents page ${page} for member ${memberId}:`, error);
+      break;
+    }
+  }
+  
+  return allDocuments;
+};
+
 export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number = 10) => {
   const [topListsData, setTopListsData] = useState<TopListsData>({
     motions: [],
@@ -99,14 +155,16 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
         members.map(async (member) => {
           try {
             const [documents, speeches] = await Promise.all([
-              fetchMemberDocuments(member.intressent_id).catch(() => []),
-              fetchMemberSpeeches(member.intressent_id).catch(() => [])
+              fetchAllMemberDocuments(member.intressent_id).catch(() => []),
+              fetchAllMemberSpeeches(member.intressent_id).catch(() => [])
             ]);
 
             const motions = documents.filter(doc => doc.typ === 'mot').length;
             const interpellations = documents.filter(doc => doc.typ === 'ip').length;
             const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
             const speechCount = speeches.length;
+
+            console.log(`Member ${member.efternamn}: ${speechCount} speeches, ${motions} motions, ${interpellations} interpellations, ${writtenQuestions} written questions`);
 
             return {
               id: member.intressent_id,
