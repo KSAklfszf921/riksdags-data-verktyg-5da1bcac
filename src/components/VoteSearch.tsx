@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { searchVotes, VoteSearchParams, RiksdagVote } from "../services/riksdagA
 import { Badge } from "@/components/ui/badge";
 import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import GroupedVoteResults from "./GroupedVoteResults";
 
 const VoteSearch = () => {
   const [searchParams, setSearchParams] = useState<VoteSearchParams>({});
@@ -280,58 +280,7 @@ const VoteSearch = () => {
       )}
 
       {votes.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Voteringsresultat</span>
-              <Badge variant="secondary">{totalCount} träffar</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {votes.slice(0, 50).map((vote, index) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">
-                        {vote.beteckning} - Punkt {vote.punkt}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        <strong>{vote.namn}</strong> ({vote.parti}) - {vote.valkrets}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Riksmöte: {vote.rm} | {vote.avser}
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <Badge 
-                        variant={
-                          vote.rost === 'Ja' ? 'default' : 
-                          vote.rost === 'Nej' ? 'destructive' : 
-                          'secondary'
-                        }
-                        style={{
-                          backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                         vote.rost === 'Nej' ? '#EF4444' : 
-                                         '#6B7280',
-                          color: 'white'
-                        }}
-                      >
-                        {vote.rost}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {votes.length < totalCount && (
-              <p className="text-center text-gray-500 mt-4">
-                Visar {votes.length} av {totalCount} voteringar
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <GroupedVoteResults votes={votes} totalCount={totalCount} />
       )}
     </div>
   );

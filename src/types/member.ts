@@ -1,3 +1,4 @@
+
 export interface Member {
   id: string;
   firstName: string;
@@ -87,4 +88,22 @@ export interface PartyInfo {
   name: string;
   color: string;
   fullName: string;
+}
+
+// Add missing interface that was referenced but not defined
+export interface RiksdagMemberDetailsWithBiography {
+  intressent_id: string;
+  tilltalsnamn: string;
+  efternamn: string;
+  parti: string;
+  valkrets: string;
+  kon: string;
+  fodd_ar: string;
+  yrke?: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
+  assignments: MemberAssignment[];
+  email: string;
+  biography?: string;
 }
