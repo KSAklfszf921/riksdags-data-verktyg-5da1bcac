@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import GroupedVoteResults from "./GroupedVoteResults";
+import { useToast } from "@/hooks/use-toast";
 
 const VoteSearch = () => {
   const [searchParams, setSearchParams] = useState<VoteSearchParams>({});
@@ -21,6 +23,7 @@ const VoteSearch = () => {
   const [error, setError] = useState<string | null>(null);
   const [optimizedResult, setOptimizedResult] = useState<OptimizedVoteResult | null>(null);
   const [useOptimized, setUseOptimized] = useState(false);
+  const { toast } = useToast();
 
   const riksmoten = [
     '2024/25', '2023/24', '2022/23', '2021/22', '2020/21', '2019/20', '2018/19',
@@ -50,17 +53,28 @@ const VoteSearch = () => {
   }, [searchParams]);
 
   const handleSearch = async () => {
+    // Basic validation
+    if (!searchParams.beteckning && !searchParams.rm?.length && !searchParams.punkt && !searchParams.party?.length) {
+      toast({
+        title: "Sökkriterier saknas",
+        description: "Ange minst ett sökkriterium för att söka voteringar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setOptimizedResult(null);
     
-    console.log('=== VOTE SEARCH START ===');
-    console.log('Starting search with params:', searchParams);
+    console.log('Starting vote search with params:', searchParams);
     console.log('Using optimized search:', useOptimized);
     
     try {
       if (useOptimized && searchParams.beteckning && searchParams.rm && searchParams.rm.length === 1) {
         // Use optimized search
+        console.log('Using optimized search for:', searchParams.beteckning);
+        
         const result = await optimizedVoteSearch({
           beteckningPattern: searchParams.beteckning,
           rm: searchParams.rm[0],
@@ -71,66 +85,37 @@ const VoteSearch = () => {
         setVotes(result.votes);
         setTotalCount(result.totalCount);
         
-      } else {
-        // Use regular search
-        const result = await searchVotes(searchParams);
-        console.log('=== API RESPONSE ANALYSIS ===');
-        console.log('Search result summary:', {
-          votesCount: result.votes.length,
-          totalCount: result.totalCount,
-          hasVotes: result.votes.length > 0
+        toast({
+          title: "Optimerad sökning klar",
+          description: `Hittade ${result.votes.length} röster från ${result.designations.length} beteckningar.`
         });
         
-        if (result.votes.length > 0) {
-          console.log('=== SAMPLE VOTES ANALYSIS ===');
-          result.votes.slice(0, 5).forEach((vote, index) => {
-            console.log(`Vote ${index + 1}:`, {
-              beteckning: vote.beteckning,
-              rm: vote.rm,
-              punkt: vote.punkt,
-              namn: vote.namn,
-              rost: vote.rost,
-              avser: vote.avser ? vote.avser.substring(0, 100) + '...' : 'No avser'
-            });
-          });
-          
-          // Check for AU10 specifically if searched
-          if (searchParams.beteckning?.includes('AU10') || searchParams.beteckning === 'AU10') {
-            console.log('=== AU10 SPECIFIC ANALYSIS ===');
-            const au10Votes = result.votes.filter(v => v.beteckning === 'AU10');
-            console.log(`Found ${au10Votes.length} AU10 votes`);
-            
-            const punktValues = au10Votes.map(v => v.punkt).filter(Boolean);
-            const uniquePunkts = [...new Set(punktValues)];
-            console.log('AU10 punkt values found:', punktValues);
-            console.log('AU10 unique punkts:', uniquePunkts);
-            console.log('AU10 punkt distribution:', punktValues.reduce((acc, punkt) => {
-              acc[punkt] = (acc[punkt] || 0) + 1;
-              return acc;
-            }, {} as any));
-          }
-          
-          // General analysis of all beteckningar found
-          console.log('=== ALL BETECKNINGAR ANALYSIS ===');
-          const beteckningar = [...new Set(result.votes.map(v => v.beteckning))];
-          console.log('All beteckningar found:', beteckningar);
-          
-          beteckningar.forEach(bet => {
-            const votesForBet = result.votes.filter(v => v.beteckning === bet);
-            const punktsForBet = [...new Set(votesForBet.map(v => v.punkt).filter(Boolean))];
-            console.log(`${bet}: ${votesForBet.length} votes, ${punktsForBet.length} unique punkts: [${punktsForBet.join(', ')}]`);
-          });
-        }
+      } else {
+        // Use regular search
+        console.log('Using regular search');
+        
+        const result = await searchVotes(searchParams);
+        console.log(`Regular search complete: ${result.votes.length} votes found`);
         
         setVotes(result.votes);
         setTotalCount(result.totalCount);
+        
+        toast({
+          title: "Sökning klar",
+          description: `Hittade ${result.votes.length} röster av totalt ${result.totalCount} träffar.`
+        });
       }
       
-      console.log('=== VOTE SEARCH END ===');
-      
     } catch (err) {
-      setError('Kunde inte hämta voteringsdata');
+      const errorMessage = err instanceof Error ? err.message : 'Kunde inte hämta voteringsdata';
+      setError(errorMessage);
       console.error('Error searching votes:', err);
+      
+      toast({
+        title: "Sökfel",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -166,12 +151,60 @@ const VoteSearch = () => {
     }
   };
 
-  const getPartyName = (party: string) => {
-    return partyInfo[party]?.fullName || party;
+  const handleExportResults = () => {
+    if (votes.length === 0) {
+      toast({
+        title: "Ingen data att exportera",
+        description: "Gör en sökning först för att kunna exportera resultat.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Create CSV content
+      const headers = ['Namn', 'Parti', 'Valkrets', 'Beteckning', 'Punkt', 'Röst', 'Riksmöte', 'Datum'];
+      const csvContent = [
+        headers.join(';'),
+        ...votes.map(vote => [
+          vote.namn || '',
+          vote.parti || '',
+          vote.valkrets || '',
+          vote.beteckning || '',
+          vote.punkt || '',
+          vote.rost || '',
+          vote.rm || '',
+          vote.datum || ''
+        ].join(';'))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `voteringsresultat_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export lyckades",
+        description: `Exporterade ${votes.length} röster till CSV-fil.`
+      });
+    } catch (err) {
+      console.error('Export error:', err);
+      toast({
+        title: "Exportfel",
+        description: "Kunde inte exportera data. Försök igen.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const getPartyColor = (party: string) => {
-    return partyInfo[party]?.color || '#6B7280';
+  const getPartyName = (party: string) => {
+    return partyInfo[party]?.fullName || party;
   };
 
   return (
@@ -343,7 +376,7 @@ const VoteSearch = () => {
             </TabsContent>
           </Tabs>
 
-          <div className="flex space-x-2">
+          <div className="flex flex-wrap gap-2">
             <Button onClick={handleSearch} disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -354,12 +387,24 @@ const VoteSearch = () => {
               )}
               {useOptimized ? 'Optimerad sökning' : 'Sök voteringar'}
             </Button>
+            
             <Button 
               variant="outline" 
               onClick={() => setSearchParams({})}
             >
               Rensa filter
             </Button>
+            
+            {votes.length > 0 && (
+              <Button 
+                variant="outline" 
+                onClick={handleExportResults}
+                className="flex items-center space-x-2"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exportera CSV</span>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -3,9 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { RiksdagVote } from "../services/riksdagApi";
-import { partyInfo } from "../data/mockMembers";
 
 interface VoteGroup {
   beteckning: string;
@@ -18,7 +17,7 @@ interface VoteGroup {
     avstar: number;
     franvarande: number;
   };
-  proposalPoints: Set<string>; // Track unique proposal points
+  proposalPoints: Set<string>;
 }
 
 interface GroupedVoteResultsProps {
@@ -30,85 +29,54 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedPoints, setExpandedPoints] = useState<Set<string>>(new Set());
 
-  console.log('GroupedVoteResults received votes:', votes.length);
-  console.log('Sample votes:', votes.slice(0, 3));
+  // Memoize grouped votes calculation for performance
+  const groupedVotes = useMemo(() => {
+    console.log('Processing votes for grouping:', votes.length);
+    
+    return votes.reduce((groups: { [key: string]: VoteGroup }, vote) => {
+      // Create a more reliable unique key
+      const groupKey = `${vote.beteckning || 'unknown-bet'}-${vote.rm || 'unknown-rm'}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          beteckning: vote.beteckning || 'Okänd beteckning',
+          riksmote: vote.rm || 'Okänt riksmöte',
+          avser: vote.avser || 'Ingen beskrivning tillgänglig',
+          votes: [],
+          voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 },
+          proposalPoints: new Set()
+        };
+      }
+      
+      groups[groupKey].votes.push(vote);
+      
+      // Add proposal point to the set if it exists
+      if (vote.punkt && vote.punkt.trim()) {
+        groups[groupKey].proposalPoints.add(vote.punkt.trim());
+      }
+      
+      // Update vote statistics
+      const rostLower = (vote.rost || '').toLowerCase();
+      switch (rostLower) {
+        case 'ja':
+          groups[groupKey].voteStats.ja++;
+          break;
+        case 'nej':
+          groups[groupKey].voteStats.nej++;
+          break;
+        case 'avstår':
+          groups[groupKey].voteStats.avstar++;
+          break;
+        case 'frånvarande':
+          groups[groupKey].voteStats.franvarande++;
+          break;
+      }
+      
+      return groups;
+    }, {});
+  }, [votes]);
 
-  // Group votes by beteckning and riksmöte - improved grouping logic
-  const groupedVotes = votes.reduce((groups: { [key: string]: VoteGroup }, vote) => {
-    // Create a unique key for each voting session
-    const groupKey = `${vote.beteckning || 'Okänd'}-${vote.rm || 'Okänt'}`;
-    
-    console.log('Processing vote:', {
-      beteckning: vote.beteckning,
-      rm: vote.rm,
-      punkt: vote.punkt,
-      groupKey,
-      avser: vote.avser
-    });
-    
-    if (!groups[groupKey]) {
-      groups[groupKey] = {
-        beteckning: vote.beteckning || 'Okänd beteckning',
-        riksmote: vote.rm || 'Okänt riksmöte',
-        avser: vote.avser || 'Ingen beskrivning tillgänglig',
-        votes: [],
-        voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 },
-        proposalPoints: new Set()
-      };
-    }
-    
-    groups[groupKey].votes.push(vote);
-    
-    // Add proposal point to the set if it exists - DEBUG VERSION
-    if (vote.punkt) {
-      console.log(`Adding punkt: "${vote.punkt}" to group ${groupKey}`);
-      groups[groupKey].proposalPoints.add(vote.punkt);
-    } else {
-      console.log(`Vote missing punkt value:`, vote);
-    }
-    
-    // Update vote statistics
-    const rostLower = (vote.rost || '').toLowerCase();
-    switch (rostLower) {
-      case 'ja':
-        groups[groupKey].voteStats.ja++;
-        break;
-      case 'nej':
-        groups[groupKey].voteStats.nej++;
-        break;
-      case 'avstår':
-        groups[groupKey].voteStats.avstar++;
-        break;
-      case 'frånvarande':
-        groups[groupKey].voteStats.franvarande++;
-        break;
-      default:
-        console.log('Unknown vote type:', vote.rost);
-    }
-    
-    return groups;
-  }, {});
-
-  const groupsArray = Object.values(groupedVotes);
-  console.log('Created groups:', groupsArray.length);
-  
-  // Enhanced logging for each group
-  groupsArray.forEach(group => {
-    const groupKey = `${group.beteckning}-${group.riksmote}`;
-    const proposalPointsArray = Array.from(group.proposalPoints);
-    console.log(`Group ${groupKey}:`, {
-      voteCount: group.votes.length,
-      proposalPointsCount: proposalPointsArray.length,
-      proposalPoints: proposalPointsArray,
-      uniquePunkts: [...new Set(group.votes.map(v => v.punkt).filter(Boolean))],
-      allPunkts: group.votes.map(v => v.punkt),
-      sampleVotes: group.votes.slice(0, 3).map(v => ({
-        namn: v.namn,
-        punkt: v.punkt,
-        rost: v.rost
-      }))
-    });
-  });
+  const groupsArray = useMemo(() => Object.values(groupedVotes), [groupedVotes]);
 
   const toggleGroup = (groupKey: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -164,17 +132,19 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
           {groupsArray.map((group) => {
             const groupKey = `${group.beteckning}-${group.riksmote}`;
             const isGroupExpanded = expandedGroups.has(groupKey);
-            const proposalPointsArray = Array.from(group.proposalPoints).sort();
+            const proposalPointsArray = Array.from(group.proposalPoints).sort((a, b) => parseInt(a) - parseInt(b));
             
-            // Group votes by proposal point for better display
-            const votesByPoint = group.votes.reduce((acc, vote) => {
-              const punkt = vote.punkt || 'Ingen punkt angiven';
-              if (!acc[punkt]) {
-                acc[punkt] = [];
-              }
-              acc[punkt].push(vote);
-              return acc;
-            }, {} as { [key: string]: RiksdagVote[] });
+            // Group votes by proposal point for better display - memoized per group
+            const votesByPoint = useMemo(() => {
+              return group.votes.reduce((acc, vote) => {
+                const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
+                if (!acc[punkt]) {
+                  acc[punkt] = [];
+                }
+                acc[punkt].push(vote);
+                return acc;
+              }, {} as { [key: string]: RiksdagVote[] });
+            }, [group.votes]);
             
             return (
               <div key={groupKey} className="border rounded-lg">
@@ -187,11 +157,11 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                           <h3 className="font-medium text-gray-900 mb-2">
                             {group.beteckning} - Riksmöte {group.riksmote}
                           </h3>
-                          <p className="text-sm text-gray-600 mb-3">
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                             {group.avser}
                           </p>
                           
-                          {/* Proposal points count with debug info */}
+                          {/* Proposal points count */}
                           {proposalPointsArray.length > 0 && (
                             <div className="mb-3">
                               <p className="text-sm text-gray-700">
@@ -199,9 +169,6 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                                 <Badge variant="outline" className="ml-2">
                                   {proposalPointsArray.length} punkter
                                 </Badge>
-                                <span className="text-xs text-gray-500 ml-2">
-                                  (API data: {proposalPointsArray.join(', ')})
-                                </span>
                               </p>
                             </div>
                           )}
@@ -249,25 +216,27 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                           const pointKey = `${groupKey}-${punkt}`;
                           const isPointExpanded = expandedPoints.has(pointKey);
                           
-                          // Calculate vote stats for this point
-                          const pointStats = punktVotes.reduce((stats, vote) => {
-                            const rostLower = (vote.rost || '').toLowerCase();
-                            switch (rostLower) {
-                              case 'ja':
-                                stats.ja++;
-                                break;
-                              case 'nej':
-                                stats.nej++;
-                                break;
-                              case 'avstår':
-                                stats.avstar++;
-                                break;
-                              case 'frånvarande':
-                                stats.franvarande++;
-                                break;
-                            }
-                            return stats;
-                          }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
+                          // Calculate vote stats for this point - memoized
+                          const pointStats = useMemo(() => {
+                            return punktVotes.reduce((stats, vote) => {
+                              const rostLower = (vote.rost || '').toLowerCase();
+                              switch (rostLower) {
+                                case 'ja':
+                                  stats.ja++;
+                                  break;
+                                case 'nej':
+                                  stats.nej++;
+                                  break;
+                                case 'avstår':
+                                  stats.avstar++;
+                                  break;
+                                case 'frånvarande':
+                                  stats.franvarande++;
+                                  break;
+                              }
+                              return stats;
+                            }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
+                          }, [punktVotes]);
                           
                           return (
                             <div key={pointKey}>
@@ -321,34 +290,39 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                                 <CollapsibleContent className="mt-2">
                                   <div className="bg-gray-50 p-3 rounded border max-h-96 overflow-y-auto">
                                     <div className="space-y-2">
-                                      {punktVotes.map((vote, index) => (
-                                        <div key={`${vote.intressent_id || index}-${vote.votering_id || index}-${punkt}`} className="flex items-center justify-between bg-white p-3 rounded border">
-                                          <div className="flex-1">
-                                            <p className="font-medium text-sm">
-                                              {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                              {vote.valkrets || 'Okänd valkrets'}
-                                            </p>
+                                      {punktVotes.map((vote, index) => {
+                                        // Generate better unique key for individual votes
+                                        const voteKey = `${vote.intressent_id || `unknown-${index}`}-${vote.votering_id || 'no-voting'}-${punkt}-${vote.namn || 'no-name'}`;
+                                        
+                                        return (
+                                          <div key={voteKey} className="flex items-center justify-between bg-white p-3 rounded border">
+                                            <div className="flex-1">
+                                              <p className="font-medium text-sm">
+                                                {vote.namn || 'Okänt namn'} ({vote.parti || 'Okänt parti'})
+                                              </p>
+                                              <p className="text-xs text-gray-500">
+                                                {vote.valkrets || 'Okänd valkrets'}
+                                              </p>
+                                            </div>
+                                            <Badge 
+                                              variant={
+                                                vote.rost === 'Ja' ? 'default' : 
+                                                vote.rost === 'Nej' ? 'destructive' : 
+                                                'secondary'
+                                              }
+                                              style={{
+                                                backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
+                                                               vote.rost === 'Nej' ? '#EF4444' : 
+                                                               vote.rost === 'Avstår' ? '#F59E0B' :
+                                                               '#6B7280',
+                                                color: 'white'
+                                              }}
+                                            >
+                                              {vote.rost || 'Okänd'}
+                                            </Badge>
                                           </div>
-                                          <Badge 
-                                            variant={
-                                              vote.rost === 'Ja' ? 'default' : 
-                                              vote.rost === 'Nej' ? 'destructive' : 
-                                              'secondary'
-                                            }
-                                            style={{
-                                              backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                                             vote.rost === 'Nej' ? '#EF4444' : 
-                                                             vote.rost === 'Avstår' ? '#F59E0B' :
-                                                             '#6B7280',
-                                              color: 'white'
-                                            }}
-                                          >
-                                            {vote.rost || 'Okänd'}
-                                          </Badge>
-                                        </div>
-                                      ))}
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 </CollapsibleContent>

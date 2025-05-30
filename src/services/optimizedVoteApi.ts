@@ -14,6 +14,19 @@ export interface OptimizedVoteResult {
   totalCount: number;
 }
 
+// Validation helper
+const validateSearchParams = (params: OptimizedVoteSearchParams): void => {
+  if (!params.beteckningPattern?.trim()) {
+    throw new Error('Beteckning pattern is required and cannot be empty');
+  }
+  if (!params.rm?.trim()) {
+    throw new Error('Riksmöte is required and cannot be empty');
+  }
+  if (params.limit && (params.limit < 1 || params.limit > 20)) {
+    throw new Error('Limit must be between 1 and 20');
+  }
+};
+
 /**
  * Step 1: Fetch the most recent unique designations (beteckningar)
  */
@@ -22,19 +35,18 @@ const fetchRecentDesignations = async (
   rm: string,
   limit: number = 5
 ): Promise<string[]> => {
-  console.log(`=== STEP 1: Fetching recent designations for ${beteckningPattern} in ${rm} ===`);
+  console.log(`Fetching recent designations for ${beteckningPattern} in ${rm}`);
   
   try {
-    // Search for votes with the designation pattern to get all matching designations
     const result = await searchVotes({
       beteckning: beteckningPattern,
-      rm: [rm],
-      pageSize: 200 // Get more results to find unique designations
+      rm: [rm], // Always use array format for consistency
+      pageSize: 200
     });
     
     console.log(`Found ${result.votes.length} votes for pattern ${beteckningPattern}`);
     
-    // Extract unique designations and sort by most recent (using systemdatum)
+    // Extract unique designations and sort by most recent
     const designationMap = new Map<string, Date>();
     
     result.votes.forEach(vote => {
@@ -48,7 +60,6 @@ const fetchRecentDesignations = async (
       }
     });
     
-    // Sort by date and take the most recent ones
     const sortedDesignations = Array.from(designationMap.entries())
       .sort(([, dateA], [, dateB]) => dateB.getTime() - dateA.getTime())
       .slice(0, limit)
@@ -59,7 +70,7 @@ const fetchRecentDesignations = async (
     
   } catch (error) {
     console.error('Error fetching recent designations:', error);
-    return [];
+    throw new Error(`Failed to fetch designations: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
@@ -70,7 +81,7 @@ const fetchProposalPoints = async (
   designations: string[],
   rm: string
 ): Promise<{ [designation: string]: string[] }> => {
-  console.log(`=== STEP 2: Fetching proposal points for designations ===`);
+  console.log(`Fetching proposal points for ${designations.length} designations`);
   
   const proposalPoints: { [designation: string]: string[] } = {};
   
@@ -80,11 +91,10 @@ const fetchProposalPoints = async (
       
       const result = await searchVotes({
         beteckning: designation,
-        rm: [rm],
+        rm: [rm], // Consistent array format
         pageSize: 100
       });
       
-      // Extract unique proposal points
       const points = [...new Set(
         result.votes
           .map(vote => vote.punkt)
@@ -92,9 +102,9 @@ const fetchProposalPoints = async (
       )].sort((a, b) => parseInt(a) - parseInt(b));
       
       proposalPoints[designation] = points;
-      console.log(`${designation} has ${points.length} proposal points: [${points.join(', ')}]`);
+      console.log(`${designation} has ${points.length} proposal points`);
       
-      // Small delay to avoid overwhelming the API
+      // Rate limiting
       await new Promise(resolve => setTimeout(resolve, 100));
       
     } catch (error) {
@@ -114,7 +124,7 @@ const fetchVotingResults = async (
   proposalPoints: { [designation: string]: string[] },
   rm: string
 ): Promise<{ votes: RiksdagVote[], totalCount: number }> => {
-  console.log(`=== STEP 3: Fetching voting results ===`);
+  console.log(`Fetching voting results for ${designations.length} designations`);
   
   let allVotes: RiksdagVote[] = [];
   let totalCount = 0;
@@ -123,11 +133,10 @@ const fetchVotingResults = async (
     const points = proposalPoints[designation] || [];
     
     if (points.length === 0) {
-      // If no specific points, fetch all votes for this designation
       try {
         const result = await searchVotes({
           beteckning: designation,
-          rm: [rm],
+          rm: [rm], // Consistent array format
           pageSize: 200
         });
         
@@ -140,13 +149,12 @@ const fetchVotingResults = async (
         console.error(`Error fetching votes for ${designation}:`, error);
       }
     } else {
-      // Fetch votes for each proposal point
       for (const point of points) {
         try {
           const result = await searchVotes({
             beteckning: designation,
             punkt: point,
-            rm: [rm],
+            rm: [rm], // Consistent array format
             pageSize: 200
           });
           
@@ -155,7 +163,7 @@ const fetchVotingResults = async (
           
           console.log(`Fetched ${result.votes.length} votes for ${designation} punkt ${point}`);
           
-          // Small delay between API calls
+          // Rate limiting
           await new Promise(resolve => setTimeout(resolve, 100));
           
         } catch (error) {
@@ -165,9 +173,9 @@ const fetchVotingResults = async (
     }
   }
   
-  // Remove duplicates based on votering_id and intressent_id
+  // Remove duplicates with better key generation
   const uniqueVotes = allVotes.reduce((acc, vote) => {
-    const key = `${vote.votering_id}-${vote.intressent_id}`;
+    const key = `${vote.votering_id || 'no-voting-id'}-${vote.intressent_id || 'no-member-id'}-${vote.beteckning || 'no-bet'}-${vote.punkt || 'no-punkt'}`;
     if (!acc.has(key)) {
       acc.set(key, vote);
     }
@@ -189,19 +197,19 @@ const fetchVotingResults = async (
 export const optimizedVoteSearch = async (
   params: OptimizedVoteSearchParams
 ): Promise<OptimizedVoteResult> => {
-  console.log('=== OPTIMIZED VOTE SEARCH START ===');
-  console.log('Search parameters:', params);
+  console.log('Starting optimized vote search with params:', params);
   
-  if (!params.beteckningPattern || !params.rm) {
-    throw new Error('Beteckning pattern and riksmöte are required for optimized search');
-  }
+  // Validate input parameters
+  validateSearchParams(params);
+  
+  const { beteckningPattern, rm, limit = 5 } = params;
   
   try {
     // Step 1: Get recent designations
     const designations = await fetchRecentDesignations(
-      params.beteckningPattern,
-      params.rm,
-      params.limit || 5
+      beteckningPattern!,
+      rm!,
+      limit
     );
     
     if (designations.length === 0) {
@@ -215,13 +223,12 @@ export const optimizedVoteSearch = async (
     }
     
     // Step 2: Get proposal points for each designation
-    const proposalPoints = await fetchProposalPoints(designations, params.rm);
+    const proposalPoints = await fetchProposalPoints(designations, rm!);
     
     // Step 3: Get voting results
-    const { votes, totalCount } = await fetchVotingResults(designations, proposalPoints, params.rm);
+    const { votes, totalCount } = await fetchVotingResults(designations, proposalPoints, rm!);
     
-    console.log('=== OPTIMIZED VOTE SEARCH COMPLETE ===');
-    console.log('Final summary:', {
+    console.log('Optimized vote search complete:', {
       designations: designations.length,
       totalProposalPoints: Object.values(proposalPoints).flat().length,
       totalVotes: votes.length,
@@ -245,10 +252,6 @@ export const optimizedVoteSearch = async (
  * Check if search parameters are suitable for optimized search
  */
 export const shouldUseOptimizedSearch = (params: VoteSearchParams): boolean => {
-  // Use optimized search when:
-  // 1. We have a beteckning pattern (like "AU10")
-  // 2. We have exactly one riksmöte
-  // 3. No specific punkt is specified (we want to find all points)
   return !!(
     params.beteckning &&
     params.rm &&
