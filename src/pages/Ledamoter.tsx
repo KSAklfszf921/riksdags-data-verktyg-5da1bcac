@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
 import MemberProfile from "../components/MemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
-import { useMembers } from "../hooks/useMembers";
+import { useMembers, useCommittees } from "../hooks/useMembers";
 import { RiksdagMember } from "../services/riksdagApi";
 
 const Ledamoter = () => {
@@ -18,13 +19,20 @@ const Ledamoter = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedParty, setSelectedParty] = useState<string>("all");
   const [selectedConstituency, setSelectedConstituency] = useState<string>("all");
+  const [selectedCommittee, setSelectedCommittee] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
   const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { members, loading, error, totalCount, hasMore } = useMembers(currentPage, 20, memberStatus);
+  const { members, loading, error, totalCount, hasMore } = useMembers(
+    currentPage, 
+    20, 
+    memberStatus, 
+    selectedCommittee === "all" ? undefined : selectedCommittee
+  );
+  const { committees } = useCommittees();
 
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
@@ -44,8 +52,11 @@ const Ledamoter = () => {
       const matchesSearch = searchTerm === "" || fullName.includes(searchTerm.toLowerCase());
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
+      const matchesCommittee = selectedCommittee === "all" || member.committees.some(committee => 
+        committee.toLowerCase().includes(selectedCommittee.toLowerCase())
+      );
       
-      return matchesSearch && matchesParty && matchesConstituency;
+      return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -69,6 +80,7 @@ const Ledamoter = () => {
       setSearchTerm("");
       setSelectedParty("all");
       setSelectedConstituency("all");
+      setSelectedCommittee("all");
     }
   };
 
@@ -178,11 +190,11 @@ const Ledamoter = () => {
                   <span>Sök och filtrera</span>
                 </CardTitle>
                 <CardDescription>
-                  Hitta specifika ledamöter eller filtrera efter parti och valkrets
+                  Hitta specifika ledamöter eller filtrera efter parti, valkrets och utskott
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Sök ledamot
@@ -246,6 +258,29 @@ const Ledamoter = () => {
                         {constituencies.filter(constituency => constituency && constituency.trim() !== "").map((constituency) => (
                           <SelectItem key={constituency} value={constituency}>
                             {constituency}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Utskott
+                    </label>
+                    <Select 
+                      value={selectedCommittee} 
+                      onValueChange={setSelectedCommittee}
+                      disabled={!!autocompleteFilter}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Välj utskott" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alla utskott</SelectItem>
+                        {committees.map((committee) => (
+                          <SelectItem key={committee} value={committee}>
+                            {committee}
                           </SelectItem>
                         ))}
                       </SelectContent>

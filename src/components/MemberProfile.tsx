@@ -22,7 +22,8 @@ import {
   Clock,
   ExternalLink,
   X,
-  BarChart3
+  BarChart3,
+  Building
 } from 'lucide-react';
 
 interface MemberProfileProps {
@@ -57,15 +58,49 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
 
   const formatDate = (dateString: string) => {
     try {
-      return new Date(dateString).toLocaleDateString('sv-SE');
+      return new Date(dateString).toLocaleDateString('sv-SE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     } catch {
       return dateString;
     }
   };
 
-  const formatTime = (timeString?: string) => {
-    if (!timeString) return '';
-    return timeString.substring(0, 5);
+  const formatDateTime = (dateTimeString: string) => {
+    try {
+      return new Date(dateTimeString).toLocaleDateString('sv-SE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateTimeString;
+    }
+  };
+
+  const getAssignmentStatus = (assignment: any) => {
+    const currentDate = new Date();
+    const endDate = assignment.tom ? new Date(assignment.tom) : null;
+    
+    if (!endDate || endDate > currentDate) {
+      return 'Aktiv';
+    }
+    return 'Tidigare';
+  };
+
+  const getAssignmentStatusColor = (status: string) => {
+    switch (status) {
+      case 'Aktiv':
+        return 'bg-green-100 text-green-800';
+      case 'Tidigare':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-blue-100 text-blue-800';
+    }
   };
 
   // Konvertera dokument till RiksdagDocument format för DocumentViewer
@@ -93,6 +128,18 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
     ) || [];
   };
 
+  // Separera aktiva och tidigare uppdrag
+  const currentDate = new Date();
+  const activeAssignments = member.assignments?.filter(assignment => {
+    const endDate = assignment.tom ? new Date(assignment.tom) : null;
+    return !endDate || endDate > currentDate;
+  }) || [];
+
+  const formerAssignments = member.assignments?.filter(assignment => {
+    const endDate = assignment.tom ? new Date(assignment.tom) : null;
+    return endDate && endDate <= currentDate;
+  }) || [];
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
@@ -118,7 +165,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                 </div>
               </div>
               <div className="mt-2 text-sm text-gray-600">
-                {member.committees.length > 0 ? `${member.committees.length} utskott` : '0 utskott'} • 
+                {activeAssignments.length} aktiva uppdrag • 
                 {member.speeches.length} anföranden • 
                 {member.votes.length} röster • 
                 {member.motions || 0} motioner • 
@@ -176,13 +223,93 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   </span>
                 </div>
               )}
-              <div className="md:col-span-2">
-                <span className="text-sm">
-                  <strong>Utskott:</strong> {member.committees.join(', ') || 'Ingen information tillgänglig'}
-                </span>
-              </div>
             </CardContent>
           </Card>
+
+          {/* Aktuella uppdrag */}
+          {activeAssignments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Building className="w-5 h-5" />
+                  <span>Aktuella uppdrag ({activeAssignments.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Organ</TableHead>
+                      <TableHead>Roll</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Från</TableHead>
+                      <TableHead>Till</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {activeAssignments.map((assignment, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{assignment.organ}</TableCell>
+                        <TableCell>{assignment.roll}</TableCell>
+                        <TableCell>
+                          <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
+                            {getAssignmentStatus(assignment)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDateTime(assignment.from)}</TableCell>
+                        <TableCell>{assignment.tom ? formatDateTime(assignment.tom) : 'Pågående'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tidigare uppdrag */}
+          {formerAssignments.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="w-5 h-5" />
+                  <span>Tidigare uppdrag ({formerAssignments.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Organ</TableHead>
+                      <TableHead>Roll</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Från</TableHead>
+                      <TableHead>Till</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {formerAssignments.slice(0, 10).map((assignment, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{assignment.organ}</TableCell>
+                        <TableCell>{assignment.roll}</TableCell>
+                        <TableCell>
+                          <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
+                            {getAssignmentStatus(assignment)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDateTime(assignment.from)}</TableCell>
+                        <TableCell>{formatDateTime(assignment.tom)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {formerAssignments.length > 10 && (
+                  <p className="text-sm text-gray-500 mt-2">
+                    Visar 10 av {formerAssignments.length} tidigare uppdrag
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Förbättrad aktivitetsstatistik med klickbara anföranden */}
           <Card>
@@ -220,8 +347,8 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   <div className="text-sm text-red-800">Röster</div>
                 </div>
                 <div className="bg-indigo-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-indigo-600">{member.committees.length}</div>
-                  <div className="text-sm text-indigo-800">Utskott</div>
+                  <div className="text-2xl font-bold text-indigo-600">{activeAssignments.length}</div>
+                  <div className="text-sm text-indigo-800">Aktiva uppdrag</div>
                 </div>
               </div>
             </CardContent>

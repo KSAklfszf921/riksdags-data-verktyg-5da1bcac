@@ -1,3 +1,4 @@
+
 export interface Member {
   id: string;
   firstName: string;
@@ -19,6 +20,17 @@ export interface Member {
   motions?: number;
   interpellations?: number;
   writtenQuestions?: number;
+  assignments?: MemberAssignment[];
+}
+
+export interface MemberAssignment {
+  organ: string;
+  roll: string;
+  status: string;
+  from: string;
+  tom: string;
+  typ?: string;
+  ordning?: string;
 }
 
 export interface Speech {

@@ -435,6 +435,15 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       .replace(/<link[^>]*>/gs, '')
       .replace(/<meta[^>]*>/gs, '')
       
+      // Förbättrad CSS-rensning för att undvika problemet med Statens offentliga utredning, departementsserien och proposition
+      .replace(/body\s*\{[^}]*margin-top:[^}]*\}/gs, '')
+      .replace(/#page_\d+[^{]*\{[^}]*\}/gs, '')
+      .replace(/#p\d+dimg\d+[^{]*\{[^}]*\}/gs, '')
+      .replace(/position:\s*relative[^;}]*[;}]/gs, '')
+      .replace(/overflow:\s*hidden[^;}]*[;}]/gs, '')
+      .replace(/margin-top:\s*0px[^;}]*[;}]/gs, '')
+      .replace(/margin-left:\s*0px[^;}]*[;}]/gs, '')
+      
       // Ta bort CSS-klasser och inline styles
       .replace(/style="[^"]*"/gs, '')
       .replace(/class="[^"]*"/gs, '')
@@ -492,8 +501,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       /^\d{4}-\d{2}-\d{2}\s*\d+\s*[A-Z]{2,5}\s*\d+/,
       /^[\s\d\-:]+[A-Z]{2,10}[\s\d\-:]+$/m,
       /^[A-Z]{1,3}\d{6}\s*\d{4}\/\d{2}:\d+/,
-      /position:\s*relative/,
-      /overflow:\s*hidden/,
+      /body\s*\{[^}]*margin-top:\s*0px/,
       /#page_\d+/
     ];
     

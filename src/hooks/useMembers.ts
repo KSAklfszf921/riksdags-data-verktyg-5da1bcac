@@ -1,9 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, RiksdagMember } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
-const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<Member> => {
+const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetails): Promise<Member> => {
   // Use the real image URLs from Riksdag API when available
   let imageUrl = `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
   
@@ -15,7 +15,6 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     imageUrl = riksdagMember.bild_url_80;
   }
 
-  // For performance, fetch limited data initially
   console.log(`Mapping member: ${riksdagMember.tilltalsnamn} ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
   
   const [documents, speeches, calendarEvents] = await Promise.all([
@@ -59,12 +58,22 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     url: event.url
   }));
 
-  // Count specific document types for stats - förbättrad räkning
+  // Count specific document types for stats
   const motions = documents.filter(doc => doc.typ === 'mot').length;
   const interpellations = documents.filter(doc => doc.typ === 'ip').length;
   const writtenQuestions = documents.filter(doc => doc.typ === 'fr').length;
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
+
+  // Extract current committees from assignments
+  const currentDate = new Date();
+  const currentCommittees = memberDetails?.assignments
+    ?.filter(assignment => {
+      const endDate = assignment.tom ? new Date(assignment.tom) : null;
+      return !endDate || endDate > currentDate;
+    })
+    ?.filter(assignment => assignment.organ !== 'Kammaren')
+    ?.map(assignment => assignment.organ) || [];
 
   return {
     id: riksdagMember.intressent_id,
@@ -73,10 +82,10 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     party: riksdagMember.parti,
     constituency: riksdagMember.valkrets,
     imageUrl,
-    email: `${riksdagMember.tilltalsnamn.toLowerCase()}.${riksdagMember.efternamn.toLowerCase()}@riksdag.se`,
+    email: memberDetails?.email || `${riksdagMember.tilltalsnamn.toLowerCase()}.${riksdagMember.efternamn.toLowerCase()}@riksdag.se`,
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
-    profession: 'Riksdagsledamot',
-    committees: [],
+    profession: memberDetails?.yrke || 'Riksdagsledamot',
+    committees: currentCommittees,
     speeches: mappedSpeeches,
     votes: [],
     proposals: [],
@@ -85,14 +94,16 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember): Promise<M
     activityScore: Math.random() * 10,
     motions,
     interpellations,
-    writtenQuestions
+    writtenQuestions,
+    assignments: memberDetails?.assignments || []
   };
 };
 
 export const useMembers = (
   page: number = 1,
   pageSize: number = 20,
-  status: 'current' | 'all' | 'former' = 'current'
+  status: 'current' | 'all' | 'former' = 'current',
+  committee?: string
 ) => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,14 +115,24 @@ export const useMembers = (
     const loadMembers = async () => {
       try {
         setLoading(true);
-        console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}`);
+        console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
         const { members: riksdagMembers, totalCount: total } = await fetchMembers(page, pageSize, status);
         console.log(`Fetched ${riksdagMembers.length} members out of ${total} total`);
         
+        // Filter by committee if specified
+        let filteredMembers = riksdagMembers;
+        if (committee && committee !== 'all') {
+          // This is a simplified filtering - in a real app you'd want to fetch members by committee from the API
+          filteredMembers = riksdagMembers; // For now, show all members
+        }
+        
         // Map members with limited data for better performance
         const mappedMembers = await Promise.all(
-          riksdagMembers.map(member => mapRiksdagMemberToMember(member))
+          filteredMembers.map(async member => {
+            const memberDetails = await fetchMemberDetails(member.intressent_id);
+            return mapRiksdagMemberToMember(member, memberDetails || undefined);
+          })
         );
         
         if (page === 1) {
@@ -132,7 +153,7 @@ export const useMembers = (
     };
 
     loadMembers();
-  }, [page, pageSize, status]);
+  }, [page, pageSize, status, committee]);
 
   const loadMore = () => {
     if (!loading && hasMore) {
@@ -156,7 +177,7 @@ export const useMemberSuggestions = () => {
   const [loading, setLoading] = useState(false);
 
   const searchMembers = async (query: string) => {
-    if (query.length < 1) { // Changed from 2 to 1
+    if (query.length < 1) {
       setSuggestions([]);
       return;
     }
@@ -174,4 +195,27 @@ export const useMemberSuggestions = () => {
   };
 
   return { suggestions, loading, searchMembers };
+};
+
+export const useCommittees = () => {
+  const [committees, setCommittees] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadCommittees = async () => {
+      setLoading(true);
+      try {
+        const committeeList = await fetchAllCommittees();
+        setCommittees(committeeList);
+      } catch (error) {
+        console.error('Error loading committees:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCommittees();
+  }, []);
+
+  return { committees, loading };
 };
