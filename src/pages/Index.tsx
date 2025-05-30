@@ -190,22 +190,7 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 md:p-12 text-white">
-            <h2 className="text-3xl font-bold mb-4">
-              Redo att börja?
-            </h2>
-            <p className="text-xl text-blue-100 mb-8">
-              Utforska riksdagens data och få nya insikter om svensk politik
-            </p>
-            <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-3" onClick={handleGetStarted}>
-              Börja utforska nu
-              <ArrowRight className="ml-2 w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </section>
+      
 
       {/* Footer */}
       <footer className="border-t bg-white/80 backdrop-blur-sm">
