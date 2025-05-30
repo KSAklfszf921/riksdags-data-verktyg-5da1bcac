@@ -1,479 +1,378 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface Party {
+  id: string;
+  name: string;
+  abbreviation: string;
+  website_url: string;
+  logo_url: string;
+}
+
+interface Member {
+  id: string;
+  first_name: string;
+  last_name: string;
+  party_id: string;
+  role: string;
+  district: string;
+  image_url: string;
+}
+
+interface Document {
+  id: string;
+  title: string;
+  subtitle: string;
+  doc_date: string;
+  category: string;
+  url: string;
+}
+
+interface Vote {
+  id: string;
+  dok_id: string;
+  rm: string;
+  beteckning: string;
+  punkt: string;
+  votering_id: string;
+  datum: string;
+  tid: string;
+  rost_id: string;
+  namn: string;
+  parti: string;
+  valkrets: string;
+  rost: string;
+}
+
+interface Speech {
+  id: string;
+  dok_id: string;
+  anforande_nummer: string;
+  talare: string;
+  parti: string;
+  anforandetext: string;
+  datumtid: string;
+}
+
+const fetchParties = async (): Promise<Party[]> => {
+  const url = 'https://data.riksdagen.se/partier.json';
+  const response = await fetch(url);
+  const data = await response.json();
+  return data.partier.parti.map((p: any) => ({
+    id: p.kod,
+    name: p.namn,
+    abbreviation: p.beteckning,
+    website_url: p.webbadress,
+    logo_url: p.bild_url
+  }));
+};
+
+const fetchMembers = async (partyId: string): Promise<Member[]> => {
+  const url = `https://data.riksdagen.se/personlista/?iid=&fnamn=&enamn=&parti=${partyId}&valkrets=&rdlstatus=tjanst&utformat=json&sort=efternamn`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!data.personlista || !data.personlista.person) {
+    console.warn(`No members found for party ${partyId}`);
+    return [];
+  }
+
+  const members = Array.isArray(data.personlista.person) ? data.personlista.person : [data.personlista.person];
+
+  return members.map((m: any) => ({
+    id: m.intressent_id,
+    first_name: m.fornamn,
+    last_name: m.efternamn,
+    party_id: m.parti,
+    role: m.roll_kod,
+    district: m.valkrets,
+    image_url: m.bild_url
+  }));
+};
+
+const fetchDocuments = async (): Promise<Document[]> => {
+  const url = 'https://data.riksdagen.se/dokumentlista/?sok=&doktyp=mot,prop&utformat=json&sort=datum&sortorder=desc&sz=500';
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!data.dokumentlista || !data.dokumentlista.dokument) {
+    console.warn('No documents found');
+    return [];
+  }
+
+  const documents = Array.isArray(data.dokumentlista.dokument) ? data.dokumentlista.dokument : [data.dokumentlista.dokument];
+
+  return documents.map((d: any) => ({
+    id: d.dok_id,
+    title: d.titel,
+    subtitle: d.subtitel,
+    doc_date: d.datum,
+    category: d.doktyp,
+    url: d.dokument_url_html
+  }));
+};
+
+const fetchVotes = async (): Promise<Vote[]> => {
+  const url = 'https://data.riksdagen.se/voteringlista/?rm=latest&bet=&hang=&punkt=&votering=&utformat=json&gruppering=votering';
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!data.voteringlista || !data.voteringlista.votering) {
+    console.warn('No votes found');
+    return [];
+  }
+
+  const votes = Array.isArray(data.voteringlista.votering) ? data.voteringlista.votering : [data.voteringlista.votering];
+
+  const allVotes: Vote[] = [];
+  for (const vote of votes) {
+    if (vote.personroster && vote.personroster.roster) {
+      const roster = Array.isArray(vote.personroster.roster) ? vote.personroster.roster : [vote.personroster.roster];
+      roster.forEach((r: any) => {
+        allVotes.push({
+          id: `${vote.votering_id}-${r.namn}`,
+          dok_id: vote.dok_id,
+          rm: vote.rm,
+          beteckning: vote.beteckning,
+          punkt: vote.punkt,
+          votering_id: vote.votering_id,
+          datum: vote.datum,
+          tid: vote.tid,
+          rost_id: r.rost_id,
+          namn: r.namn,
+          parti: r.parti,
+          valkrets: r.valkrets,
+          rost: r.rost
+        });
+      });
+    }
+  }
+  return allVotes;
+};
+
+const fetchSpeeches = async (): Promise<Speech[]> => {
+  const url = 'https://data.riksdagen.se/anforandeforlista/?doktyp=tal&utformat=json&sort=datumtid&sortorder=desc&sz=500';
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!data.anforandelista || !data.anforandelista.anforande) {
+    console.warn('No speeches found');
+    return [];
+  }
+
+  const speeches = Array.isArray(data.anforandelista.anforande) ? data.anforandelista.anforande : [data.anforandelista.anforande];
+
+  return speeches.map((s: any) => ({
+    id: s.dok_id,
+    dok_id: s.dok_id,
+    anforande_nummer: s.anforande_nummer,
+    talare: s.talare,
+    parti: s.parti,
+    anforandetext: s.anforandetext,
+    datumtid: s.datumtid
+  }));
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const startTime = Date.now()
-    console.log('Starting comprehensive data sync at:', new Date().toISOString())
+    console.log('Starting comprehensive data sync...');
 
-    // Initialize counters
-    let membersProcessed = 0
-    let partiesProcessed = 0
-    let votesProcessed = 0
-    let documentsProcessed = 0
-    let speechesProcessed = 0
-    let calendarEventsProcessed = 0
-    let errorsCount = 0
-    const errors: string[] = []
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Helper function to fetch from Riksdag API with retry logic
-    const fetchWithRetry = async (url: string, maxRetries = 3) => {
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          const response = await fetch(url)
-          if (response.ok) {
-            return await response.json()
-          }
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        } catch (error) {
-          console.log(`Attempt ${attempt} failed for ${url}:`, error.message)
-          if (attempt === maxRetries) throw error
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt))
-        }
-      }
-    }
+    const startTime = Date.now();
+    let totalStats = {
+      parties_processed: 0,
+      members_processed: 0,
+      documents_processed: 0,
+      votes_processed: 0,
+      speeches_processed: 0,
+      calendar_events_processed: 0,
+      errors_count: 0
+    };
 
-    // 1. Sync Member Data (existing logic)
+    // Sync Parties
+    console.log('Syncing parties...');
     try {
-      console.log('Syncing member data...')
-      const membersResponse = await fetchWithRetry('https://data.riksdagen.se/personlista/?format=json&utformat=json')
-      const members = membersResponse?.personlista?.person || []
+      const parties = await fetchParties();
+      totalStats.parties_processed = parties.length;
 
-      for (const member of members.slice(0, 50)) { // Limit to prevent timeout
-        try {
-          // Fetch detailed member info
-          const detailResponse = await fetchWithRetry(
-            `https://data.riksdagen.se/person/${member.intressent_id}?format=json&utformat=json`
-          )
-          const personDetail = detailResponse?.personuppgift?.person
+      const { error: partyError } = await supabase
+        .from('parties')
+        .upsert(parties, { onConflict: 'id' });
 
-          if (personDetail) {
-            const assignments = personDetail.personuppdrag?.uppdrag || []
-            const currentCommittees = assignments
-              .filter((assignment: any) => {
-                const endDate = assignment.tom ? new Date(assignment.tom) : null
-                return !endDate || endDate > new Date()
-              })
-              .map((assignment: any) => assignment.organ_kod)
-              .filter((code: string) => code && code !== 'kam')
-
-            await supabase
-              .from('member_data')
-              .upsert({
-                member_id: member.intressent_id,
-                first_name: member.fornamn,
-                last_name: member.efternamn,
-                party: member.parti,
-                constituency: member.valkrets || null,
-                gender: member.kon || null,
-                birth_year: member.fodd_ar ? parseInt(member.fodd_ar) : null,
-                is_active: member.status === 'Tjänstgörande',
-                riksdag_status: member.status,
-                current_committees: currentCommittees,
-                assignments: assignments,
-                committee_assignments: assignments,
-                activity_data: null,
-                image_urls: personDetail.bild_url_max ? { large: personDetail.bild_url_max } : null,
-                updated_at: new Date().toISOString()
-              })
-
-            membersProcessed++
-          }
-        } catch (error) {
-          console.error(`Error processing member ${member.intressent_id}:`, error)
-          errorsCount++
-          errors.push(`Member ${member.intressent_id}: ${error.message}`)
-        }
+      if (partyError) {
+        console.error('Error inserting parties:', partyError);
+        totalStats.errors_count++;
       }
     } catch (error) {
-      console.error('Error syncing member data:', error)
-      errorsCount++
-      errors.push(`Member sync: ${error.message}`)
+      console.error('Error fetching or inserting parties:', error);
+      totalStats.errors_count++;
     }
 
-    // 2. Sync Party Data (existing logic)
+    // Sync Members
+    console.log('Syncing members...');
     try {
-      console.log('Syncing party data...')
-      const { data: memberData } = await supabase
-        .from('member_data')
-        .select('*')
+      const parties = await fetchParties();
+      let allMembers: Member[] = [];
 
-      if (memberData) {
-        const partyStats = memberData.reduce((acc: any, member: any) => {
-          const party = member.party
-          if (!acc[party]) {
-            acc[party] = {
-              total: 0,
-              active: 0,
-              male: 0,
-              female: 0,
-              committees: {},
-              members: []
-            }
-          }
+      for (const party of parties) {
+        const members = await fetchMembers(party.id);
+        allMembers = allMembers.concat(members);
+      }
 
-          acc[party].total++
-          if (member.is_active) acc[party].active++
-          if (member.gender === 'man') acc[party].male++
-          if (member.gender === 'kvinna') acc[party].female++
+      totalStats.members_processed = allMembers.length;
 
-          // Committee distribution
-          if (member.current_committees) {
-            member.current_committees.forEach((committee: string) => {
-              if (!acc[party].committees[committee]) {
-                acc[party].committees[committee] = 0
-              }
-              acc[party].committees[committee]++
-            })
-          }
+      const { error: memberError } = await supabase
+        .from('members')
+        .upsert(allMembers, { onConflict: 'id' });
 
-          acc[party].members.push({
-            id: member.member_id,
-            name: `${member.first_name} ${member.last_name}`,
-            constituency: member.constituency,
-            committees: member.current_committees || []
-          })
-
-          return acc
-        }, {})
-
-        for (const [partyCode, stats] of Object.entries(partyStats as any)) {
-          await supabase
-            .from('party_data')
-            .upsert({
-              party_code: partyCode,
-              party_name: partyCode, // Could be enhanced with full names
-              total_members: stats.total,
-              active_members: stats.active,
-              gender_distribution: {
-                male: stats.male,
-                female: stats.female
-              },
-              committee_distribution: stats.committees,
-              committee_members: stats.committees,
-              member_list: stats.members,
-              activity_stats: null,
-              updated_at: new Date().toISOString()
-            })
-
-          partiesProcessed++
-        }
+      if (memberError) {
+        console.error('Error inserting members:', memberError);
+        totalStats.errors_count++;
       }
     } catch (error) {
-      console.error('Error syncing party data:', error)
-      errorsCount++
-      errors.push(`Party sync: ${error.message}`)
+      console.error('Error fetching or inserting members:', error);
+      totalStats.errors_count++;
     }
 
-    // 3. Sync Vote Data
+    // Sync Documents
+    console.log('Syncing documents...');
     try {
-      console.log('Syncing vote data...')
-      const votesResponse = await fetchWithRetry(
-        'https://data.riksdagen.se/voteringlista/?format=json&utformat=json&sz=50'
-      )
-      const votes = votesResponse?.voteringlista?.votering || []
+      const documents = await fetchDocuments();
+      totalStats.documents_processed = documents.length;
 
-      for (const vote of votes) {
-        try {
-          // Fetch detailed vote results
-          const voteDetailResponse = await fetchWithRetry(
-            `https://data.riksdagen.se/votering/${vote.hangar_id}/${vote.votering}?format=json&utformat=json`
-          )
-          const voteDetail = voteDetailResponse?.voteringsutfall
+      const { error: documentError } = await supabase
+        .from('documents')
+        .upsert(documents, { onConflict: 'id' });
 
-          const partyBreakdown: any = {}
-          const constituencyBreakdown: any = {}
-          
-          if (voteDetail?.votering_resultat_lista?.votering_resultat) {
-            voteDetail.votering_resultat_lista.votering_resultat.forEach((result: any) => {
-              if (!partyBreakdown[result.parti]) {
-                partyBreakdown[result.parti] = { ja: 0, nej: 0, avstår: 0, frånvarande: 0 }
-              }
-              if (!constituencyBreakdown[result.valkrets]) {
-                constituencyBreakdown[result.valkrets] = { ja: 0, nej: 0, avstår: 0, frånvarande: 0 }
-              }
-              
-              const voteType = result.rost.toLowerCase()
-              if (partyBreakdown[result.parti][voteType] !== undefined) {
-                partyBreakdown[result.parti][voteType]++
-              }
-              if (constituencyBreakdown[result.valkrets][voteType] !== undefined) {
-                constituencyBreakdown[result.valkrets][voteType]++
-              }
-            })
-          }
-
-          await supabase
-            .from('vote_data')
-            .upsert({
-              vote_id: `${vote.hangar_id}-${vote.votering}`,
-              hangar_id: vote.hangar_id,
-              rm: vote.rm,
-              beteckning: vote.beteckning,
-              punkt: vote.punkt,
-              votering: vote.votering,
-              avser: vote.avser,
-              dok_id: vote.dok_id,
-              systemdatum: vote.systemdatum,
-              vote_results: voteDetail,
-              vote_statistics: {
-                total_votes: voteDetail?.votering_resultat_lista?.votering_resultat?.length || 0
-              },
-              party_breakdown: partyBreakdown,
-              constituency_breakdown: constituencyBreakdown,
-              updated_at: new Date().toISOString()
-            })
-
-          votesProcessed++
-        } catch (error) {
-          console.error(`Error processing vote ${vote.hangar_id}:`, error)
-          errorsCount++
-          errors.push(`Vote ${vote.hangar_id}: ${error.message}`)
-        }
+      if (documentError) {
+        console.error('Error inserting documents:', documentError);
+        totalStats.errors_count++;
       }
     } catch (error) {
-      console.error('Error syncing vote data:', error)
-      errorsCount++
-      errors.push(`Vote sync: ${error.message}`)
+      console.error('Error fetching or inserting documents:', error);
+      totalStats.errors_count++;
     }
 
-    // 4. Sync Document Data
+    // Sync Votes
+    console.log('Syncing votes...');
     try {
-      console.log('Syncing document data...')
-      const documentsResponse = await fetchWithRetry(
-        'https://data.riksdagen.se/dokumentlista/?format=json&utformat=json&sz=50'
-      )
-      const documents = documentsResponse?.dokumentlista?.dokument || []
+      const votes = await fetchVotes();
+      totalStats.votes_processed = votes.length;
 
-      for (const document of documents) {
-        try {
-          await supabase
-            .from('document_data')
-            .upsert({
-              document_id: document.id,
-              titel: document.titel,
-              beteckning: document.beteckning,
-              datum: document.datum,
-              typ: document.typ,
-              organ: document.organ,
-              intressent_id: document.intressent_id,
-              party: document.parti,
-              hangar_id: document.hangar_id,
-              document_url_text: document.dokument_url_text,
-              document_url_html: document.dokument_url_html,
-              dokumentstatus: document.dokumentstatus,
-              publicerad: document.publicerad,
-              rm: document.rm,
-              summary: document.summary,
-              content_preview: document.summary?.substring(0, 500),
-              metadata: {
-                tempbeteckning: document.tempbeteckning,
-                notis: document.notis,
-                notisrubrik: document.notisrubrik
-              },
-              updated_at: new Date().toISOString()
-            })
+      const { error: voteError } = await supabase
+        .from('votes')
+        .upsert(votes, { onConflict: 'id' });
 
-          documentsProcessed++
-        } catch (error) {
-          console.error(`Error processing document ${document.id}:`, error)
-          errorsCount++
-          errors.push(`Document ${document.id}: ${error.message}`)
-        }
+      if (voteError) {
+        console.error('Error inserting votes:', voteError);
+        totalStats.errors_count++;
       }
     } catch (error) {
-      console.error('Error syncing document data:', error)
-      errorsCount++
-      errors.push(`Document sync: ${error.message}`)
+      console.error('Error fetching or inserting votes:', error);
+      totalStats.errors_count++;
     }
 
-    // 5. Sync Speech Data
+    // Sync Speeches
+    console.log('Syncing speeches...');
     try {
-      console.log('Syncing speech data...')
-      const speechesResponse = await fetchWithRetry(
-        'https://data.riksdagen.se/anforandelista/?format=json&utformat=json&sz=50'
-      )
-      const speeches = speechesResponse?.anforandelista?.anforande || []
+      const speeches = await fetchSpeeches();
+      totalStats.speeches_processed = speeches.length;
 
-      for (const speech of speeches) {
-        try {
-          const wordCount = speech.anforandetext ? speech.anforandetext.split(' ').length : 0
+      const { error: speechError } = await supabase
+        .from('speeches')
+        .upsert(speeches, { onConflict: 'id' });
 
-          await supabase
-            .from('speech_data')
-            .upsert({
-              speech_id: speech.anforande_id || `${speech.dok_id}-${speech.anforande_nummer}`,
-              anforande_id: speech.anforande_id,
-              intressent_id: speech.intressent_id,
-              rel_dok_id: speech.rel_dok_id,
-              namn: speech.namn,
-              party: speech.parti,
-              anforandedatum: speech.anforandedatum,
-              anforandetext: speech.anforandetext,
-              anforandetyp: speech.anforandetyp,
-              kammaraktivitet: speech.kammaraktivitet,
-              anforande_nummer: speech.anforande_nummer,
-              talare: speech.talare,
-              rel_dok_titel: speech.rel_dok_titel,
-              rel_dok_beteckning: speech.rel_dok_beteckning,
-              anf_klockslag: speech.anf_klockslag,
-              anforande_url_html: speech.anforande_url_html,
-              content_summary: speech.anforandetext?.substring(0, 200),
-              word_count: wordCount,
-              metadata: {
-                kammaraktivitet: speech.kammaraktivitet,
-                systemdatum: speech.systemdatum
-              },
-              updated_at: new Date().toISOString()
-            })
-
-          speechesProcessed++
-        } catch (error) {
-          console.error(`Error processing speech ${speech.anforande_id}:`, error)
-          errorsCount++
-          errors.push(`Speech ${speech.anforande_id}: ${error.message}`)
-        }
+      if (speechError) {
+        console.error('Error inserting speeches:', speechError);
+        totalStats.errors_count++;
       }
     } catch (error) {
-      console.error('Error syncing speech data:', error)
-      errorsCount++
-      errors.push(`Speech sync: ${error.message}`)
+      console.error('Error fetching or inserting speeches:', error);
+      totalStats.errors_count++;
     }
 
-    // 6. Sync Calendar Data
+    // Add calendar data sync
+    console.log('Starting calendar data sync...');
     try {
-      console.log('Syncing calendar data...')
-      const calendarResponse = await fetchWithRetry(
-        'https://data.riksdagen.se/aktivitetslista/?format=json&utformat=json&sz=50'
-      )
-      const events = calendarResponse?.aktivitetslista?.aktivitet || []
-
-      for (const event of events) {
-        try {
-          await supabase
-            .from('calendar_data')
-            .upsert({
-              event_id: event.id || `${event.datum}-${event.tid}`,
-              datum: event.datum,
-              tid: event.tid,
-              plats: event.plats,
-              aktivitet: event.aktivitet,
-              typ: event.typ,
-              organ: event.organ,
-              summary: event.titel || event.aktivitet,
-              description: event.beskrivning,
-              status: event.status,
-              url: event.url,
-              sekretess: event.sekretess,
-              participants: event.deltagare ? [event.deltagare] : null,
-              related_documents: event.dokument ? [event.dokument] : null,
-              metadata: {
-                planerad_startdatum: event.planerad_startdatum,
-                planerad_slutdatum: event.planerad_slutdatum
-              },
-              updated_at: new Date().toISOString()
-            })
-
-          calendarEventsProcessed++
-        } catch (error) {
-          console.error(`Error processing calendar event ${event.id}:`, error)
-          errorsCount++
-          errors.push(`Calendar ${event.id}: ${error.message}`)
-        }
+      const calendarResponse = await supabase.functions.invoke('fetch-calendar-data');
+      
+      if (calendarResponse.data?.success) {
+        totalStats.calendar_events_processed = calendarResponse.data.stats?.events_processed || 0;
+        console.log(`Calendar sync completed: ${totalStats.calendar_events_processed} events processed`);
+      } else {
+        console.error('Calendar sync failed:', calendarResponse.error);
+        totalStats.errors_count++;
       }
-    } catch (error) {
-      console.error('Error syncing calendar data:', error)
-      errorsCount++
-      errors.push(`Calendar sync: ${error.message}`)
+    } catch (calendarError) {
+      console.error('Error in calendar sync:', calendarError);
+      totalStats.errors_count++;
     }
 
-    // Log sync results
-    const syncDuration = Date.now() - startTime
-    const syncStatus = errorsCount > 0 ? 'completed_with_errors' : 'success'
+    const syncDuration = Date.now() - startTime;
 
-    await supabase
+    // Log the comprehensive sync operation
+    const { error: logError } = await supabase
       .from('data_sync_log')
       .insert({
-        sync_type: 'comprehensive_sync',
-        status: syncStatus,
-        members_processed: membersProcessed,
-        parties_processed: partiesProcessed,
-        votes_processed: votesProcessed,
-        documents_processed: documentsProcessed,
-        speeches_processed: speechesProcessed,
-        calendar_events_processed: calendarEventsProcessed,
-        errors_count: errorsCount,
+        sync_type: 'comprehensive',
+        status: totalStats.errors_count > 0 ? 'partial_success' : 'success',
+        parties_processed: totalStats.parties_processed,
+        members_processed: totalStats.members_processed,
+        documents_processed: totalStats.documents_processed,
+        votes_processed: totalStats.votes_processed,
+        speeches_processed: totalStats.speeches_processed,
+        calendar_events_processed: totalStats.calendar_events_processed,
+        errors_count: totalStats.errors_count,
         sync_duration_ms: syncDuration,
-        error_details: errors.length > 0 ? errors : null
-      })
+        error_details: totalStats.errors_count > 0 ? { 
+          message: `Comprehensive sync completed with ${totalStats.errors_count} errors` 
+        } : null
+      });
 
-    console.log(`Comprehensive sync completed in ${syncDuration}ms:`, {
-      membersProcessed,
-      partiesProcessed,
-      votesProcessed,
-      documentsProcessed,
-      speechesProcessed,
-      calendarEventsProcessed,
-      errorsCount,
-      status: syncStatus
-    })
+    if (logError) {
+      console.error('Error logging comprehensive sync operation:', logError);
+    }
+
+    console.log(`Comprehensive sync completed in ${syncDuration}ms:`, totalStats);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Comprehensive data sync completed',
-        results: {
-          membersProcessed,
-          partiesProcessed,
-          votesProcessed,
-          documentsProcessed,
-          speechesProcessed,
-          calendarEventsProcessed,
-          errorsCount,
-          syncDuration,
-          status: syncStatus
-        }
+        message: 'Comprehensive data sync completed successfully',
+        stats: totalStats,
+        duration_ms: syncDuration
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
       }
-    )
+    );
 
   } catch (error) {
-    console.error('Critical error in comprehensive sync:', error)
+    console.error('Fatal error in comprehensive sync:', error);
     
-    await supabase
-      .from('data_sync_log')
-      .insert({
-        sync_type: 'comprehensive_sync',
-        status: 'failed',
-        errors_count: 1,
-        error_details: [error.message]
-      })
-
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message
+      JSON.stringify({ 
+        success: false, 
+        error: error.message,
+        timestamp: new Date().toISOString()
       }),
-      {
+      { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
-})
+});

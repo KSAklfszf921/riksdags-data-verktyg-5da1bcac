@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   getDataFreshness, 
@@ -53,11 +52,11 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
 };
 
 export const refreshAllData = async (): Promise<{ success: boolean; message: string; results?: any }> => {
-  console.log('Triggering refresh of all data...');
+  console.log('Triggering refresh of all data including calendar...');
   
   try {
-    // Use the main fetch-party-data function which now handles all data types
-    const { error } = await supabase.functions.invoke('fetch-party-data');
+    // Use the main fetch-party-data function which now handles all data types including calendar
+    const { data, error } = await supabase.functions.invoke('fetch-party-data');
     
     if (error) {
       console.error('Error refreshing all data:', error);
@@ -66,10 +65,33 @@ export const refreshAllData = async (): Promise<{ success: boolean; message: str
 
     return {
       success: true,
-      message: 'Successfully triggered refresh of all data types'
+      message: 'Successfully triggered refresh of all data types including calendar data',
+      results: data
     };
   } catch (error) {
     console.error('Error in refreshAllData:', error);
+    throw error;
+  }
+};
+
+export const refreshCalendarDataOnly = async (): Promise<{ success: boolean; message: string; results?: any }> => {
+  console.log('Triggering calendar data refresh...');
+  
+  try {
+    const { data, error } = await supabase.functions.invoke('fetch-calendar-data');
+    
+    if (error) {
+      console.error('Error refreshing calendar data:', error);
+      throw new Error(`Failed to refresh calendar data: ${error.message}`);
+    }
+
+    return {
+      success: true,
+      message: 'Successfully refreshed calendar data',
+      results: data
+    };
+  } catch (error) {
+    console.error('Error in refreshCalendarDataOnly:', error);
     throw error;
   }
 };

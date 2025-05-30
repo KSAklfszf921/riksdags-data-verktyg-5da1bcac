@@ -4,6 +4,9 @@ project_id = "zqhpbclqvhjcyrgvgaon"
 [functions.fetch-party-data]
 verify_jwt = false
 
+[functions.fetch-calendar-data]
+verify_jwt = false
+
 [functions.daily-party-data-sync]
 verify_jwt = false
 
