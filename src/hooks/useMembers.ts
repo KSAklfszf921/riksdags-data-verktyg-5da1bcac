@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees } from '../services/riksdagApi';
 import { Member } from '../types/member';
@@ -65,15 +64,41 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Extract current committees from assignments
+  // Improved assignment processing - filter out "Kammaren" and correctly identify active assignments
   const currentDate = new Date();
-  const currentCommittees = memberDetails?.assignments
-    ?.filter(assignment => {
-      const endDate = assignment.tom ? new Date(assignment.tom) : null;
-      return !endDate || endDate > currentDate;
-    })
-    ?.filter(assignment => assignment.organ !== 'Kammaren')
-    ?.map(assignment => assignment.organ) || [];
+  const assignments = memberDetails?.assignments || [];
+  
+  // Filter active assignments (excluding chamber assignments)
+  const activeAssignments = assignments.filter(assignment => {
+    // Parse dates more carefully
+    let endDate: Date | null = null;
+    if (assignment.tom) {
+      // Handle various date formats from the API
+      const tomString = assignment.tom.toString();
+      if (tomString.includes('T')) {
+        endDate = new Date(tomString);
+      } else {
+        // Assume it's a date-only string
+        endDate = new Date(tomString + 'T23:59:59');
+      }
+    }
+    
+    const isActive = !endDate || endDate > currentDate;
+    const isNotChamber = assignment.organ !== 'Kammaren' && assignment.organ !== 'kam';
+    const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
+                                  assignment.typ === 'Riksdagsorgan' || 
+                                  assignment.typ === 'Departement';
+    
+    console.log(`Assignment check for ${riksdagMember.efternamn}: ${assignment.organ} - Active: ${isActive}, NotChamber: ${isNotChamber}, Important: ${isCommitteeOrImportant}`);
+    
+    return isActive && isNotChamber && isCommitteeOrImportant;
+  });
+
+  // Extract current committees from active assignments
+  const currentCommittees = activeAssignments.map(assignment => assignment.organ);
+
+  console.log(`Active assignments for ${riksdagMember.efternamn}:`, activeAssignments.map(a => `${a.organ} (${a.roll})`));
+  console.log(`Current committees for ${riksdagMember.efternamn}:`, currentCommittees);
 
   return {
     id: riksdagMember.intressent_id,
@@ -95,7 +120,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     motions,
     interpellations,
     writtenQuestions,
-    assignments: memberDetails?.assignments || []
+    assignments: assignments
   };
 };
 

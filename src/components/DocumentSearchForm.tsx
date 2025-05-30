@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -8,13 +9,14 @@ import { useDocumentTypes } from '../hooks/useDocumentTypes';
 import DocumentSearchFilters from './DocumentSearchFilters';
 import MemberAutocomplete from './MemberAutocomplete';
 
-// Available committees - updated to match API
+// Updated committees list to match the API and include more comprehensive options
 const COMMITTEES = [
   { value: 'AU', label: 'Arbetsmarknadsutskottet' },
   { value: 'BoU', label: 'Bostadsutskottet' },
   { value: 'CU', label: 'Civilutskottet' },
   { value: 'EU', label: 'EES-utskottet' },
   { value: 'eun', label: 'EU-nämnden' },
+  { value: 'ER', label: 'Europarådets svenska delegation' },
   { value: 'FiU', label: 'Finansutskottet' },
   { value: 'FöU', label: 'Försvarsutskottet' },
   { value: 'JoU', label: 'Jordbruksutskottet' },
@@ -29,7 +31,8 @@ const COMMITTEES = [
   { value: 'SoU', label: 'Socialutskottet' },
   { value: 'TU', label: 'Trafikutskottet' },
   { value: 'UbU', label: 'Utbildningsutskottet' },
-  { value: 'UU', label: 'Utrikesutskottet' }
+  { value: 'UU', label: 'Utrikesutskottet' },
+  { value: 'UFöU', label: 'Sammansatta utrikes- och försvarsutskottet' }
 ];
 
 // Available riksmöte years
@@ -219,13 +222,11 @@ const DocumentSearchForm = ({
           </div>
         </div>
 
-        {/* Partier */}
         <DocumentSearchFilters
           selectedParties={selectedParties}
           onToggleParty={onToggleParty}
         />
 
-        {/* Sortering */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

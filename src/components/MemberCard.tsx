@@ -14,17 +14,34 @@ interface MemberCardProps {
 const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const party = partyInfo[member.party];
 
-  // Get current active assignments (excluding Kammaren)
+  // Get current active assignments (excluding Kammaren and chamber assignments)
   const currentDate = new Date();
   const activeAssignments = member.assignments?.filter(assignment => {
-    const endDate = assignment.tom ? new Date(assignment.tom) : null;
-    return (!endDate || endDate > currentDate) && assignment.organ !== 'Kammaren';
+    let endDate: Date | null = null;
+    if (assignment.tom) {
+      const tomString = assignment.tom.toString();
+      if (tomString.includes('T')) {
+        endDate = new Date(tomString);
+      } else {
+        endDate = new Date(tomString + 'T23:59:59');
+      }
+    }
+    
+    const isActive = !endDate || endDate > currentDate;
+    const isNotChamber = assignment.organ !== 'Kammaren' && assignment.organ !== 'kam';
+    const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
+                                  assignment.typ === 'Riksdagsorgan' || 
+                                  assignment.typ === 'Departement';
+    
+    return isActive && isNotChamber && isCommitteeOrImportant;
   }) || [];
+
+  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`);
 
   // Get primary role (main committee assignment)
   const primaryRole = activeAssignments.find(assignment => 
     assignment.roll === 'Ledamot' || assignment.roll === 'Ordförande' || assignment.roll === 'Vice ordförande'
-  );
+  ) || activeAssignments[0]; // Fallback to first assignment if no standard committee role
 
   const getPriorityRole = (assignment: any) => {
     if (assignment.roll === 'Ordförande') return 1;
@@ -97,6 +114,15 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           </div>
         )}
 
+        {activeAssignments.length === 0 && (
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <Building2 className="w-4 h-4" />
+            <span className="text-xs italic">
+              Inga aktiva utskottsuppdrag
+            </span>
+          </div>
+        )}
+
         {member.profession && (
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Briefcase className="w-4 h-4" />
@@ -117,6 +143,11 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
             <div className="text-lg font-semibold text-orange-600">{member.interpellations || 0}</div>
             <div className="text-xs text-gray-500">Interpellationer</div>
           </div>
+        </div>
+
+        {/* Debug info - show active assignments count */}
+        <div className="text-xs text-gray-400 border-t pt-2">
+          {activeAssignments.length} aktiva uppdrag
         </div>
       </CardContent>
     </Card>

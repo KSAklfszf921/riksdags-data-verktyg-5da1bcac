@@ -34,6 +34,33 @@ const Ledamoter = () => {
   );
   const { committees } = useCommittees();
 
+  // Available committees list for member type filter
+  const ALL_COMMITTEES = [
+    'Arbetsmarknadsutskottet',
+    'Bostadsutskottet', 
+    'Civilutskottet',
+    'EES-utskottet',
+    'EU-nämnden',
+    'Europarådets svenska delegation',
+    'Finansutskottet',
+    'Försvarsutskottet',
+    'Jordbruksutskottet',
+    'Justitieutskottet',
+    'Konstitutionsutskottet',
+    'Kulturutskottet',
+    'Lagutskottet',
+    'Miljö- och jordbruksutskottet',
+    'Näringsutskottet',
+    'Riksdagens delegation till Europarådets parlamentariska församling',
+    'Sammansatta utrikes- och försvarsutskottet',
+    'Skatteutskottet',
+    'Socialförsäkringsutskottet',
+    'Socialutskottet',
+    'Trafikutskottet',
+    'Utbildningsutskottet',
+    'Utrikesutskottet'
+  ];
+
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
 
@@ -56,9 +83,16 @@ const Ledamoter = () => {
       // Improved committee filtering - check if member has any assignment in the selected committee
       const matchesCommittee = selectedCommittee === "all" || 
         member.assignments?.some(assignment => {
+          const currentDate = new Date();
           const endDate = assignment.tom ? new Date(assignment.tom) : null;
-          const isActive = !endDate || endDate > new Date();
-          return isActive && assignment.organ.toLowerCase().includes(selectedCommittee.toLowerCase());
+          const isActive = !endDate || endDate > currentDate;
+          
+          // Match both by exact name and by containing the committee name
+          return isActive && (
+            assignment.organ === selectedCommittee ||
+            assignment.organ.toLowerCase().includes(selectedCommittee.toLowerCase()) ||
+            selectedCommittee.toLowerCase().includes(assignment.organ.toLowerCase())
+          );
         });
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
@@ -169,7 +203,7 @@ const Ledamoter = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-4 mb-4">
                   <Button
                     variant={memberStatus === 'current' ? 'default' : 'outline'}
                     onClick={() => handleStatusChange('current')}
@@ -188,6 +222,31 @@ const Ledamoter = () => {
                   >
                     Tidigare ledamöter
                   </Button>
+                </div>
+
+                {/* Committee filter buttons */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Filtrera efter utskott/organ:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant={selectedCommittee === 'all' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => handleCommitteeChange('all')}
+                    >
+                      Alla utskott/organ
+                    </Button>
+                    {ALL_COMMITTEES.map((committee) => (
+                      <Button
+                        key={committee}
+                        variant={selectedCommittee === committee ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleCommitteeChange(committee)}
+                        className="text-xs"
+                      >
+                        {committee}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -276,7 +335,7 @@ const Ledamoter = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Utskott/Organ
+                      Utskott/Organ (dropdown)
                     </label>
                     <Select 
                       value={selectedCommittee} 
@@ -290,6 +349,11 @@ const Ledamoter = () => {
                         <SelectItem value="all">Alla utskott/organ</SelectItem>
                         {committees.map((committee) => (
                           <SelectItem key={committee} value={committee}>
+                            {committee}
+                          </SelectItem>
+                        ))}
+                        {ALL_COMMITTEES.map((committee) => (
+                          <SelectItem key={`static-${committee}`} value={committee}>
                             {committee}
                           </SelectItem>
                         ))}
