@@ -214,6 +214,7 @@ export interface VoteSearchParams {
   rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande' | '';
   intressentId?: string;
   pageSize?: number;
+  page?: number;
   gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet' | '';
 }
 
