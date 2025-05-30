@@ -1,3 +1,4 @@
+
 export interface RiksdagMember {
   intressent_id: string;
   hangar_guid: string;
@@ -268,51 +269,77 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
       return null;
     }
 
-    console.log(`Full person data for ${intressentId}:`, JSON.stringify(person, null, 2));
-
-    // Extract assignments with improved parsing logic
+    console.log(`Person object keys for ${intressentId}:`, Object.keys(person));
+    console.log(`personuppdrag exists:`, !!person.personuppdrag);
+    
+    // Extract assignments with improved parsing logic - check multiple possible structures
     let rawAssignments: any[] = [];
     
+    // Try different possible structures in the API response
     if (person.personuppdrag?.uppdrag) {
+      console.log(`Found personuppdrag.uppdrag for ${intressentId}`);
       rawAssignments = Array.isArray(person.personuppdrag.uppdrag) 
         ? person.personuppdrag.uppdrag 
         : [person.personuppdrag.uppdrag];
+    } else if ((person as any).uppdragslista?.uppdrag) {
+      console.log(`Found uppdragslista.uppdrag for ${intressentId}`);
+      const uppdragslista = (person as any).uppdragslista.uppdrag;
+      rawAssignments = Array.isArray(uppdragslista) ? uppdragslista : [uppdragslista];
+    } else if ((person as any).uppdrag) {
+      console.log(`Found direct uppdrag for ${intressentId}`);
+      const uppdrag = (person as any).uppdrag;
+      rawAssignments = Array.isArray(uppdrag) ? uppdrag : [uppdrag];
+    } else {
+      console.log(`Trying to fetch assignments separately for ${intressentId}`);
+      // Try fetching assignments separately
+      try {
+        const assignmentUrl = `${BASE_URL}/personlista/?iid=${intressentId}&utformat=json&uppgift=uppdrag`;
+        const assignmentResponse = await fetch(assignmentUrl);
+        if (assignmentResponse.ok) {
+          const assignmentData = await assignmentResponse.json();
+          console.log(`Separate assignment data for ${intressentId}:`, assignmentData);
+          if (assignmentData.personlista?.person?.[0]?.personuppdrag?.uppdrag) {
+            const assignments = assignmentData.personlista.person[0].personuppdrag.uppdrag;
+            rawAssignments = Array.isArray(assignments) ? assignments : [assignments];
+          }
+        }
+      } catch (e) {
+        console.log(`Failed to fetch separate assignments for ${intressentId}:`, e);
+      }
     }
     
-    console.log(`Raw assignments for ${intressentId}:`, rawAssignments);
+    console.log(`Raw assignments count for ${intressentId}:`, rawAssignments.length);
+    console.log(`First few raw assignments for ${intressentId}:`, rawAssignments.slice(0, 3));
     
     // Filter and map assignments with improved logic
     const assignments: RiksdagMemberAssignment[] = rawAssignments
       .filter(assignment => {
         if (!assignment) return false;
         
-        // Log each assignment for debugging
-        console.log(`Assignment check for ${intressentId}:`, assignment);
+        console.log(`Checking assignment for ${intressentId}:`, assignment);
         
-        // Check for committee assignment patterns
-        const hasOrganKod = assignment.organ_kod || assignment.organ;
-        const hasValidType = assignment.typ === 'uppdrag' || assignment.typ === 'Uppdrag';
-        const hasRole = assignment.roll_kod || assignment.roll;
+        // Check for committee assignment patterns - be more flexible with field names
+        const organKod = assignment.organ_kod || assignment.organ || assignment.organkod;
+        const roll = assignment.roll_kod || assignment.roll || assignment.rollkod;
         
-        if (!hasOrganKod || !hasRole) {
-          console.log(`Assignment rejected - missing organ_kod (${hasOrganKod}) or roll (${hasRole})`);
+        if (!organKod || !roll) {
+          console.log(`Assignment rejected - missing organ_kod (${organKod}) or roll (${roll})`);
           return false;
         }
         
-        // Get the organ code
-        const organKod = assignment.organ_kod || assignment.organ;
+        // Check if it's a valid committee code
         const isValidCommittee = VALID_COMMITTEE_CODES.includes(organKod);
         
-        console.log(`Assignment ${organKod}: validType=${hasValidType}, validCommittee=${isValidCommittee}`);
+        console.log(`Assignment ${organKod}: validCommittee=${isValidCommittee}, roll=${roll}`);
         
         return isValidCommittee;
       })
       .map(assignment => {
-        const organKod = assignment.organ_kod || assignment.organ;
-        const roll = assignment.roll_kod || assignment.roll;
+        const organKod = assignment.organ_kod || assignment.organ || assignment.organkod;
+        const roll = assignment.roll_kod || assignment.roll || assignment.rollkod;
         
         // Extract uppgift (committee name)
-        let uppgift = assignment.uppgift;
+        let uppgift = assignment.uppgift || assignment.organ_namn;
         if (Array.isArray(uppgift)) {
           uppgift = uppgift[0];
         }
