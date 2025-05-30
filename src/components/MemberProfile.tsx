@@ -1,3 +1,4 @@
+
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -59,6 +60,11 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
     if (!timeString) return '';
     return timeString.substring(0, 5);
   };
+
+  // Filtrera dokument för motioner och förslag
+  const motionsAndProposals = member.documents?.filter(doc => 
+    ['mot', 'prop', 'ip', 'fr'].includes(doc.type)
+  ) || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -352,47 +358,57 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Motioner och förslag */}
+          {/* Motioner och förslag - NU MED RIKTIG DATA */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <FileText className="w-5 h-5" />
-                <span>Motioner och förslag ({member.proposals.length})</span>
+                <span>Motioner och förslag ({motionsAndProposals.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {member.proposals.length > 0 ? (
+              {motionsAndProposals.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Titel</TableHead>
                       <TableHead>Typ</TableHead>
                       <TableHead>Datum</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Beteckning</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {member.proposals.map((proposal) => (
-                      <TableRow key={proposal.id}>
-                        <TableCell className="font-medium">{proposal.title}</TableCell>
-                        <TableCell>{proposal.type}</TableCell>
-                        <TableCell>{proposal.date}</TableCell>
+                    {motionsAndProposals.map((document) => (
+                      <TableRow key={document.id}>
+                        <TableCell className="font-medium">
+                          <div className="max-w-sm">
+                            <p className="truncate">{document.title}</p>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge 
                             className={
-                              proposal.status === 'Antagen' ? 'bg-green-100 text-green-800' :
-                              proposal.status === 'Avvisad' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
+                              document.type === 'mot' ? 'bg-blue-100 text-blue-800' :
+                              document.type === 'prop' ? 'bg-green-100 text-green-800' :
+                              document.type === 'ip' ? 'bg-orange-100 text-orange-800' :
+                              document.type === 'fr' ? 'bg-purple-100 text-purple-800' :
+                              'bg-gray-100 text-gray-800'
                             }
                           >
-                            {proposal.status}
+                            {getDocumentTypeLabel(document.type)}
                           </Badge>
                         </TableCell>
+                        <TableCell>{formatDate(document.date)}</TableCell>
+                        <TableCell className="font-mono text-sm">{document.beteckning}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm">
-                            <ExternalLink className="w-3 h-3" />
-                          </Button>
+                          {document.url && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={document.url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
