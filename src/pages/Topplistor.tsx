@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
+import ResponsiveHeader from '../components/ResponsiveHeader';
+import { useResponsive } from '../hooks/use-responsive';
 import { 
   FileText, 
   MessageSquare, 
@@ -24,6 +26,7 @@ const Topplistor = () => {
   const [selectedYear, setSelectedYear] = useState('2024/25');
   const [topCount, setTopCount] = useState(10);
   const { toast } = useToast();
+  const { isMobile, isTablet } = useResponsive();
   
   const { 
     motions, 
@@ -97,211 +100,234 @@ const Topplistor = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 sm:py-8 max-w-7xl">
-      <div className="mb-6 sm:mb-8">
-        <div className="flex items-center space-x-3 mb-4">
-          <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Topplistor</h1>
-        </div>
-        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-          Upptäck de mest aktiva riksdagsledamöterna baserat på deras parlamentariska aktivitet. 
-          Data uppdateras automatiskt och cachar för optimal prestanda.
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
+        <ResponsiveHeader
+          title="Topplistor"
+          description="Upptäck de mest aktiva riksdagsledamöterna baserat på deras parlamentariska aktivitet"
+          icon={<Trophy className="w-6 h-6 text-white" />}
+        >
+          {/* Info Card - now inside ResponsiveHeader children for mobile */}
+          {isMobile && (
+            <Card className="border-blue-200 bg-blue-50 mb-4">
+              <CardContent className="pt-4">
+                <div className="flex items-start space-x-2 text-blue-700">
+                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium mb-1">Data uppdateras automatiskt</p>
+                    <p>Motioner, anföranden, interpellationer och skriftliga frågor från riksdagen.</p>
+                    {lastUpdated && (
+                      <p className="mt-1 text-xs opacity-75">
+                        Uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </ResponsiveHeader>
 
-        {/* Info Card */}
-        <Card className="mb-4 sm:mb-6 border-blue-200 bg-blue-50">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center space-x-2 text-blue-800 text-base sm:text-lg">
-              <Info className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>Om Topplistorna</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs sm:text-sm text-blue-700">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-semibold mb-2">Datakällor:</h4>
-                <ul className="space-y-1 text-xs">
-                  <li>• Motioner: Förslag från riksdagsledamöter</li>
-                  <li>• Anföranden: Tal i riksdagens kammare</li>
-                  <li>• Interpellationer: Frågor till ministrar</li>
-                  <li>• Skriftliga frågor: Frågor till regeringen</li>
-                </ul>
+        {/* Info Card for tablet/desktop */}
+        {!isMobile && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center space-x-2 text-blue-800 text-lg">
+                <Info className="w-5 h-5" />
+                <span>Om Topplistorna</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-blue-700">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Datakällor:</h4>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Motioner: Förslag från riksdagsledamöter</li>
+                    <li>• Anföranden: Tal i riksdagens kammare</li>
+                    <li>• Interpellationer: Frågor till ministrar</li>
+                    <li>• Skriftliga frågor: Frågor till regeringen</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-2">Uppdatering:</h4>
+                  <p className="text-xs">
+                    Data cachar i 24 timmar för optimal prestanda. 
+                    {lastUpdated && (
+                      <span className="block mt-1">
+                        Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-semibold mb-2">Uppdatering:</h4>
-                <p className="text-xs">
-                  Data cachar i 24 timmar för optimal prestanda. 
-                  {lastUpdated && (
-                    <span className="block mt-1">
-                      Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
-                    </span>
-                  )}
-                </p>
-              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Mobile-optimized Controls */}
+        <div className={`mb-6 ${isMobile ? 'space-y-4' : 'flex flex-wrap items-center gap-4'}`}>
+          {/* Filter controls */}
+          <div className={`${isMobile ? 'grid grid-cols-2 gap-3' : 'flex items-center space-x-4'}`}>
+            <div className="flex items-center space-x-2">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              {!isMobile && <label className="text-sm font-medium">År:</label>}
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className={isMobile ? "w-full text-sm" : "w-32"}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map(year => (
+                    <SelectItem key={year} value={year}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Controls */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium">År:</label>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-24 sm:w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableYears.map(year => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center space-x-2">
+              <Trophy className="w-4 h-4 text-gray-500" />
+              {!isMobile && <label className="text-sm font-medium">Antal:</label>}
+              <Select value={topCount.toString()} onValueChange={(value) => setTopCount(parseInt(value))}>
+                <SelectTrigger className={isMobile ? "w-full text-sm" : "w-20"}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {topCounts.map(count => (
+                    <SelectItem key={count} value={count.toString()}>{count}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Trophy className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium hidden sm:inline">Antal:</label>
-            <Select value={topCount.toString()} onValueChange={(value) => setTopCount(parseInt(value))}>
-              <SelectTrigger className="w-16 sm:w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {topCounts.map(count => (
-                  <SelectItem key={count} value={count.toString()}>{count}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex space-x-2">
+          {/* Action buttons */}
+          <div className={`${isMobile ? 'grid grid-cols-3 gap-2' : 'flex space-x-2'}`}>
             <Button 
               onClick={handleRefresh} 
               variant="outline" 
-              size="sm"
+              size={isMobile ? "sm" : "default"}
               disabled={loading}
-              className="flex items-center space-x-1 sm:space-x-2 h-8 sm:h-10"
+              className="flex items-center justify-center space-x-2"
             >
-              <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Uppdatera</span>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {!isMobile && <span>Uppdatera</span>}
             </Button>
             
             <Button 
               onClick={shareUrl} 
               variant="outline" 
-              size="sm"
-              className="flex items-center space-x-1 sm:space-x-2 h-8 sm:h-10"
+              size={isMobile ? "sm" : "default"}
+              className="flex items-center justify-center space-x-2"
             >
-              <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Dela</span>
+              <Share2 className="w-4 h-4" />
+              {!isMobile && <span>Dela</span>}
             </Button>
             
             <Button 
               onClick={exportAllData} 
               variant="outline" 
-              size="sm"
+              size={isMobile ? "sm" : "default"}
               disabled={loading || error !== null}
-              className="flex items-center space-x-1 sm:space-x-2 h-8 sm:h-10"
+              className="flex items-center justify-center space-x-2"
             >
-              <Download className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Exportera</span>
+              <Download className="w-4 h-4" />
+              {!isMobile && <span>Exportera</span>}
             </Button>
           </div>
         </div>
 
         {error && (
-          <Card className="border-red-200 bg-red-50 mb-4 sm:mb-6">
-            <CardContent className="pt-4 sm:pt-6">
+          <Card className="border-red-200 bg-red-50 mb-6">
+            <CardContent className="pt-6">
               <div className="flex items-center space-x-2 text-red-700">
-                <Info className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Info className="w-5 h-5" />
                 <span className="text-sm">{error}</span>
               </div>
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {/* Loading indicator for initial load */}
-      {loading && motions.length === 0 && speeches.length === 0 && (
-        <div className="flex justify-center items-center py-8">
-          <div className="flex flex-col items-center">
-            <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-            <p className="text-gray-600">Hämtar topplistor...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Top Lists Grid */}
-      <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-        <TopListCard
-          title="Flest Motioner"
-          members={motions}
-          icon={<FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />}
-          unit="motioner"
-          loading={loading}
-        />
-
-        <TopListCard
-          title="Flest Anföranden"
-          members={speeches}
-          icon={<MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />}
-          unit="anföranden"
-          loading={loading}
-        />
-
-        <TopListCard
-          title="Flest Interpellationer"
-          members={interpellations}
-          icon={<HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />}
-          unit="interpellationer"
-          loading={loading}
-        />
-
-        <TopListCard
-          title="Flest Skriftliga Frågor"
-          members={writtenQuestions}
-          icon={<Edit3 className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />}
-          unit="frågor"
-          loading={loading}
-        />
-      </div>
-
-      {/* Summary Stats */}
-      {!loading && !error && (
-        <Card className="mt-6 sm:mt-8">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base sm:text-lg">Sammanfattning</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 text-center">
-              <div>
-                <div className="text-xl sm:text-2xl font-bold text-blue-600">
-                  {motions.reduce((sum, m) => sum + m.count, 0)}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Totalt motioner</div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-bold text-green-600">
-                  {speeches.reduce((sum, m) => sum + m.count, 0)}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Totalt anföranden</div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-bold text-purple-600">
-                  {interpellations.reduce((sum, m) => sum + m.count, 0)}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Totalt interpellationer</div>
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-bold text-orange-600">
-                  {writtenQuestions.reduce((sum, m) => sum + m.count, 0)}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-600">Totalt skriftliga frågor</div>
-              </div>
+        {/* Loading indicator for initial load */}
+        {loading && motions.length === 0 && speeches.length === 0 && (
+          <div className="flex justify-center items-center py-8">
+            <div className="flex flex-col items-center">
+              <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
+              <p className="text-gray-600">Hämtar topplistor...</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+
+        {/* Top Lists Grid - responsive layout */}
+        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : isTablet ? 'grid-cols-1 lg:grid-cols-2' : 'md:grid-cols-2'}`}>
+          <TopListCard
+            title="Flest Motioner"
+            members={motions}
+            icon={<FileText className="w-5 h-5 text-blue-600" />}
+            unit="motioner"
+            loading={loading}
+          />
+
+          <TopListCard
+            title="Flest Anföranden"
+            members={speeches}
+            icon={<MessageSquare className="w-5 h-5 text-green-600" />}
+            unit="anföranden"
+            loading={loading}
+          />
+
+          <TopListCard
+            title="Flest Interpellationer"
+            members={interpellations}
+            icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
+            unit="interpellationer"
+            loading={loading}
+          />
+
+          <TopListCard
+            title="Flest Skriftliga Frågor"
+            members={writtenQuestions}
+            icon={<Edit3 className="w-5 h-5 text-orange-600" />}
+            unit="frågor"
+            loading={loading}
+          />
+        </div>
+
+        {/* Summary Stats - mobile optimized */}
+        {!loading && !error && (
+          <Card className="mt-8">
+            <CardHeader className="pb-3">
+              <CardTitle className={isMobile ? "text-lg" : "text-xl"}>Sammanfattning</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-blue-600`}>
+                    {motions.reduce((sum, m) => sum + m.count, 0)}
+                  </div>
+                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600`}>Totalt motioner</div>
+                </div>
+                <div>
+                  <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-green-600`}>
+                    {speeches.reduce((sum, m) => sum + m.count, 0)}
+                  </div>
+                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600`}>Totalt anföranden</div>
+                </div>
+                <div>
+                  <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-purple-600`}>
+                    {interpellations.reduce((sum, m) => sum + m.count, 0)}
+                  </div>
+                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600`}>Totalt interpellationer</div>
+                </div>
+                <div>
+                  <div className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold text-orange-600`}>
+                    {writtenQuestions.reduce((sum, m) => sum + m.count, 0)}
+                  </div>
+                  <div className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600`}>Totalt skriftliga frågor</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };
