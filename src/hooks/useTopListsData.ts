@@ -29,60 +29,26 @@ interface CacheEntry {
   timestamp: number;
 }
 
-// Helper function to fetch all speeches for a member (handles pagination)
+// Helper function to fetch all speeches for a member
 const fetchAllMemberSpeeches = async (memberId: string) => {
-  let allSpeeches = [];
-  let page = 1;
-  const pageSize = 100;
-  
-  while (true) {
-    try {
-      const speeches = await fetchMemberSpeeches(memberId, page, pageSize);
-      if (!speeches || speeches.length === 0) {
-        break;
-      }
-      allSpeeches.push(...speeches);
-      
-      // If we got less than pageSize, we've reached the end
-      if (speeches.length < pageSize) {
-        break;
-      }
-      page++;
-    } catch (error) {
-      console.error(`Error fetching speeches page ${page} for member ${memberId}:`, error);
-      break;
-    }
+  try {
+    const speeches = await fetchMemberSpeeches(memberId);
+    return speeches;
+  } catch (error) {
+    console.error(`Error fetching speeches for member ${memberId}:`, error);
+    return [];
   }
-  
-  return allSpeeches;
 };
 
-// Helper function to fetch all documents for a member (handles pagination)
+// Helper function to fetch all documents for a member
 const fetchAllMemberDocuments = async (memberId: string) => {
-  let allDocuments = [];
-  let page = 1;
-  const pageSize = 100;
-  
-  while (true) {
-    try {
-      const documents = await fetchMemberDocuments(memberId, page, pageSize);
-      if (!documents || documents.length === 0) {
-        break;
-      }
-      allDocuments.push(...documents);
-      
-      // If we got less than pageSize, we've reached the end
-      if (documents.length < pageSize) {
-        break;
-      }
-      page++;
-    } catch (error) {
-      console.error(`Error fetching documents page ${page} for member ${memberId}:`, error);
-      break;
-    }
+  try {
+    const documents = await fetchMemberDocuments(memberId);
+    return documents;
+  } catch (error) {
+    console.error(`Error fetching documents for member ${memberId}:`, error);
+    return [];
   }
-  
-  return allDocuments;
 };
 
 export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number = 10) => {
