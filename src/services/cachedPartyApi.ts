@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface CachedMemberData {
   id: string;
@@ -10,8 +11,8 @@ export interface CachedMemberData {
   constituency: string | null;
   gender: string | null;
   birth_year: number | null;
-  assignments: any[] | null;
-  activity_data: any | null;
+  assignments: Json | null;
+  activity_data: Json | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,10 +23,10 @@ export interface CachedPartyData {
   party_name: string;
   total_members: number;
   active_members: number;
-  gender_distribution: any | null;
-  age_distribution: any | null;
-  committee_distribution: any | null;
-  activity_stats: any | null;
+  gender_distribution: Json | null;
+  age_distribution: Json | null;
+  committee_distribution: Json | null;
+  activity_stats: Json | null;
   created_at: string;
   updated_at: string;
 }
