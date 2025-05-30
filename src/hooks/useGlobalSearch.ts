@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { searchDocuments, searchSpeeches, searchVotes, Member } from '../services/riksdagApi';
+import { searchDocuments, searchSpeeches, searchVotes } from '../services/riksdagApi';
+import { Member } from '../types/member';
 import { mockMembers } from '../data/mockMembers';
 
 export interface SearchResult {
@@ -83,7 +84,7 @@ export const useGlobalSearch = () => {
       // Search speeches
       try {
         const speechResult = await searchSpeeches({
-          searchTerm,
+          query: searchTerm,
           pageSize: 3
         });
         
