@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -31,18 +30,25 @@ interface RiksdagMember {
   bild_url_max?: string;
 }
 
-const fetchRiksdagData = async (endpoint: string, retries = 3): Promise<any> => {
+// Förbättrad fetchRiksdagData med bättre timeout och felhantering
+const fetchRiksdagData = async (endpoint: string, retries = 3, timeout = 30000): Promise<any> => {
   const url = `https://data.riksdagen.se${endpoint}`;
   console.log(`Fetching: ${url}`);
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'Riksdag-Data-Sync/2.0'
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP error ${response.status} for ${url}`);
@@ -58,14 +64,17 @@ const fetchRiksdagData = async (endpoint: string, retries = 3): Promise<any> => 
       }
       
       const data = await response.json();
+      console.log(`Successfully fetched ${url} on attempt ${attempt}`);
       return data;
     } catch (error) {
       console.error(`Attempt ${attempt}/${retries} failed for ${url}:`, error);
       if (attempt === retries) {
         throw error;
       }
-      // Wait before retry
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      // Exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+      console.log(`Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
 };
@@ -119,6 +128,51 @@ const fetchPartiesAndMembers = async () => {
   });
   
   return { parties: Object.values(partyStats), members };
+};
+
+// Förbättrad safe database insertion med retry-logik
+const safeInsertData = async (supabase: any, tableName: string, data: any[], conflictColumn: string, batchSize = 100) => {
+  if (!data || data.length === 0) {
+    console.log(`No data to insert for ${tableName}`);
+    return { success: true, processed: 0 };
+  }
+
+  console.log(`Inserting ${data.length} records into ${tableName} in batches of ${batchSize}`);
+  let totalProcessed = 0;
+  let errors = 0;
+
+  for (let i = 0; i < data.length; i += batchSize) {
+    const batch = data.slice(i, i + batchSize);
+    let retries = 3;
+    
+    while (retries > 0) {
+      try {
+        const { error } = await supabase
+          .from(tableName)
+          .upsert(batch, { onConflict: conflictColumn });
+        
+        if (error) {
+          console.error(`Error inserting batch ${i}-${i + batch.length} into ${tableName}:`, error);
+          errors++;
+          break;
+        } else {
+          console.log(`Successfully inserted batch ${i + 1}-${i + batch.length} into ${tableName}`);
+          totalProcessed += batch.length;
+          break;
+        }
+      } catch (insertError) {
+        retries--;
+        console.warn(`Insert retry ${3 - retries} for ${tableName} batch ${i}-${i + batch.length}:`, insertError);
+        if (retries === 0) {
+          errors++;
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
+        }
+      }
+    }
+  }
+
+  return { success: errors === 0, processed: totalProcessed, errors };
 };
 
 const transformPartyData = (partiesData: any[]) => {
@@ -277,7 +331,7 @@ serve(async (req) => {
       warnings: [] as string[]
     };
 
-    // 1. Hämta och bearbeta partier och medlemmar
+    // 1. Hämta och bearbeta partier och medlemmar med förbättrad felhantering
     try {
       console.log('=== Phase 1: Parties and Members ===');
       const { parties, members } = await fetchPartiesAndMembers();
@@ -290,51 +344,44 @@ serve(async (req) => {
       
       console.log(`Processed ${stats.parties_processed} parties and ${stats.members_processed} members`);
       
-      // Infoga partidata
-      const { error: partyError } = await supabase
-        .from('party_data')
-        .upsert(transformedParties, { onConflict: 'party_code' });
-      
-      if (partyError) {
-        console.error('Party data error:', partyError);
-        stats.errors_count++;
+      // Infoga partidata med säker insertion
+      const partyResult = await safeInsertData(supabase, 'party_data', transformedParties, 'party_code');
+      if (!partyResult.success) {
+        console.error(`Failed to insert party data: ${partyResult.errors} errors`);
+        stats.errors_count += partyResult.errors;
       }
       
-      // Infoga medlemsdata i batches
-      const batchSize = 100;
-      for (let i = 0; i < transformedMembers.length; i += batchSize) {
-        const batch = transformedMembers.slice(i, i + batchSize);
-        const { error: memberError } = await supabase
-          .from('member_data')
-          .upsert(batch, { onConflict: 'member_id' });
-        
-        if (memberError) {
-          console.error(`Member data batch error (${i}-${i + batch.length}):`, memberError);
-          stats.errors_count++;
-        }
+      // Infoga medlemsdata med säker insertion
+      const memberResult = await safeInsertData(supabase, 'member_data', transformedMembers, 'member_id');
+      if (!memberResult.success) {
+        console.error(`Failed to insert member data: ${memberResult.errors} errors`);
+        stats.errors_count += memberResult.errors;
       }
       
     } catch (error) {
       console.error('Error processing parties/members:', error);
       stats.errors_count++;
+      stats.warnings.push('Failed to process parties/members');
     }
 
-    // 2. Hämta och bearbeta dokument (utökad mängd)
+    // 2. Hämta och bearbeta dokument med förbättrad felhantering
     try {
-      console.log('=== Phase 2: Documents (Expanded) ===');
+      console.log('=== Phase 2: Documents (Enhanced) ===');
       
-      // Hämta fler dokument med flera olika typer
-      const documentTypes = ['mot', 'prop', 'bet', 'rskr', 'dir', 'skr'];
+      const documentTypes = ['mot', 'prop', 'bet'];
       let allDocuments: any[] = [];
       
       for (const docType of documentTypes) {
         try {
           const documentsData = await fetchRiksdagData(
-            `/dokumentlista/?doktyp=${docType}&utformat=json&sz=1000&sort=datum&sortorder=desc`
+            `/dokumentlista/?doktyp=${docType}&utformat=json&sz=500&sort=datum&sortorder=desc`
           );
           const documents = documentsData.dokumentlista?.dokument || [];
           console.log(`Found ${documents.length} documents of type ${docType}`);
           allDocuments.push(...documents);
+          
+          // Begränsa totala antalet för att undvika timeout
+          if (allDocuments.length > 1500) break;
         } catch (docError) {
           console.warn(`Failed to fetch documents of type ${docType}:`, docError);
           stats.warnings.push(`Failed to fetch ${docType} documents`);
@@ -348,43 +395,35 @@ serve(async (req) => {
       
       console.log(`Total unique documents: ${uniqueDocuments.length}`);
       
-      const transformedDocuments = transformDocumentData(uniqueDocuments);
-      stats.documents_processed = transformedDocuments.length;
-      
-      // Infoga dokument i batches
-      const docBatchSize = 200;
-      for (let i = 0; i < transformedDocuments.length; i += docBatchSize) {
-        const batch = transformedDocuments.slice(i, i + docBatchSize);
-        const { error: docError } = await supabase
-          .from('document_data')
-          .upsert(batch, { onConflict: 'document_id' });
+      if (uniqueDocuments.length > 0) {
+        const transformedDocuments = transformDocumentData(uniqueDocuments);
+        stats.documents_processed = transformedDocuments.length;
         
-        if (docError) {
-          console.error(`Document batch error (${i}-${i + batch.length}):`, docError);
-          stats.errors_count++;
-        } else {
-          console.log(`Successfully processed document batch ${i + 1}-${i + batch.length}`);
+        const docResult = await safeInsertData(supabase, 'document_data', transformedDocuments, 'document_id', 150);
+        if (!docResult.success) {
+          console.error(`Failed to insert document data: ${docResult.errors} errors`);
+          stats.errors_count += docResult.errors;
         }
       }
       
     } catch (error) {
       console.error('Error processing documents:', error);
       stats.errors_count++;
+      stats.warnings.push('Failed to process documents');
     }
 
-    // 3. Hämta och bearbeta voteringar (förbättrad)
+    // 3. Hämta och bearbeta voteringar med bättre felhantering och mindre omfattning
     try {
-      console.log('=== Phase 3: Votes (Enhanced) ===');
+      console.log('=== Phase 3: Votes (Conservative) ===');
       
-      // Försök hämta voteringar från flera riksmöten
-      const riksmoten = ['2024/25', '2023/24', 'latest'];
+      const riksmoten = ['2024/25'];
       let allVotes: any[] = [];
       
       for (const rm of riksmoten) {
         try {
           console.log(`Fetching votes for riksmöte: ${rm}`);
           const votesData = await fetchRiksdagData(
-            `/voteringlista/?rm=${rm}&utformat=json&sz=1000`
+            `/voteringlista/?rm=${rm}&utformat=json&sz=200`, 2, 20000
           );
           
           if (votesData.voteringlista?.votering) {
@@ -420,7 +459,7 @@ serve(async (req) => {
           }
           
           // Begränsa för att undvika timeout
-          if (allVotes.length > 5000) break;
+          if (allVotes.length > 2000) break;
           
         } catch (voteError) {
           console.warn(`Failed to fetch votes for ${rm}:`, voteError);
@@ -434,54 +473,40 @@ serve(async (req) => {
         const transformedVotes = transformVoteData(allVotes);
         stats.votes_processed = transformedVotes.length;
         
-        // Infoga röstningsdata i batches
-        const voteBatchSize = 100;
-        for (let i = 0; i < transformedVotes.length; i += voteBatchSize) {
-          const batch = transformedVotes.slice(i, i + voteBatchSize);
-          const { error: voteError } = await supabase
-            .from('vote_data')
-            .upsert(batch, { onConflict: 'vote_id' });
-          
-          if (voteError) {
-            console.error(`Vote batch error (${i}-${i + batch.length}):`, voteError);
-            stats.errors_count++;
-          } else {
-            console.log(`Successfully processed vote batch ${i + 1}-${i + batch.length}`);
-          }
+        const voteResult = await safeInsertData(supabase, 'vote_data', transformedVotes, 'vote_id', 50);
+        if (!voteResult.success) {
+          console.error(`Failed to insert vote data: ${voteResult.errors} errors`);
+          stats.errors_count += voteResult.errors;
         }
       }
       
     } catch (error) {
       console.error('Error processing votes:', error);
       stats.errors_count++;
+      stats.warnings.push('Failed to process votes');
     }
 
-    // 4. Hämta och bearbeta anföranden
+    // 4. Hämta och bearbeta anföranden med konservativ approach
     try {
-      console.log('=== Phase 4: Speeches ===');
-      const speechesData = await fetchRiksdagData('/anforandelista/?utformat=json&sz=1000&sort=datumtid&sortorder=desc');
+      console.log('=== Phase 4: Speeches (Conservative) ===');
+      const speechesData = await fetchRiksdagData('/anforandelista/?utformat=json&sz=500&sort=datumtid&sortorder=desc', 2, 20000);
       const speeches = speechesData.anforandelista?.anforande || [];
       
-      const transformedSpeeches = transformSpeechData(speeches);
-      stats.speeches_processed = transformedSpeeches.length;
-      
-      // Infoga anföranden i batches
-      const speechBatchSize = 200;
-      for (let i = 0; i < transformedSpeeches.length; i += speechBatchSize) {
-        const batch = transformedSpeeches.slice(i, i + speechBatchSize);
-        const { error: speechError } = await supabase
-          .from('speech_data')
-          .upsert(batch, { onConflict: 'speech_id' });
+      if (speeches.length > 0) {
+        const transformedSpeeches = transformSpeechData(speeches);
+        stats.speeches_processed = transformedSpeeches.length;
         
-        if (speechError) {
-          console.error(`Speech batch error (${i}-${i + batch.length}):`, speechError);
-          stats.errors_count++;
+        const speechResult = await safeInsertData(supabase, 'speech_data', transformedSpeeches, 'speech_id', 100);
+        if (!speechResult.success) {
+          console.error(`Failed to insert speech data: ${speechResult.errors} errors`);
+          stats.errors_count += speechResult.errors;
         }
       }
       
     } catch (error) {
       console.error('Error processing speeches:', error);
       stats.errors_count++;
+      stats.warnings.push('Failed to process speeches');
     }
 
     // 5. Kalenderhändelser - hoppa över tills vidare pga API-problem
@@ -496,7 +521,7 @@ serve(async (req) => {
       .from('data_sync_log')
       .insert({
         sync_type: 'enhanced_comprehensive_sync',
-        status: stats.errors_count > 2 ? 'partial_success' : 'success',
+        status: stats.errors_count > 3 ? 'partial_success' : (stats.warnings.length > 0 ? 'success_with_warnings' : 'success'),
         parties_processed: stats.parties_processed,
         members_processed: stats.members_processed,
         documents_processed: stats.documents_processed,
@@ -507,7 +532,7 @@ serve(async (req) => {
         sync_duration_ms: syncDuration,
         error_details: {
           warnings: stats.warnings,
-          message: `Enhanced sync completed with ${stats.errors_count} errors`
+          message: `Enhanced sync completed with ${stats.errors_count} errors and ${stats.warnings.length} warnings`
         }
       });
 
@@ -521,8 +546,8 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
-        message: 'Enhanced comprehensive data sync completed',
+        success: stats.errors_count < 4, // Tillåt vissa errors men inte för många
+        message: `Enhanced comprehensive data sync completed with ${stats.errors_count} errors and ${stats.warnings.length} warnings`,
         stats,
         duration_ms: syncDuration,
         warnings: stats.warnings

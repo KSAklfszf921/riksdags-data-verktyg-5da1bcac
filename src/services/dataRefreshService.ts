@@ -27,87 +27,47 @@ export interface RefreshResult {
   warnings?: string[];
 }
 
-// Förbättrad helper-funktion för att få antal records
+// Förbättrad helper-funktion för att få antal records med bättre felhantering
 const getTableRecordCount = async (tableName: string): Promise<number> => {
   try {
     console.log(`Getting record count for table: ${tableName}`);
     
-    let query;
-    switch (tableName) {
-      case 'party_data':
-        query = supabase.from('party_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'member_data':
-        query = supabase.from('member_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'vote_data':
-        query = supabase.from('vote_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'document_data':
-        query = supabase.from('document_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'speech_data':
-        query = supabase.from('speech_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'calendar_data':
-        query = supabase.from('calendar_data').select('*', { count: 'exact', head: true });
-        break;
-      case 'member_news':
-        query = supabase.from('member_news').select('*', { count: 'exact', head: true });
-        break;
-      default:
-        console.warn(`Unknown table name: ${tableName}`);
-        return 0;
-    }
-    
-    const { count, error } = await query;
+    const { count, error } = await supabase
+      .from(tableName)
+      .select('*', { count: 'exact', head: true });
     
     if (error) {
       console.error(`Error getting count for ${tableName}:`, error);
       return 0;
     }
     
-    console.log(`${tableName}: ${count} records`);
-    return count || 0;
+    const recordCount = count || 0;
+    console.log(`${tableName}: ${recordCount} records`);
+    return recordCount;
   } catch (error) {
     console.warn(`Could not get count for ${tableName}:`, error);
     return 0;
   }
 };
 
-// Förbättrad helper-funktion för senaste created_at
+// Förbättrad helper-funktion för senaste created_at med bättre felhantering
 const getLatestCreatedAt = async (tableName: string): Promise<string | null> => {
   try {
-    let query;
-    switch (tableName) {
-      case 'party_data':
-        query = supabase.from('party_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'member_data':
-        query = supabase.from('member_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'vote_data':
-        query = supabase.from('vote_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'document_data':
-        query = supabase.from('document_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'speech_data':
-        query = supabase.from('speech_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'calendar_data':
-        query = supabase.from('calendar_data').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      case 'member_news':
-        query = supabase.from('member_news').select('created_at').order('created_at', { ascending: false }).limit(1).single();
-        break;
-      default:
-        return null;
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error(`Error getting latest created_at for ${tableName}:`, error);
+      return null;
     }
     
-    const { data } = await query;
     return data?.created_at || null;
   } catch (error) {
+    console.warn(`Could not get latest created_at for ${tableName}:`, error);
     return null;
   }
 };
@@ -121,7 +81,7 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
     { type: 'Vote Data', checkFunction: getVoteDataFreshness, countTable: 'vote_data', expectedMin: 50 },
     { type: 'Document Data', checkFunction: getDocumentDataFreshness, countTable: 'document_data', expectedMin: 1000 },
     { type: 'Speech Data', checkFunction: getSpeechDataFreshness, countTable: 'speech_data', expectedMin: 100 },
-    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data', expectedMin: 0 }, // Låg förväntning pga API-problem
+    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data', expectedMin: 0 },
     { type: 'Member News', checkFunction: null, countTable: 'member_news', expectedMin: 0 }
   ];
 
@@ -133,12 +93,25 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
       let recordCount = 0;
       let warningMessage: string | undefined;
 
-      // Hämta antal records
+      // Hämta antal records med förbättrad felhantering
       recordCount = await getTableRecordCount(check.countTable);
 
       // Kontrollera freshness om funktion finns
       if (check.checkFunction) {
-        freshness = await check.checkFunction();
+        try {
+          freshness = await check.checkFunction();
+        } catch (freshnessError) {
+          console.warn(`Freshness check failed for ${check.type}:`, freshnessError);
+          // Fallback till created_at check
+          const latestCreatedAt = await getLatestCreatedAt(check.countTable);
+          if (latestCreatedAt) {
+            freshness.lastUpdated = latestCreatedAt;
+            const lastUpdateTime = new Date(latestCreatedAt);
+            const now = new Date();
+            const hoursSinceUpdate = (now.getTime() - lastUpdateTime.getTime()) / (1000 * 60 * 60);
+            freshness.isStale = hoursSinceUpdate > 24;
+          }
+        }
       } else {
         // För tabeller utan specifik freshness-check
         const latestCreatedAt = await getLatestCreatedAt(check.countTable);
@@ -188,9 +161,18 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
   let totalStats = {};
 
   try {
-    // Använd den förbättrade comprehensive data sync-funktionen
+    // Använd den förbättrade comprehensive data sync-funktionen med timeout
     console.log('Step 1: Running enhanced comprehensive data sync...');
-    const { data: comprehensiveResult, error: comprehensiveError } = await supabase.functions.invoke('fetch-comprehensive-data');
+    
+    const syncPromise = supabase.functions.invoke('fetch-comprehensive-data');
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Sync operation timed out after 5 minutes')), 300000)
+    );
+    
+    const { data: comprehensiveResult, error: comprehensiveError } = await Promise.race([
+      syncPromise,
+      timeoutPromise
+    ]) as any;
     
     if (comprehensiveError) {
       const errorMsg = `Enhanced data sync failed: ${comprehensiveError.message}`;
@@ -206,22 +188,21 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
       }
     }
 
-    // 2. Trigger news refresh för aktiva medlemmar (begränsat antal)
-    console.log('Step 2: Triggering selective news refresh...');
-    try {
-      const { data: members } = await supabase
-        .from('member_data')
-        .select('member_id, first_name, last_name')
-        .eq('is_active', true)
-        .limit(10); // Begränsa till 10 medlemmar för att undvika överbelastning
+    // 2. Trigger news refresh för aktiva medlemmar (endast vid behov)
+    if (errors.length === 0) {
+      console.log('Step 2: Triggering selective news refresh...');
+      try {
+        const { data: members } = await supabase
+          .from('member_data')
+          .select('member_id, first_name, last_name')
+          .eq('is_active', true)
+          .limit(5); // Minska till 5 för att undvika överbelastning
 
-      if (members && members.length > 0) {
-        console.log(`Starting news refresh for ${members.length} members...`);
-        
-        // Bearbeta 2 i taget för att undvika överbelastning
-        for (let i = 0; i < members.length; i += 2) {
-          const batch = members.slice(i, i + 2);
-          const newsPromises = batch.map(async (member) => {
+        if (members && members.length > 0) {
+          console.log(`Starting news refresh for ${members.length} members...`);
+          
+          // Bearbeta en i taget för att undvika överbelastning
+          for (const member of members) {
             try {
               const { error: newsError } = await supabase.functions.invoke('fetch-member-news', {
                 body: { 
@@ -229,37 +210,34 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
                   memberId: member.member_id 
                 }
               });
+              
               if (newsError) {
                 console.warn(`News fetch failed for ${member.first_name} ${member.last_name}:`, newsError);
                 warnings.push(`News fetch failed for ${member.first_name} ${member.last_name}`);
               }
+              
+              // Paus mellan förfrågningar
+              await new Promise(resolve => setTimeout(resolve, 2000));
             } catch (err) {
               console.warn(`News fetch error for ${member.first_name} ${member.last_name}:`, err);
               warnings.push(`News fetch error for ${member.first_name} ${member.last_name}`);
             }
-          });
-          
-          await Promise.all(newsPromises);
-          
-          // Paus mellan batches
-          if (i + 2 < members.length) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
           }
+          
+          totalStats = { ...totalStats, news_refresh_attempted: members.length };
         }
-        
-        totalStats = { ...totalStats, news_refresh_attempted: members.length };
+      } catch (newsError) {
+        const errorMsg = `Member news refresh failed: ${newsError}`;
+        console.error(errorMsg);
+        warnings.push(errorMsg); // Inte en kritisk error
       }
-    } catch (newsError) {
-      const errorMsg = `Member news refresh failed: ${newsError}`;
-      console.error(errorMsg);
-      warnings.push(errorMsg); // Inte en kritisk error
     }
 
     const duration = Date.now() - startTime;
     const hasErrors = errors.length > 0;
     const hasWarnings = warnings.length > 0;
 
-    // Logga den omfattande synkroniseringen
+    // Logga den omfattande synkroniseringen med förbättrad felhantering
     try {
       await supabase
         .from('data_sync_log')
@@ -275,6 +253,7 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
         });
     } catch (logError) {
       console.error('Failed to log sync operation:', logError);
+      warnings.push('Failed to log sync operation');
     }
 
     return {
