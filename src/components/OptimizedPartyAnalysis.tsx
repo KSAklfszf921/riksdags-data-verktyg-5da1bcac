@@ -30,6 +30,17 @@ interface PartyStats {
   committees: { [code: string]: { count: number; roles: string[] } };
 }
 
+// Helper function to safely extract gender distribution from Json
+const extractGenderDistribution = (genderDistribution: any): { male: number; female: number } => {
+  if (genderDistribution && typeof genderDistribution === 'object' && !Array.isArray(genderDistribution)) {
+    return {
+      male: Number(genderDistribution.male) || 0,
+      female: Number(genderDistribution.female) || 0
+    };
+  }
+  return { male: 0, female: 0 };
+};
+
 const OptimizedPartyAnalysis = () => {
   const [partyData, setPartyData] = useState<CachedPartyData[]>([]);
   const [memberData, setMemberData] = useState<CachedMemberData[]>([]);
@@ -121,16 +132,16 @@ const OptimizedPartyAnalysis = () => {
   };
 
   const convertToPartyStats = (parties: CachedPartyData[]): PartyStats[] => {
-    return parties.map(party => ({
-      party: party.party_code,
-      count: party.total_members,
-      averageAge: 0, // Will be calculated from member data if needed
-      genderDistribution: {
-        male: party.gender_distribution?.male || 0,
-        female: party.gender_distribution?.female || 0
-      },
-      committees: {} // Will be populated if needed
-    }));
+    return parties.map(party => {
+      const genderDist = extractGenderDistribution(party.gender_distribution);
+      return {
+        party: party.party_code,
+        count: party.total_members,
+        averageAge: 0, // Will be calculated from member data if needed
+        genderDistribution: genderDist,
+        committees: {} // Will be populated if needed
+      };
+    });
   };
 
   const getFilteredStats = () => {
