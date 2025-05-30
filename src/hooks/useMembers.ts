@@ -78,60 +78,59 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Process assignments with improved filtering for current committee assignments
-  const currentDate = new Date();
-  const assignments = memberDetails?.assignments || [];
-  
-  console.log(`Processing ${assignments.length} assignments for ${riksdagMember.efternamn}`);
-  console.log(`Raw assignments for ${riksdagMember.efternamn}:`, assignments);
-  
-  // Filter active committee assignments with corrected field names
-  const activeCommitteeAssignments = assignments.filter(assignment => {
-    // Parse dates more carefully
-    let endDate: Date | null = null;
-    if (assignment.tom) {
-      const tomString = assignment.tom.toString().trim();
-      if (tomString && tomString !== '') {
-        try {
-          if (tomString.includes('T')) {
-            endDate = new Date(tomString);
-          } else {
-            endDate = new Date(tomString + 'T23:59:59');
-          }
-          
-          if (isNaN(endDate.getTime())) {
+  // Fetch committee assignments separately using the dedicated API
+  let currentCommitteeCodes: string[] = [];
+  let assignments: any[] = [];
+
+  try {
+    console.log(`Fetching committee assignments for ${riksdagMember.efternamn} (${riksdagMember.intressent_id})`);
+    const committeeAssignments = await getMemberCommitteeAssignments(riksdagMember.intressent_id);
+    
+    console.log(`Raw committee assignments for ${riksdagMember.efternamn}:`, committeeAssignments);
+    
+    // Filter for current active committee assignments
+    const currentDate = new Date();
+    const activeAssignments = committeeAssignments.filter(assignment => {
+      let endDate: Date | null = null;
+      if (assignment.tom) {
+        const tomString = assignment.tom.toString().trim();
+        if (tomString && tomString !== '') {
+          try {
+            if (tomString.includes('T')) {
+              endDate = new Date(tomString);
+            } else {
+              endDate = new Date(tomString + 'T23:59:59');
+            }
+            
+            if (isNaN(endDate.getTime())) {
+              endDate = null;
+            }
+          } catch (e) {
+            console.log(`Error parsing date for ${riksdagMember.efternamn}: ${tomString}`);
             endDate = null;
           }
-        } catch (e) {
-          console.log(`Error parsing date for ${riksdagMember.efternamn}: ${tomString}`);
-          endDate = null;
         }
       }
-    }
-    
-    // Assignment is active if no end date or end date is in the future
-    const isActive = !endDate || endDate > currentDate;
-    
-    // Committee assignments now properly filtered with typ === 'uppdrag'
-    const isCommitteeAssignment = assignment.typ === 'uppdrag';
-    
-    // Use organ_kod for validation instead of organ
-    const hasValidCommittee = assignment.organ_kod && isValidCommitteeCode(assignment.organ_kod);
-    
-    const result = isActive && isCommitteeAssignment && hasValidCommittee;
-    
-    console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ_kod} (${assignment.roll}) - Active: ${isActive}, Committee: ${isCommitteeAssignment && hasValidCommittee}, Final: ${result}`);
-    
-    return result;
-  });
+      
+      const isActive = !endDate || endDate > currentDate;
+      const isCommitteeAssignment = assignment.typ === 'uppdrag' && assignment.organ_kod && isValidCommitteeCode(assignment.organ_kod);
+      
+      console.log(`Assignment check for ${riksdagMember.efternamn}: ${assignment.organ_kod} - Active: ${isActive}, Committee: ${isCommitteeAssignment}`);
+      
+      return isActive && isCommitteeAssignment;
+    });
 
-  // Store committee codes directly for efficient filtering
-  const currentCommitteeCodes = activeCommitteeAssignments.map(assignment => assignment.organ_kod);
+    currentCommitteeCodes = activeAssignments.map(assignment => assignment.organ_kod);
+    assignments = committeeAssignments;
 
-  console.log(`Final active committee assignments for ${riksdagMember.efternamn}:`, activeCommitteeAssignments.map(a => `${a.organ_kod} (${a.roll})`));
-  console.log(`Current committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
+    console.log(`Final active committee codes for ${riksdagMember.efternamn}:`, currentCommitteeCodes);
+  } catch (error) {
+    console.error(`Error fetching committee assignments for ${riksdagMember.efternamn}:`, error);
+    currentCommitteeCodes = [];
+    assignments = [];
+  }
 
-  // Convert assignments to match the Member interface - keep organ_kod as is
+  // Convert assignments to match the Member interface
   const convertedAssignments = assignments.map(assignment => ({
     organ_kod: assignment.organ_kod,
     roll: assignment.roll,
@@ -158,7 +157,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     email: memberDetails?.email || generateEmail(riksdagMember.tilltalsnamn, riksdagMember.efternamn),
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
     profession: memberDetails?.yrke || 'Riksdagsledamot',
-    committees: currentCommitteeCodes, // Store codes for efficient filtering
+    committees: currentCommitteeCodes, // Now properly populated with committee codes
     speeches: mappedSpeeches,
     votes: [],
     proposals: [],
