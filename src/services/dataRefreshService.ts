@@ -27,8 +27,11 @@ export interface RefreshResult {
   warnings?: string[];
 }
 
+// Definierar giltiga tabellnamn
+type ValidTableName = 'party_data' | 'member_data' | 'vote_data' | 'document_data' | 'speech_data' | 'calendar_data' | 'member_news';
+
 // Förbättrad helper-funktion för att få antal records med bättre felhantering
-const getTableRecordCount = async (tableName: string): Promise<number> => {
+const getTableRecordCount = async (tableName: ValidTableName): Promise<number> => {
   try {
     console.log(`Getting record count for table: ${tableName}`);
     
@@ -51,7 +54,7 @@ const getTableRecordCount = async (tableName: string): Promise<number> => {
 };
 
 // Förbättrad helper-funktion för senaste created_at med bättre felhantering
-const getLatestCreatedAt = async (tableName: string): Promise<string | null> => {
+const getLatestCreatedAt = async (tableName: ValidTableName): Promise<string | null> => {
   try {
     const { data, error } = await supabase
       .from(tableName)
@@ -76,13 +79,13 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
   console.log('Checking freshness of all data types...');
   
   const checks = [
-    { type: 'Party Data', checkFunction: getDataFreshness, countTable: 'party_data', expectedMin: 8 },
-    { type: 'Member Data', checkFunction: getDataFreshness, countTable: 'member_data', expectedMin: 300 },
-    { type: 'Vote Data', checkFunction: getVoteDataFreshness, countTable: 'vote_data', expectedMin: 50 },
-    { type: 'Document Data', checkFunction: getDocumentDataFreshness, countTable: 'document_data', expectedMin: 1000 },
-    { type: 'Speech Data', checkFunction: getSpeechDataFreshness, countTable: 'speech_data', expectedMin: 100 },
-    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data', expectedMin: 0 },
-    { type: 'Member News', checkFunction: null, countTable: 'member_news', expectedMin: 0 }
+    { type: 'Party Data', checkFunction: getDataFreshness, countTable: 'party_data' as ValidTableName, expectedMin: 8 },
+    { type: 'Member Data', checkFunction: getDataFreshness, countTable: 'member_data' as ValidTableName, expectedMin: 300 },
+    { type: 'Vote Data', checkFunction: getVoteDataFreshness, countTable: 'vote_data' as ValidTableName, expectedMin: 50 },
+    { type: 'Document Data', checkFunction: getDocumentDataFreshness, countTable: 'document_data' as ValidTableName, expectedMin: 1000 },
+    { type: 'Speech Data', checkFunction: getSpeechDataFreshness, countTable: 'speech_data' as ValidTableName, expectedMin: 100 },
+    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data' as ValidTableName, expectedMin: 0 },
+    { type: 'Member News', checkFunction: null, countTable: 'member_news' as ValidTableName, expectedMin: 0 }
   ];
 
   const results: DataFreshnessStatus[] = [];
