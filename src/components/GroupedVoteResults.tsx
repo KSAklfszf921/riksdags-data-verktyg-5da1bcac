@@ -18,6 +18,7 @@ interface VoteGroup {
     avstar: number;
     franvarande: number;
   };
+  proposalPoints: Set<string>; // Track unique proposal points
 }
 
 interface GroupedVoteResultsProps {
@@ -39,6 +40,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     console.log('Processing vote:', {
       beteckning: vote.beteckning,
       rm: vote.rm,
+      punkt: vote.punkt,
       groupKey,
       avser: vote.avser
     });
@@ -49,11 +51,17 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
         riksmote: vote.rm || 'Okänt riksmöte',
         avser: vote.avser || 'Ingen beskrivning tillgänglig',
         votes: [],
-        voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 }
+        voteStats: { ja: 0, nej: 0, avstar: 0, franvarande: 0 },
+        proposalPoints: new Set()
       };
     }
     
     groups[groupKey].votes.push(vote);
+    
+    // Add proposal point to the set if it exists
+    if (vote.punkt) {
+      groups[groupKey].proposalPoints.add(vote.punkt);
+    }
     
     // Update vote statistics
     const rostLower = (vote.rost || '').toLowerCase();
@@ -83,7 +91,8 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
     key: `${g.beteckning}-${g.riksmote}`,
     voteCount: g.votes.length,
     beteckning: g.beteckning,
-    riksmote: g.riksmote
+    riksmote: g.riksmote,
+    proposalPoints: Array.from(g.proposalPoints)
   })));
 
   const toggleGroup = (groupKey: string) => {
@@ -94,10 +103,6 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
       newExpanded.add(groupKey);
     }
     setExpandedGroups(newExpanded);
-  };
-
-  const getPartyColor = (party: string) => {
-    return partyInfo[party]?.color || '#6B7280';
   };
 
   if (groupsArray.length === 0) {
@@ -126,6 +131,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
           {groupsArray.map((group) => {
             const groupKey = `${group.beteckning}-${group.riksmote}`;
             const isExpanded = expandedGroups.has(groupKey);
+            const proposalPointsArray = Array.from(group.proposalPoints).sort();
             
             return (
               <Collapsible key={groupKey} open={isExpanded} onOpenChange={() => toggleGroup(groupKey)}>
@@ -139,6 +145,18 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                         <p className="text-sm text-gray-600 mb-3">
                           {group.avser}
                         </p>
+                        
+                        {/* Proposal points info */}
+                        {proposalPointsArray.length > 0 && (
+                          <div className="mb-3">
+                            <p className="text-sm text-gray-700">
+                              <strong>Förslagspunkter:</strong> {proposalPointsArray.join(', ')} 
+                              <span className="text-gray-500 ml-1">
+                                ({proposalPointsArray.length} {proposalPointsArray.length === 1 ? 'punkt' : 'punkter'})
+                              </span>
+                            </p>
+                          </div>
+                        )}
                         
                         {/* Vote statistics */}
                         <div className="flex space-x-4 text-sm">
@@ -186,6 +204,9 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                             </p>
                             <p className="text-xs text-gray-500">
                               {vote.valkrets || 'Okänd valkrets'}
+                              {vote.punkt && (
+                                <span className="ml-2">• Punkt {vote.punkt}</span>
+                              )}
                             </p>
                           </div>
                           <Badge 
