@@ -226,8 +226,11 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Nyhetsflöde - nytt avsnitt */}
-          <MemberNewsField memberName={`${member.firstName} ${member.lastName}`} />
+          {/* Nyhetsflöde - uppdaterat med memberId */}
+          <MemberNewsField 
+            memberName={`${member.firstName} ${member.lastName}`} 
+            memberId={member.id}
+          />
 
           {/* Aktuella uppdrag */}
           {activeAssignments.length > 0 && (
