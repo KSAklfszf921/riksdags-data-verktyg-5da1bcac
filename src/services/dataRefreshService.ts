@@ -15,6 +15,7 @@ export interface DataFreshnessStatus {
   isStale: boolean;
   errorMessage?: string;
   recordCount?: number;
+  warningMessage?: string;
 }
 
 export interface RefreshResult {
@@ -23,11 +24,14 @@ export interface RefreshResult {
   duration?: number;
   stats?: any;
   errors?: string[];
+  warnings?: string[];
 }
 
-// Helper function to get record count for a table
+// Förbättrad helper-funktion för att få antal records
 const getTableRecordCount = async (tableName: string): Promise<number> => {
   try {
+    console.log(`Getting record count for table: ${tableName}`);
+    
     let query;
     switch (tableName) {
       case 'party_data':
@@ -52,10 +56,18 @@ const getTableRecordCount = async (tableName: string): Promise<number> => {
         query = supabase.from('member_news').select('*', { count: 'exact', head: true });
         break;
       default:
+        console.warn(`Unknown table name: ${tableName}`);
         return 0;
     }
     
-    const { count } = await query;
+    const { count, error } = await query;
+    
+    if (error) {
+      console.error(`Error getting count for ${tableName}:`, error);
+      return 0;
+    }
+    
+    console.log(`${tableName}: ${count} records`);
     return count || 0;
   } catch (error) {
     console.warn(`Could not get count for ${tableName}:`, error);
@@ -63,7 +75,7 @@ const getTableRecordCount = async (tableName: string): Promise<number> => {
   }
 };
 
-// Helper function to get latest created_at for a table
+// Förbättrad helper-funktion för senaste created_at
 const getLatestCreatedAt = async (tableName: string): Promise<string | null> => {
   try {
     let query;
@@ -104,13 +116,13 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
   console.log('Checking freshness of all data types...');
   
   const checks = [
-    { type: 'Party Data', checkFunction: getDataFreshness, countTable: 'party_data' },
-    { type: 'Member Data', checkFunction: getDataFreshness, countTable: 'member_data' },
-    { type: 'Vote Data', checkFunction: getVoteDataFreshness, countTable: 'vote_data' },
-    { type: 'Document Data', checkFunction: getDocumentDataFreshness, countTable: 'document_data' },
-    { type: 'Speech Data', checkFunction: getSpeechDataFreshness, countTable: 'speech_data' },
-    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data' },
-    { type: 'Member News', checkFunction: null, countTable: 'member_news' }
+    { type: 'Party Data', checkFunction: getDataFreshness, countTable: 'party_data', expectedMin: 8 },
+    { type: 'Member Data', checkFunction: getDataFreshness, countTable: 'member_data', expectedMin: 300 },
+    { type: 'Vote Data', checkFunction: getVoteDataFreshness, countTable: 'vote_data', expectedMin: 50 },
+    { type: 'Document Data', checkFunction: getDocumentDataFreshness, countTable: 'document_data', expectedMin: 1000 },
+    { type: 'Speech Data', checkFunction: getSpeechDataFreshness, countTable: 'speech_data', expectedMin: 100 },
+    { type: 'Calendar Data', checkFunction: getCalendarDataFreshness, countTable: 'calendar_data', expectedMin: 0 }, // Låg förväntning pga API-problem
+    { type: 'Member News', checkFunction: null, countTable: 'member_news', expectedMin: 0 }
   ];
 
   const results: DataFreshnessStatus[] = [];
@@ -119,15 +131,16 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
     try {
       let freshness = { lastUpdated: null, isStale: true };
       let recordCount = 0;
+      let warningMessage: string | undefined;
 
-      // Get record count using helper function
+      // Hämta antal records
       recordCount = await getTableRecordCount(check.countTable);
 
-      // Check freshness if function available
+      // Kontrollera freshness om funktion finns
       if (check.checkFunction) {
         freshness = await check.checkFunction();
       } else {
-        // For tables without specific freshness check, check if we have recent data
+        // För tabeller utan specifik freshness-check
         const latestCreatedAt = await getLatestCreatedAt(check.countTable);
         
         if (latestCreatedAt) {
@@ -139,11 +152,17 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
         }
       }
 
+      // Kontrollera om vi har tillräckligt med data
+      if (recordCount < check.expectedMin) {
+        warningMessage = `Lågt antal records (${recordCount}/${check.expectedMin} förväntade)`;
+      }
+
       results.push({
         type: check.type,
         lastUpdated: freshness.lastUpdated,
         isStale: freshness.isStale,
-        recordCount
+        recordCount,
+        warningMessage
       });
     } catch (error) {
       console.error(`Error checking ${check.type} freshness:`, error);
@@ -161,41 +180,47 @@ export const checkAllDataFreshness = async (): Promise<DataFreshnessStatus[]> =>
 };
 
 export const refreshAllData = async (): Promise<RefreshResult> => {
-  console.log('Starting comprehensive data refresh for all systems...');
+  console.log('Starting enhanced comprehensive data refresh...');
   
   const startTime = Date.now();
   const errors: string[] = [];
+  const warnings: string[] = [];
   let totalStats = {};
 
   try {
-    // Use the new comprehensive data sync function
-    console.log('Step 1: Refreshing all core data...');
+    // Använd den förbättrade comprehensive data sync-funktionen
+    console.log('Step 1: Running enhanced comprehensive data sync...');
     const { data: comprehensiveResult, error: comprehensiveError } = await supabase.functions.invoke('fetch-comprehensive-data');
     
     if (comprehensiveError) {
-      const errorMsg = `Comprehensive data sync failed: ${comprehensiveError.message}`;
+      const errorMsg = `Enhanced data sync failed: ${comprehensiveError.message}`;
       console.error(errorMsg);
       errors.push(errorMsg);
     } else if (comprehensiveResult?.stats) {
       totalStats = { ...totalStats, ...comprehensiveResult.stats };
-      console.log('Comprehensive data sync completed:', comprehensiveResult.stats);
+      console.log('Enhanced data sync completed:', comprehensiveResult.stats);
+      
+      // Lägg till varningar från synkroniseringen
+      if (comprehensiveResult.warnings) {
+        warnings.push(...comprehensiveResult.warnings);
+      }
     }
 
-    // 2. Trigger news refresh for active members
-    console.log('Step 2: Triggering news refresh for members...');
+    // 2. Trigger news refresh för aktiva medlemmar (begränsat antal)
+    console.log('Step 2: Triggering selective news refresh...');
     try {
       const { data: members } = await supabase
         .from('member_data')
         .select('member_id, first_name, last_name')
         .eq('is_active', true)
-        .limit(20); // Limit to top 20 active members to avoid overwhelming the system
+        .limit(10); // Begränsa till 10 medlemmar för att undvika överbelastning
 
       if (members && members.length > 0) {
         console.log(`Starting news refresh for ${members.length} members...`);
         
-        // Process in smaller batches to avoid overwhelming the system
-        for (let i = 0; i < members.length; i += 5) {
-          const batch = members.slice(i, i + 5);
+        // Bearbeta 2 i taget för att undvika överbelastning
+        for (let i = 0; i < members.length; i += 2) {
+          const batch = members.slice(i, i + 2);
           const newsPromises = batch.map(async (member) => {
             try {
               const { error: newsError } = await supabase.functions.invoke('fetch-member-news', {
@@ -206,17 +231,19 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
               });
               if (newsError) {
                 console.warn(`News fetch failed for ${member.first_name} ${member.last_name}:`, newsError);
+                warnings.push(`News fetch failed for ${member.first_name} ${member.last_name}`);
               }
             } catch (err) {
               console.warn(`News fetch error for ${member.first_name} ${member.last_name}:`, err);
+              warnings.push(`News fetch error for ${member.first_name} ${member.last_name}`);
             }
           });
           
           await Promise.all(newsPromises);
           
-          // Small delay between batches
-          if (i + 5 < members.length) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+          // Paus mellan batches
+          if (i + 2 < members.length) {
+            await new Promise(resolve => setTimeout(resolve, 3000));
           }
         }
         
@@ -225,21 +252,25 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
     } catch (newsError) {
       const errorMsg = `Member news refresh failed: ${newsError}`;
       console.error(errorMsg);
-      errors.push(errorMsg);
+      warnings.push(errorMsg); // Inte en kritisk error
     }
 
     const duration = Date.now() - startTime;
     const hasErrors = errors.length > 0;
+    const hasWarnings = warnings.length > 0;
 
-    // Log the comprehensive sync
+    // Logga den omfattande synkroniseringen
     try {
       await supabase
         .from('data_sync_log')
         .insert({
-          sync_type: 'comprehensive_all_data',
-          status: hasErrors ? 'partial_success' : 'success',
+          sync_type: 'enhanced_all_data_refresh',
+          status: hasErrors ? 'partial_success' : (hasWarnings ? 'success_with_warnings' : 'success'),
           sync_duration_ms: duration,
-          error_details: hasErrors ? { errors } : null,
+          error_details: { 
+            errors: hasErrors ? errors : null,
+            warnings: hasWarnings ? warnings : null
+          },
           ...totalStats
         });
     } catch (logError) {
@@ -247,22 +278,25 @@ export const refreshAllData = async (): Promise<RefreshResult> => {
     }
 
     return {
-      success: !hasErrors || errors.length < 3, // Consider successful if most operations worked
+      success: !hasErrors,
       message: hasErrors 
-        ? `Data refresh completed with ${errors.length} errors. Most data was updated successfully.`
-        : 'All data refreshed successfully across all systems!',
+        ? `Data refresh completed with ${errors.length} errors and ${warnings.length} warnings.`
+        : hasWarnings
+        ? `Data refresh completed successfully with ${warnings.length} warnings.`
+        : 'All data refreshed successfully!',
       duration,
       stats: totalStats,
-      errors: hasErrors ? errors : undefined
+      errors: hasErrors ? errors : undefined,
+      warnings: hasWarnings ? warnings : undefined
     };
 
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error('Fatal error in comprehensive data refresh:', error);
+    console.error('Fatal error in enhanced data refresh:', error);
     
     return {
       success: false,
-      message: `Comprehensive data refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      message: `Enhanced data refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       duration,
       errors: [error instanceof Error ? error.message : 'Unknown error']
     };
@@ -284,7 +318,7 @@ export const refreshSpecificDataType = async (dataType: string): Promise<Refresh
       case 'document':
       case 'speech':
       case 'calendar':
-        // Use the comprehensive data sync for all core data types
+        // Använd den förbättrade comprehensive data sync för alla kärndata-typer
         result = await supabase.functions.invoke('fetch-comprehensive-data');
         break;
       default:
@@ -301,7 +335,8 @@ export const refreshSpecificDataType = async (dataType: string): Promise<Refresh
       success: true,
       message: `${dataType} data refreshed successfully`,
       duration,
-      stats: result.data?.stats
+      stats: result.data?.stats,
+      warnings: result.data?.warnings
     };
     
   } catch (error) {
@@ -324,6 +359,7 @@ export const getComprehensiveDataStatus = async () => {
 
     const overallStale = freshnessStatus.some(status => status.isStale);
     const hasErrors = freshnessStatus.some(status => status.errorMessage);
+    const hasWarnings = freshnessStatus.some(status => status.warningMessage);
     const totalRecords = freshnessStatus.reduce((sum, status) => sum + (status.recordCount || 0), 0);
 
     return {
@@ -331,11 +367,13 @@ export const getComprehensiveDataStatus = async () => {
       lastSync,
       overallStale,
       hasErrors,
+      hasWarnings,
       totalRecords,
       summary: {
         totalDataTypes: freshnessStatus.length,
         staleDataTypes: freshnessStatus.filter(s => s.isStale).length,
         errorDataTypes: freshnessStatus.filter(s => s.errorMessage).length,
+        warningDataTypes: freshnessStatus.filter(s => s.warningMessage).length,
         totalRecords
       }
     };
@@ -346,23 +384,23 @@ export const getComprehensiveDataStatus = async () => {
 };
 
 export const initializeAllDatabases = async (): Promise<RefreshResult> => {
-  console.log('Initializing all Supabase databases...');
+  console.log('Initializing all Supabase databases with enhanced capabilities...');
   
   try {
-    // Check current data status
+    // Kontrollera nuvarande datastatus
     const status = await getComprehensiveDataStatus();
     console.log('Current data status:', status.summary);
     
-    // If we have very little data, do a full refresh
-    if (status.totalRecords < 100 || status.summary.staleDataTypes > 3) {
-      console.log('Low data count or many stale data types detected. Starting full initialization...');
+    // Om vi har mycket lite data eller många föråldrade datatyper, gör en fullständig uppdatering
+    if (status.totalRecords < 500 || status.summary.staleDataTypes > 3) {
+      console.log('Low data count or many stale data types detected. Starting full enhanced initialization...');
       return await refreshAllData();
     } else {
       console.log('Databases appear to be initialized. Checking for updates...');
       
-      // If data exists but some is stale, refresh only stale data
+      // Om data finns men en del är föråldrad, uppdatera endast föråldrad data
       const staleTypes = status.freshnessStatus
-        .filter(s => s.isStale && s.type !== 'Member News') // Skip news for now
+        .filter(s => s.isStale && s.type !== 'Member News') // Hoppa över nyheter för nu
         .map(s => s.type);
       
       if (staleTypes.length > 0) {
@@ -377,10 +415,10 @@ export const initializeAllDatabases = async (): Promise<RefreshResult> => {
       }
     }
   } catch (error) {
-    console.error('Error during database initialization:', error);
+    console.error('Error during enhanced database initialization:', error);
     return {
       success: false,
-      message: `Database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      message: `Enhanced database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       errors: [error instanceof Error ? error.message : 'Unknown error']
     };
   }
@@ -390,10 +428,15 @@ export const initializeAllDatabases = async (): Promise<RefreshResult> => {
 export const formatDataStatusMessage = (status: DataFreshnessStatus[]): string => {
   const staleItems = status.filter(s => s.isStale);
   const errorItems = status.filter(s => s.errorMessage);
+  const warningItems = status.filter(s => s.warningMessage);
   const totalRecords = status.reduce((sum, s) => sum + (s.recordCount || 0), 0);
 
   if (errorItems.length > 0) {
     return `${errorItems.length} data type(s) have errors. ${totalRecords.toLocaleString()} total records. Please refresh.`;
+  }
+
+  if (warningItems.length > 0 && staleItems.length === 0) {
+    return `Data is fresh but ${warningItems.length} type(s) have warnings. ${totalRecords.toLocaleString()} total records.`;
   }
 
   if (staleItems.length === 0) {
