@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees } from '../services/riksdagApi';
+import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments } from '../services/riksdagApi';
 import { Member } from '../types/member';
 
 // Committee mapping from codes to full names
@@ -77,16 +77,16 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
 
   console.log(`Document stats for ${riksdagMember.efternamn}: motions=${motions}, interpellations=${interpellations}, questions=${writtenQuestions}`);
 
-  // Enhanced assignment processing with better date handling and filtering
+  // Enhanced assignment processing with better committee filtering
   const currentDate = new Date();
   const assignments = memberDetails?.assignments || [];
   
   console.log(`Processing ${assignments.length} assignments for ${riksdagMember.efternamn}`);
   console.log(`Raw assignments for ${riksdagMember.efternamn}:`, assignments);
   
-  // Filter active assignments with improved logic
-  const activeAssignments = assignments.filter(assignment => {
-    // Parse dates more carefully and handle various formats
+  // Filter active committee assignments with improved validation
+  const activeCommitteeAssignments = assignments.filter(assignment => {
+    // Parse dates more carefully
     let endDate: Date | null = null;
     if (assignment.tom) {
       const tomString = assignment.tom.toString().trim();
@@ -95,11 +95,9 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
           if (tomString.includes('T')) {
             endDate = new Date(tomString);
           } else {
-            // Handle date-only strings, add end of day
             endDate = new Date(tomString + 'T23:59:59');
           }
           
-          // Check if date is valid
           if (isNaN(endDate.getTime())) {
             endDate = null;
           }
@@ -113,39 +111,35 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     // Assignment is active if no end date or end date is in the future
     const isActive = !endDate || endDate > currentDate;
     
-    // Filter out chamber assignments and non-committee assignments
-    const isNotChamber = assignment.organ !== 'Kammaren' && 
-                        assignment.organ !== 'kam' && 
-                        !assignment.organ.toLowerCase().includes('kammar');
+    // Only include committee assignments with validated organ codes
+    const isCommitteeAssignment = assignment.typ === 'Utskott' || 
+                                 assignment.typ === 'uppdrag' ||
+                                 assignment.typ === 'Riksdagsorgan';
     
-    // Focus on committee and important assignments - be more inclusive
-    const isCommitteeOrImportant = assignment.typ === 'uppdrag' || 
-                                  assignment.typ === 'Riksdagsorgan' || 
-                                  assignment.typ === 'Departement' ||
-                                  assignment.organ.toLowerCase().includes('utskott') ||
-                                  assignment.organ.toLowerCase().includes('nämnd') ||
-                                  assignment.organ.toLowerCase().includes('delegation') ||
-                                  assignment.organ.endsWith('U') || // Committee codes often end with 'U'
-                                  assignment.organ.endsWith('u') ||
-                                  COMMITTEE_MAPPING[assignment.organ]; // Check if it's in our committee mapping
+    const isValidCommittee = assignment.organ && (
+      isValidCommitteeCode(assignment.organ) ||
+      assignment.organ.toLowerCase().includes('utskott') ||
+      assignment.organ.toLowerCase().includes('nämnd') ||
+      COMMITTEE_MAPPING[assignment.organ]
+    );
     
-    const result = isActive && isNotChamber && isCommitteeOrImportant;
+    const result = isActive && isCommitteeAssignment && isValidCommittee;
     
-    console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - Active: ${isActive}, NotChamber: ${isNotChamber}, Committee: ${isCommitteeOrImportant}, Final: ${result} - Type: ${assignment.typ} - End: ${assignment.tom || 'No end date'}`);
+    console.log(`Assignment for ${riksdagMember.efternamn}: ${assignment.organ} (${assignment.roll}) - Active: ${isActive}, Committee: ${isCommitteeAssignment && isValidCommittee}, Final: ${result}`);
     
     return result;
   });
 
   // Extract current committees from active assignments and map to full names
-  const currentCommittees = activeAssignments.map(assignment => {
+  const currentCommittees = activeCommitteeAssignments.map(assignment => {
     const organ = assignment.organ;
-    // If the organ is a code, map it to full name, otherwise use the organ name as is
-    const fullName = COMMITTEE_MAPPING[organ] || organ;
+    // Use uppgift if available, otherwise map code to full name, otherwise use organ as is
+    let fullName = assignment.uppgift || COMMITTEE_MAPPING[organ] || organ;
     console.log(`Committee mapping for ${riksdagMember.efternamn}: ${organ} -> ${fullName}`);
     return fullName;
   });
 
-  console.log(`Final active assignments for ${riksdagMember.efternamn}:`, activeAssignments.map(a => `${a.organ} (${a.roll})`));
+  console.log(`Final active committee assignments for ${riksdagMember.efternamn}:`, activeCommitteeAssignments.map(a => `${a.organ} (${a.roll})`));
   console.log(`Current committees for ${riksdagMember.efternamn}:`, currentCommittees);
 
   return {
@@ -155,7 +149,7 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     party: riksdagMember.parti,
     constituency: riksdagMember.valkrets,
     imageUrl,
-    email: memberDetails?.email || `${riksdagMember.tilltalsnamn.toLowerCase()}.${riksdagMember.efternamn.toLowerCase()}@riksdag.se`,
+    email: memberDetails?.email, // Don't generate potentially incorrect emails
     birthYear: parseInt(riksdagMember.fodd_ar) || 1970,
     profession: memberDetails?.yrke || 'Riksdagsledamot',
     committees: currentCommittees,
@@ -347,4 +341,57 @@ export const useCommittees = () => {
   }, []);
 
   return { committees, loading };
+};
+
+// Add new hook for committee-specific operations
+export const useCommitteeMembers = (committeeCode: string) => {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCommitteeMembers = async () => {
+      if (!committeeCode || !isValidCommitteeCode(committeeCode)) {
+        setError('Ogiltig utskottskod');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const result = await fetchMembersWithCommittees(1, 50, 'current', committeeCode);
+        const mappedMembers = await Promise.all(
+          result.members.map(member => 
+            mapRiksdagMemberToMember({
+              intressent_id: member.intressent_id,
+              tilltalsnamn: member.tilltalsnamn,
+              efternamn: member.efternamn,
+              parti: member.parti,
+              valkrets: member.valkrets,
+              kon: member.kon,
+              fodd_ar: member.fodd_ar,
+              hangar_guid: '',
+              status: '',
+              datum_fran: '',
+              datum_tom: '',
+              fodd_datum: '',
+              bild_url_80: member.bild_url_80,
+              bild_url_192: member.bild_url_192,
+              bild_url_max: member.bild_url_max
+            }, member)
+          )
+        );
+        setMembers(mappedMembers);
+        setError(null);
+      } catch (err) {
+        setError('Kunde inte ladda utskottsledamöter');
+        console.error('Error loading committee members:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCommitteeMembers();
+  }, [committeeCode]);
+
+  return { members, loading, error };
 };

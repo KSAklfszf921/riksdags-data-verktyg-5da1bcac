@@ -1,4 +1,3 @@
-
 export interface Member {
   id: string;
   firstName: string;
@@ -31,6 +30,7 @@ export interface MemberAssignment {
   tom: string;
   typ?: string;
   ordning?: string;
+  uppgift?: string; // Committee full name e.g. "Arbetsmarknadsutskottet"
 }
 
 export interface Speech {
