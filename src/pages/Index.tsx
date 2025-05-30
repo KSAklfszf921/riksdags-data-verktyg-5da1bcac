@@ -147,15 +147,7 @@ const Index = () => {
                     {tool.description}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <Button variant="ghost" className="w-full justify-between text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-0 h-auto" onClick={e => {
-                e.stopPropagation();
-                handleToolClick(tool.href);
-              }}>
-                    Utforska
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </CardContent>
+                
               </Card>)}
           </div>
         </div>
