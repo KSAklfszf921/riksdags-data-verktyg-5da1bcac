@@ -4,15 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Clock, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, Clock, AlertCircle, Database, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
   fetchCachedPartyData, 
   fetchCachedMemberData, 
   getDataFreshness, 
   refreshPartyData,
+  getLastSyncInfo,
   type CachedPartyData,
-  type CachedMemberData
+  type CachedMemberData,
+  type DataSyncLog
 } from '../services/cachedPartyApi';
 import PartyStatsCards from './PartyStatsCards';
 import PartyDistributionChart from './PartyDistributionChart';
@@ -49,6 +51,7 @@ const OptimizedPartyAnalysis = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedParty, setSelectedParty] = useState<string | null>(null);
   const [dataFreshness, setDataFreshness] = useState<{ lastUpdated: string | null; isStale: boolean }>({ lastUpdated: null, isStale: true });
+  const [lastSync, setLastSync] = useState<DataSyncLog | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,11 +63,16 @@ const OptimizedPartyAnalysis = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Loading cached party analysis data...');
+      console.log('Loading enhanced cached party analysis data...');
       
-      // Check data freshness
-      const freshness = await getDataFreshness();
+      // Check data freshness and last sync info
+      const [freshness, syncInfo] = await Promise.all([
+        getDataFreshness(),
+        getLastSyncInfo()
+      ]);
+      
       setDataFreshness(freshness);
+      setLastSync(syncInfo);
       
       // Load cached data
       const [parties, members] = await Promise.all([
@@ -75,7 +83,7 @@ const OptimizedPartyAnalysis = () => {
       setPartyData(parties);
       setMemberData(members);
       
-      console.log(`Loaded ${members.length} members and ${parties.length} parties from cache`);
+      console.log(`Loaded ${members.length} members and ${parties.length} parties from enhanced cache`);
       
       if (freshness.isStale) {
         toast({
@@ -109,7 +117,7 @@ const OptimizedPartyAnalysis = () => {
       
       await refreshPartyData();
       
-      // Wait a moment for the data to be processed
+      // Wait a moment for the data to be processed, then reload
       setTimeout(async () => {
         await loadCachedData();
         setRefreshing(false);
@@ -190,11 +198,17 @@ const OptimizedPartyAnalysis = () => {
     return Object.entries(ageGroups).map(([label, value]) => ({ label, value }));
   };
 
+  const formatDuration = (ms: number | null) => {
+    if (!ms) return 'N/A';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin mr-3" />
-        <span className="text-lg">Laddar partianalys...</span>
+        <span className="text-lg">Laddar förbättrad partianalys...</span>
       </div>
     );
   }
@@ -226,14 +240,17 @@ const OptimizedPartyAnalysis = () => {
 
   return (
     <div className="space-y-6">
-      {/* Data status and controls */}
+      {/* Enhanced data status and controls */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Partianalys</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5" />
+                Förbättrad Partianalys
+              </CardTitle>
               <CardDescription>
-                Data från cache - uppdateras automatiskt dagligen
+                Data från förbättrad cache med utskottsinformation - uppdateras automatiskt dagligen
               </CardDescription>
             </div>
             <div className="flex items-center space-x-4">
@@ -266,20 +283,42 @@ const OptimizedPartyAnalysis = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <Select onValueChange={(value) => setSelectedParty(value === 'all' ? null : value)}>
-            <SelectTrigger className="w-[300px]">
-              <SelectValue placeholder="Alla partier" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alla partier</SelectItem>
-              {partyData.map(party => (
-                <SelectItem key={party.party_code} value={party.party_code}>
-                  {party.party_name} ({party.total_members} ledamöter)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Select onValueChange={(value) => setSelectedParty(value === 'all' ? null : value)}>
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Alla partier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla partier</SelectItem>
+                {partyData.map(party => (
+                  <SelectItem key={party.party_code} value={party.party_code}>
+                    {party.party_name} ({party.total_members} ledamöter)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Sync status info */}
+            {lastSync && (
+              <div className="flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4" />
+                  <span>Senaste synk: {lastSync.members_processed || 0} ledamöter</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Database className="w-4 h-4" />
+                  <span>Tid: {formatDuration(lastSync.sync_duration_ms)}</span>
+                </div>
+                <Badge 
+                  variant={lastSync.status === 'completed' ? 'default' : 'destructive'}
+                  className="text-xs"
+                >
+                  {lastSync.status}
+                </Badge>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

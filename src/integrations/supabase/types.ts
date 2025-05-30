@@ -9,47 +9,98 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      data_sync_log: {
+        Row: {
+          created_at: string
+          error_details: Json | null
+          errors_count: number | null
+          id: string
+          members_processed: number | null
+          parties_processed: number | null
+          status: string
+          sync_duration_ms: number | null
+          sync_type: string
+        }
+        Insert: {
+          created_at?: string
+          error_details?: Json | null
+          errors_count?: number | null
+          id?: string
+          members_processed?: number | null
+          parties_processed?: number | null
+          status: string
+          sync_duration_ms?: number | null
+          sync_type: string
+        }
+        Update: {
+          created_at?: string
+          error_details?: Json | null
+          errors_count?: number | null
+          id?: string
+          members_processed?: number | null
+          parties_processed?: number | null
+          status?: string
+          sync_duration_ms?: number | null
+          sync_type?: string
+        }
+        Relationships: []
+      }
       member_data: {
         Row: {
           activity_data: Json | null
           assignments: Json | null
           birth_year: number | null
+          committee_assignments: Json | null
           constituency: string | null
           created_at: string
+          current_committees: string[] | null
           first_name: string
           gender: string | null
           id: string
+          image_urls: Json | null
+          is_active: boolean | null
           last_name: string
           member_id: string
           party: string
+          riksdag_status: string | null
           updated_at: string
         }
         Insert: {
           activity_data?: Json | null
           assignments?: Json | null
           birth_year?: number | null
+          committee_assignments?: Json | null
           constituency?: string | null
           created_at?: string
+          current_committees?: string[] | null
           first_name: string
           gender?: string | null
           id?: string
+          image_urls?: Json | null
+          is_active?: boolean | null
           last_name: string
           member_id: string
           party: string
+          riksdag_status?: string | null
           updated_at?: string
         }
         Update: {
           activity_data?: Json | null
           assignments?: Json | null
           birth_year?: number | null
+          committee_assignments?: Json | null
           constituency?: string | null
           created_at?: string
+          current_committees?: string[] | null
           first_name?: string
           gender?: string | null
           id?: string
+          image_urls?: Json | null
+          is_active?: boolean | null
           last_name?: string
           member_id?: string
           party?: string
+          riksdag_status?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -60,9 +111,11 @@ export type Database = {
           activity_stats: Json | null
           age_distribution: Json | null
           committee_distribution: Json | null
+          committee_members: Json | null
           created_at: string
           gender_distribution: Json | null
           id: string
+          member_list: Json | null
           party_code: string
           party_name: string
           total_members: number
@@ -73,9 +126,11 @@ export type Database = {
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
+          committee_members?: Json | null
           created_at?: string
           gender_distribution?: Json | null
           id?: string
+          member_list?: Json | null
           party_code: string
           party_name: string
           total_members?: number
@@ -86,9 +141,11 @@ export type Database = {
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
+          committee_members?: Json | null
           created_at?: string
           gender_distribution?: Json | null
           id?: string
+          member_list?: Json | null
           party_code?: string
           party_name?: string
           total_members?: number

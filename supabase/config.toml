@@ -6,3 +6,11 @@ verify_jwt = false
 
 [functions.daily-party-data-sync]
 verify_jwt = false
+
+# Cron job configuration for daily data sync
+# This will run the sync function every day at 2 AM UTC
+[edge-runtime]
+policy = "per-worker"
+
+# Note: Cron jobs need to be configured via SQL in the database
+# See the SQL migration for setting up the actual cron schedule
