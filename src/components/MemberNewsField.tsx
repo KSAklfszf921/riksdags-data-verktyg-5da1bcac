@@ -23,6 +23,14 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Lista över CORS-proxies att testa
+  const corsProxies = [
+    'https://corsproxy.io/?',
+    'https://cors-anywhere.herokuapp.com/',
+    'https://api.allorigins.win/get?url=',
+    'https://cors.isomorphic-git.org/'
+  ];
+
   // Funktion för att skapa Google News RSS-URL
   const createGoogleNewsRssUrl = (name: string) => {
     const encodedName = encodeURIComponent(`"${name}"`);
@@ -58,7 +66,46 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
     }
   };
 
-  // Hämta nyheter
+  // Försök hämta med olika proxies
+  const tryFetchWithProxy = async (proxyUrl: string, rssUrl: string) => {
+    let finalUrl;
+    
+    if (proxyUrl.includes('allorigins')) {
+      finalUrl = `${proxyUrl}${encodeURIComponent(rssUrl)}`;
+    } else {
+      finalUrl = `${proxyUrl}${encodeURIComponent(rssUrl)}`;
+    }
+
+    console.log(`Trying proxy: ${proxyUrl} with URL: ${finalUrl}`);
+    
+    const response = await fetch(finalUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/rss+xml, application/xml, text/xml',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    let text = await response.text();
+    
+    // Hantera allorigins-format
+    if (proxyUrl.includes('allorigins')) {
+      try {
+        const jsonResponse = JSON.parse(text);
+        text = jsonResponse.contents;
+      } catch (e) {
+        console.log('Not allorigins JSON format, using text directly');
+      }
+    }
+
+    return text;
+  };
+
+  // Hämta nyheter med fallback-strategi
   const fetchNews = async () => {
     setLoading(true);
     setError(null);
@@ -67,27 +114,39 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
       const rssUrl = createGoogleNewsRssUrl(memberName);
       console.log(`Fetching news for ${memberName} from RSS: ${rssUrl}`);
       
-      // Använd CORS-proxy för att undvika CORS-problem
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
-      const response = await fetch(proxyUrl);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      let xmlText = null;
+      let lastError = null;
+
+      // Försök med olika CORS-proxies
+      for (const proxy of corsProxies) {
+        try {
+          xmlText = await tryFetchWithProxy(proxy, rssUrl);
+          console.log(`Successfully fetched with proxy: ${proxy}`);
+          break;
+        } catch (err) {
+          console.log(`Failed with proxy ${proxy}:`, err);
+          lastError = err;
+          continue;
+        }
       }
-      
-      const text = await response.text();
+
+      if (!xmlText) {
+        throw lastError || new Error('Alla CORS-proxies misslyckades');
+      }
       
       // Parsa XML
       const parser = new DOMParser();
-      const xml = parser.parseFromString(text, 'text/xml');
+      const xml = parser.parseFromString(xmlText, 'text/xml');
       
       // Kontrollera om XML är giltigt
       const parseError = xml.querySelector('parsererror');
       if (parseError) {
-        throw new Error('Invalid XML response from RSS feed');
+        console.error('XML Parse Error:', parseError.textContent);
+        throw new Error('Ogiltig XML-respons från RSS-flödet');
       }
       
       const items = xml.querySelectorAll('item');
+      console.log(`Found ${items.length} news items`);
       
       if (items.length === 0) {
         setNewsItems([]);
@@ -122,8 +181,32 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
       
     } catch (err) {
       console.error('Error fetching news:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Okänt fel uppstod';
+      let errorMessage = 'Okänt fel uppstod';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('403')) {
+          errorMessage = 'Åtkomst nekad - Google News blockerar förfrågningar för tillfället';
+        } else if (err.message.includes('CORS')) {
+          errorMessage = 'CORS-fel - kan inte komma åt nyheterna från denna webbläsare';
+        } else if (err.message.includes('Network')) {
+          errorMessage = 'Nätverksfel - kontrollera din internetanslutning';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(`Kunde inte hämta nyheter: ${errorMessage}`);
+      
+      // Visa mockdata som fallback
+      const mockNews: NewsItem[] = [
+        {
+          title: `Senaste nyheterna om ${memberName} kommer snart`,
+          link: '#',
+          pubDate: new Date().toISOString(),
+          description: 'Nyhetsflödet är tillfälligt otillgängligt. Försök igen senare.',
+        }
+      ];
+      setNewsItems(mockNews);
     } finally {
       setLoading(false);
     }
@@ -170,13 +253,16 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
           </div>
         ) : error && newsItems.length === 0 ? (
           <div className="text-center py-8">
-            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
-            <p className="text-red-600 text-sm">{error}</p>
+            <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-4" />
+            <p className="text-orange-600 text-sm mb-4">{error}</p>
+            <div className="text-xs text-gray-500 mb-4">
+              Tips: Nyhetsflödet kan vara tillfälligt otillgängligt på grund av Google News begränsningar.
+            </div>
             <Button
               variant="outline"
               size="sm"
               onClick={fetchNews}
-              className="mt-4"
+              className="mt-2"
             >
               Försök igen
             </Button>
@@ -207,15 +293,19 @@ const MemberNewsField = ({ memberName, maxItems = 5 }: MemberNewsFieldProps) => 
                   )}
                   <div className="flex-1">
                     <h4 className="text-base font-semibold text-blue-600 hover:underline mb-2">
-                      <a
-                        href={item.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center space-x-1"
-                      >
+                      {item.link !== '#' ? (
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1"
+                        >
+                          <span>{item.title}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
                         <span>{item.title}</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      )}
                     </h4>
                     <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
                       <Clock className="w-3 h-3" />
