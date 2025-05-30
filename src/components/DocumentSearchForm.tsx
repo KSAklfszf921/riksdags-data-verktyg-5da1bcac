@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,6 +6,7 @@ import { Search, Loader2 } from 'lucide-react';
 import { DocumentSearchParams } from '../services/riksdagApi';
 import { useDocumentTypes } from '../hooks/useDocumentTypes';
 import DocumentSearchFilters from './DocumentSearchFilters';
+import MemberAutocomplete from './MemberAutocomplete';
 
 // Available committees - updated to match API
 const COMMITTEES = [
@@ -73,6 +73,14 @@ const DocumentSearchForm = ({
 }: DocumentSearchFormProps) => {
   const { documentTypes, loading: typesLoading } = useDocumentTypes();
 
+  const handleMemberSelect = (member: any) => {
+    if (member) {
+      onUpdateSearchParams('iid', member.intressent_id);
+    } else {
+      onUpdateSearchParams('iid', undefined);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -86,7 +94,7 @@ const DocumentSearchForm = ({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Grundläggande sökning */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Sökord
@@ -95,6 +103,16 @@ const DocumentSearchForm = ({
               placeholder="Ange sökord..."
               value={searchParams.searchTerm || ''}
               onChange={(e) => onUpdateSearchParams('searchTerm', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Ledamot
+            </label>
+            <MemberAutocomplete 
+              onSelectMember={handleMemberSelect}
+              placeholder="Välj ledamot..."
             />
           </div>
           

@@ -84,6 +84,14 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                   <span className="text-sm text-gray-600">Aktivitetspoäng: {member.activityScore.toFixed(1)}</span>
                 </div>
               </div>
+              <div className="mt-2 text-sm text-gray-600">
+                {member.committees.length > 0 ? `${member.committees.length} utskott` : '0 utskott'} • 
+                {member.speeches.length} anföranden • 
+                {member.votes.length} röster • 
+                {member.motions || 0} motioner • 
+                {member.interpellations || 0} interpellationer • 
+                {member.writtenQuestions || 0} skriftliga frågor
+              </div>
             </div>
           </div>
           <Button variant="ghost" onClick={onClose}>
@@ -143,7 +151,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
             </CardContent>
           </Card>
 
-          {/* Aktivitetsstatistik */}
+          {/* Förbättrad aktivitetsstatistik */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -152,7 +160,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-blue-600">{member.motions || 0}</div>
                   <div className="text-sm text-blue-800">Motioner</div>
@@ -164,6 +172,18 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                 <div className="bg-orange-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-orange-600">{member.writtenQuestions || 0}</div>
                   <div className="text-sm text-orange-800">Skriftliga frågor</div>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-purple-600">{member.speeches.length}</div>
+                  <div className="text-sm text-purple-800">Anföranden</div>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-red-600">{member.votes.length}</div>
+                  <div className="text-sm text-red-800">Röster</div>
+                </div>
+                <div className="bg-indigo-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-indigo-600">{member.committees.length}</div>
+                  <div className="text-sm text-indigo-800">Utskott</div>
                 </div>
               </div>
             </CardContent>

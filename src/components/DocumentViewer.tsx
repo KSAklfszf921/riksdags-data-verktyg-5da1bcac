@@ -20,7 +20,6 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     setError(null);
     
     try {
-      // Förbättrad URL-konstruktion för att försöka flera format
       const urls = [];
       
       // Lägg till direktlänkar om de finns
@@ -31,25 +30,16 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
         urls.push(htmlUrl);
       }
       
-      if (document.dokument_url_text) {
-        const textUrl = document.dokument_url_text.startsWith('//') 
-          ? `https:${document.dokument_url_text}` 
-          : document.dokument_url_text;
-        urls.push(textUrl);
-      }
-      
       // Konstruera URLs baserat på beteckning
       if (document.beteckning) {
         const beteckning = document.beteckning.replace(/\s+/g, '');
         urls.push(`https://data.riksdagen.se/dokument/${beteckning}.html`);
         urls.push(`https://data.riksdagen.se/dokument/${beteckning}`);
-        urls.push(`https://data.riksdagen.se/dokument/${beteckning}/text`);
       }
       
       console.log('Trying URLs:', urls);
       
       let content = '';
-      let fetchError = null;
       
       // Försök hämta från varje URL tills vi får meningsfullt innehåll
       for (const url of urls) {
@@ -75,12 +65,11 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
             extractedContent = rawContent;
           }
           
-          // Kontrollera om vi fick meningsfullt innehåll (inte bara metadata)
+          // Rensa och formatera innehållet
           const cleanedContent = cleanAndFormatContent(extractedContent);
           console.log('Cleaned content length:', cleanedContent.length);
-          console.log('Content preview:', cleanedContent.substring(0, 200));
           
-          // Om innehållet ser ut som riktig text (inte bara metadata), använd det
+          // Om innehållet ser ut som riktig text, använd det
           if (cleanedContent.length > 200 && !isOnlyMetadata(cleanedContent)) {
             content = cleanedContent;
             console.log('Found good content from:', url);
@@ -89,7 +78,6 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
           
         } catch (err) {
           console.error(`Error fetching from ${url}:`, err);
-          fetchError = err;
         }
       }
       
@@ -107,22 +95,22 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
   };
 
   const extractContentFromHTML = (htmlContent: string): string => {
-    // Förbättrad HTML-extraktion för olika dokumenttyper
+    // Hitta huvud-innehållsområdet baserat på Riksdagens HTML-struktur
     let content = '';
     
-    // Försök hitta huvud-innehållsområdet
+    // Försök hitta huvudinnehåll i ordning av prioritet
     const contentSelectors = [
-      // Motioner och propositioner
-      /<div[^>]*class="[^"]*dokument-text[^"]*"[^>]*>(.*?)<\/div>/s,
+      // Specifika innehållsområden för olika dokumenttyper
+      /<div[^>]*class="[^"]*dokument[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*main-content[^"]*"[^>]*>(.*?)<\/div>/s,
       /<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*main[^"]*"[^>]*>(.*?)<\/div>/s,
       /<main[^>]*>(.*?)<\/main>/s,
       
-      // Specifika sektioner för motioner
-      /<div[^>]*class="[^"]*motion[^"]*"[^>]*>(.*?)<\/div>/s,
-      /<div[^>]*class="[^"]*proposal[^"]*"[^>]*>(.*?)<\/div>/s,
+      // Betänkanden och propositioner
+      /<div[^>]*id="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/s,
+      /<div[^>]*class="[^"]*document-content[^"]*"[^>]*>(.*?)<\/div>/s,
       
-      // Fallback: body innehåll utan header/footer/nav
+      // Fallback: hela body minus navigation
       /<body[^>]*>(.*?)<\/body>/s
     ];
     
@@ -130,10 +118,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       const match = htmlContent.match(regex);
       if (match && match[1]) {
         content = match[1];
-        console.log('Found content with selector:', regex.source.substring(0, 50) + '...');
+        console.log('Found content with selector');
         
-        // Rensa bort navigation, footer, header etc.
-        content = removeNavigationElements(content);
+        // Rensa bort navigation och andra störande element
+        content = removeUnwantedElements(content);
         
         // Om vi hittat betydande innehåll, använd det
         if (content.length > 500) {
@@ -142,18 +130,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       }
     }
     
-    // Om vi fortfarande inte har bra innehåll, ta hela body:n och rensa
-    if (!content || content.length < 200) {
-      const bodyMatch = htmlContent.match(/<body[^>]*>(.*?)<\/body>/s);
-      if (bodyMatch) {
-        content = removeNavigationElements(bodyMatch[1]);
-      }
-    }
-    
     return content;
   };
 
-  const removeNavigationElements = (content: string): string => {
+  const removeUnwantedElements = (content: string): string => {
     return content
       // Ta bort navigation, header, footer
       .replace(/<nav[^>]*>.*?<\/nav>/gs, '')
@@ -166,36 +146,26 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       .replace(/<div[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<\/div>/gs, '')
       .replace(/<div[^>]*class="[^"]*navigation[^"]*"[^>]*>.*?<\/div>/gs, '')
       
-      // Ta bort metadata-block som ofta är i början
-      .replace(/<div[^>]*class="[^"]*metadata[^"]*"[^>]*>.*?<\/div>/gs, '')
-      .replace(/<div[^>]*class="[^"]*document-info[^"]*"[^>]*>.*?<\/div>/gs, '')
-      
-      // Ta bort script och style
+      // Ta bort CSS och JavaScript
+      .replace(/<style[^>]*>.*?<\/style>/gs, '')
       .replace(/<script[^>]*>.*?<\/script>/gs, '')
-      .replace(/<style[^>]*>.*?<\/style>/gs, '');
+      
+      // Ta bort sidnavigation och metadata
+      .replace(/<div[^>]*class="[^"]*sidebar[^"]*"[^>]*>.*?<\/div>/gs, '')
+      .replace(/<div[^>]*class="[^"]*metadata[^"]*"[^>]*>.*?<\/div>/gs, '');
   };
 
   const extractContentFromXML = (xmlContent: string): string => {
-    // Förbättrad XML-extraktion
     const xmlSelectors = [
-      // Huvudinnehåll
       /<dokinttext[^>]*>(.*?)<\/dokinttext>/s,
       /<text[^>]*>(.*?)<\/text>/s,
       /<dokument[^>]*>(.*?)<\/dokument>/s,
-      
-      // Motionsspecifika
-      /<motion[^>]*>(.*?)<\/motion>/s,
-      /<proposal[^>]*>(.*?)<\/proposal>/s,
-      
-      // Fallback
-      /<summary[^>]*>(.*?)<\/summary>/s,
-      /<notis[^>]*>(.*?)<\/notis>/s
+      /<summary[^>]*>(.*?)<\/summary>/s
     ];
     
     for (const regex of xmlSelectors) {
       const match = xmlContent.match(regex);
       if (match && match[1] && match[1].trim().length > 100) {
-        console.log('Found XML content with selector:', regex.source.substring(0, 30) + '...');
         return match[1];
       }
     }
@@ -203,54 +173,41 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
     return xmlContent;
   };
 
-  const isOnlyMetadata = (content: string): boolean => {
-    // Kontrollera om innehållet bara är metadata
-    const metadataIndicators = [
-      // Datum och ID-mönster
-      /^\d{4}-\d{2}-\d{2}\s*\d+\s*[A-Z]{2,5}\s*\d+/,
-      
-      // Många korta rader med teknisk info
-      /^[\s\d\-:]+[A-Z]{2,10}[\s\d\-:]+$/m,
-      
-      // Bara beteckningar och datum
-      /^[A-Z]{1,3}\d{6}\s*\d{4}\/\d{2}:\d+/,
-    ];
-    
-    // Om innehållet matchar metadata-mönster och är kort
-    if (content.length < 500) {
-      for (const indicator of metadataIndicators) {
-        if (indicator.test(content.trim())) {
-          console.log('Content appears to be only metadata');
-          return true;
-        }
-      }
-    }
-    
-    // Om innehållet mestadels består av datum, siffror och korta ord
-    const words = content.trim().split(/\s+/);
-    const shortWords = words.filter(word => word.length <= 3 || /^\d+$/.test(word) || /^\d{4}-\d{2}-\d{2}$/.test(word));
-    const shortWordRatio = shortWords.length / words.length;
-    
-    if (shortWordRatio > 0.7 && content.length < 1000) {
-      console.log('Content has high ratio of short words/numbers, likely metadata');
-      return true;
-    }
-    
-    return false;
-  };
-
   const cleanAndFormatContent = (content: string): string => {
     return content
-      // Rensa HTML-taggar men behåll struktur
+      // Ta bort alla HTML-taggar men behåll struktur
       .replace(/<script[^>]*>.*?<\/script>/gs, '')
       .replace(/<style[^>]*>.*?<\/style>/gs, '')
-      .replace(/<banner[^>]*>.*?<\/banner>/gs, '')
-      .replace(/<nav[^>]*>.*?<\/nav>/gs, '')
-      .replace(/<header[^>]*>.*?<\/header>/gs, '')
-      .replace(/<footer[^>]*>.*?<\/footer>/gs, '')
-      .replace(/<a[^>]*href="[^"]*"[^>]*>/g, '')
-      .replace(/<\/a>/g, '')
-      .replace(/<img[^>]*>/g, '')
+      .replace(/<link[^>]*>/gs, '')
+      .replace(/<meta[^>]*>/gs, '')
+      
+      // Ta bort CSS-klasser och inline styles
+      .replace(/style="[^"]*"/gs, '')
+      .replace(/class="[^"]*"/gs, '')
+      .replace(/id="[^"]*"/gs, '')
+      
+      // Ta bort CSS-kod som läckt in
+      .replace(/#[a-zA-Z0-9_-]+\s*\{[^}]*\}/gs, '')
+      .replace(/\.[a-zA-Z0-9_-]+\s*\{[^}]*\}/gs, '')
+      .replace(/@[a-zA-Z-]+[^{]*\{[^}]*\}/gs, '')
+      
+      // Ta bort JavaScript-kod
+      .replace(/function[^{]*\{[^}]*\}/gs, '')
+      .replace(/var\s+[^;]+;/gs, '')
+      .replace(/document\.[^;]+;/gs, '')
+      
+      // Ta bort inline CSS properties
+      .replace(/position:\s*[^;]+;/gs, '')
+      .replace(/margin:\s*[^;]+;/gs, '')
+      .replace(/padding:\s*[^;]+;/gs, '')
+      .replace(/width:\s*[^;]+;/gs, '')
+      .replace(/height:\s*[^;]+;/gs, '')
+      .replace(/overflow:\s*[^;]+;/gs, '')
+      .replace(/border:\s*[^;]+;/gs, '')
+      
+      // Ta bort CSS-selektorer och properties
+      .replace(/#page_\d+\s*\{[^}]*\}/gs, '')
+      .replace(/\{[^}]*position:[^}]*\}/gs, '')
       
       // Ersätt HTML-entiteter
       .replace(/&amp;/g, '&')
@@ -263,39 +220,73 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
       .replace(/&Ouml;/g, 'Ö')
       .replace(/&Auml;/g, 'Ä')
       .replace(/&Aring;/g, 'Å')
-      .replace(/&eacute;/g, 'é')
-      .replace(/&aacute;/g, 'á')
-      .replace(/&iacute;/g, 'í')
-      .replace(/&oacute;/g, 'ó')
-      .replace(/&uacute;/g, 'ú')
-      .replace(/&ntilde;/g, 'ñ')
       .replace(/&nbsp;/g, ' ')
       
-      // Konvertera HTML-struktur till text
+      // Konvertera HTML-struktur till ren text
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/p>/gi, '\n\n')
-      .replace(/<p[^>]*>/gi, '\n\n')
+      .replace(/<p[^>]*>/gi, '\n')
       .replace(/<\/div>/gi, '\n')
       .replace(/<div[^>]*>/gi, '\n')
-      .replace(/<h[1-6][^>]*>/gi, '\n\n**')
-      .replace(/<\/h[1-6]>/gi, '**\n')
-      .replace(/<strong[^>]*>|<b[^>]*>/gi, '**')
-      .replace(/<\/strong>|<\/b>/gi, '**')
-      .replace(/<em[^>]*>|<i[^>]*>/gi, '_')
-      .replace(/<\/em>|<\/i>/gi, '_')
+      .replace(/<h[1-6][^>]*>/gi, '\n\n')
+      .replace(/<\/h[1-6]>/gi, '\n')
       .replace(/<li[^>]*>/gi, '\n• ')
       .replace(/<\/li>/gi, '')
       .replace(/<ul[^>]*>|<ol[^>]*>/gi, '\n')
       .replace(/<\/ul>|<\/ol>/gi, '\n')
       
-      // Rensa återstående HTML-taggar
-      .replace(/<[^>]*>/g, '')
+      // Ta bort alla återstående HTML-taggar
+      .replace(/<[^>]*>/g, ' ')
       
-      // Rensa och formatera
-      .replace(/\n\s*\n\s*\n/g, '\n\n')
-      .replace(/^\s+|\s+$/g, '')
+      // Ta bort Markdown-formatering
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/#{1,6}\s*/g, '')
+      .replace(/^\s*[-*+]\s+/gm, '• ')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      
+      // Rensa överflödiga mellanslag och radbrytningar
+      .replace(/\n\s*\n\s*\n+/g, '\n\n')
       .replace(/[ \t]+/g, ' ')
+      .replace(/^\s+|\s+$/gm, '')
       .trim();
+  };
+
+  const isOnlyMetadata = (content: string): boolean => {
+    // Kontrollera om innehållet bara är metadata
+    const metadataIndicators = [
+      /^\d{4}-\d{2}-\d{2}\s*\d+\s*[A-Z]{2,5}\s*\d+/,
+      /^[\s\d\-:]+[A-Z]{2,10}[\s\d\-:]+$/m,
+      /^[A-Z]{1,3}\d{6}\s*\d{4}\/\d{2}:\d+/,
+      /position:\s*relative/,
+      /overflow:\s*hidden/,
+      /#page_\d+/
+    ];
+    
+    // Om innehållet matchar metadata-mönster eller innehåller CSS
+    if (content.length < 500) {
+      for (const indicator of metadataIndicators) {
+        if (indicator.test(content.trim())) {
+          return true;
+        }
+      }
+    }
+    
+    // Om innehållet mestadels består av datum, siffror och CSS
+    const cssLines = content.split('\n').filter(line => 
+      line.includes('position:') || 
+      line.includes('margin:') || 
+      line.includes('#page_') ||
+      line.includes('overflow:')
+    );
+    
+    if (cssLines.length > 3) {
+      return true;
+    }
+    
+    return false;
   };
 
   const formatDate = (dateString: string) => {
