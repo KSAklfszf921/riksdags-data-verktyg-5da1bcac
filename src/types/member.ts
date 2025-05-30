@@ -15,6 +15,7 @@ export interface Member {
   votes: Vote[];
   proposals: Proposal[];
   activityScore: number;
+  documents?: RiksdagDocumentSummary[];
 }
 
 export interface Speech {
@@ -41,6 +42,15 @@ export interface Proposal {
   type: string;
   status: 'Antagen' | 'Avvisad' | 'Under behandling';
   url: string;
+}
+
+export interface RiksdagDocumentSummary {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  beteckning: string;
+  url?: string;
 }
 
 export interface PartyInfo {

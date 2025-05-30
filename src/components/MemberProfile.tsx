@@ -1,4 +1,3 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -21,6 +20,7 @@ import {
   ExternalLink,
   X
 } from 'lucide-react';
+import DocumentSearch from './DocumentSearch';
 
 interface MemberProfileProps {
   member: Member;
@@ -30,9 +30,34 @@ interface MemberProfileProps {
 const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
   const party = partyInfo[member.party];
 
+  const getDocumentTypeLabel = (type: string) => {
+    const typeMap: { [key: string]: string } = {
+      'mot': 'Motion',
+      'prop': 'Proposition',
+      'ip': 'Interpellation',
+      'fr': 'Skriftlig fråga',
+      'frs': 'Svar på skriftlig fråga',
+      'bet': 'Betänkande',
+      'prot': 'Protokoll',
+      'kam-ip': 'Interpellationsdebatt',
+      'kam-sf': 'Statsministerns frågestund',
+      'rskr': 'Riksdagsskrivelse',
+      'votering': 'Votering'
+    };
+    return typeMap[type] || type;
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('sv-SE');
+    } catch {
+      return dateString;
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Avatar className="w-20 h-20">
@@ -46,12 +71,12 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
                 {member.firstName} {member.lastName}
               </h2>
               <div className="flex items-center space-x-2 mt-1">
-                <Badge className={`${party.color} text-white`}>
-                  {party.fullName}
+                <Badge className={`${party?.color || 'bg-gray-500'} text-white`}>
+                  {party?.fullName || member.party}
                 </Badge>
                 <div className="flex items-center space-x-1">
                   <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                  <span className="text-sm text-gray-600">Aktivitetspoäng: {member.activityScore}</span>
+                  <span className="text-sm text-gray-600">Aktivitetspoäng: {member.activityScore.toFixed(1)}</span>
                 </div>
               </div>
             </div>
@@ -107,9 +132,77 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               )}
               <div className="md:col-span-2">
                 <span className="text-sm">
-                  <strong>Utskott:</strong> {member.committees.join(', ')}
+                  <strong>Utskott:</strong> {member.committees.join(', ') || 'Ingen information tillgänglig'}
                 </span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Dokument från ledamoten */}
+          {member.documents && member.documents.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="w-5 h-5" />
+                  <span>Senaste dokument ({member.documents.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Titel</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Beteckning</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {member.documents.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">
+                          <div className="max-w-sm">
+                            <p className="truncate">{doc.title}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {getDocumentTypeLabel(doc.type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDate(doc.date)}</TableCell>
+                        <TableCell className="font-mono text-sm">{doc.beteckning}</TableCell>
+                        <TableCell>
+                          {doc.url && (
+                            <Button variant="ghost" size="sm" asChild>
+                              <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Avancerad dokumentsökning för denna ledamot */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <FileText className="w-5 h-5" />
+                <span>Sök alla dokument från {member.firstName} {member.lastName}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DocumentSearch 
+                initialMemberId={member.id} 
+                showMemberFilter={false}
+              />
             </CardContent>
           </Card>
 

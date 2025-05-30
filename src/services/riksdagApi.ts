@@ -12,6 +12,9 @@ export interface RiksdagMember {
   datum_fran: string;
   datum_tom: string;
   fodd_datum: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
 }
 
 export interface RiksdagPersonResponse {
@@ -32,12 +35,40 @@ export interface RiksdagDocument {
   undertitel?: string;
   hangar_id?: string;
   hangar_guid?: string;
+  dokument_url_text?: string;
+  dokument_url_html?: string;
+  dokumentstatus?: string;
+  publicerad?: string;
+  kalla?: string;
+  rm?: string;
+  tempbet?: string;
+  nummer?: string;
+  slutdatum?: string;
+  systemdatum?: string;
 }
 
 export interface RiksdagDocumentResponse {
   dokumentlista: {
     dokument: RiksdagDocument[];
+    '@hits'?: string;
   };
+}
+
+export interface DocumentSearchParams {
+  searchTerm?: string;
+  docType?: string;
+  fromDate?: string;
+  toDate?: string;
+  intressentId?: string;
+  organ?: string;
+  party?: string[];
+  rm?: string;
+  beteckning?: string;
+  nummer?: string;
+  tempbet?: string;
+  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag';
+  sortOrder?: 'asc' | 'desc';
+  pageSize?: number;
 }
 
 const BASE_URL = 'https://data.riksdagen.se';
@@ -120,18 +151,38 @@ export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
   }
 };
 
-export const searchDocuments = async (
-  docType?: string,
-  fromDate?: string,
-  toDate?: string,
-  intressentId?: string
-): Promise<RiksdagDocument[]> => {
-  let url = `${BASE_URL}/dokumentlista/?sz=50&utformat=json`;
+export const searchDocuments = async (params: DocumentSearchParams): Promise<{documents: RiksdagDocument[], totalCount: number}> => {
+  let url = `${BASE_URL}/dokumentlista/?utformat=json`;
   
-  if (docType) url += `&typ=${docType}`;
-  if (fromDate) url += `&from=${fromDate}`;
-  if (toDate) url += `&tom=${toDate}`;
-  if (intressentId) url += `&iid=${intressentId}`;
+  // Add page size
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  // Add search parameters
+  if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
+  if (params.docType) url += `&typ=${params.docType}`;
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.organ) url += `&org=${params.organ}`;
+  if (params.rm) url += `&rm=${params.rm}`;
+  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
+  if (params.nummer) url += `&nr=${params.nummer}`;
+  if (params.tempbet) url += `&tempbet=${params.tempbet}`;
+  
+  // Add party filters
+  if (params.party && params.party.length > 0) {
+    params.party.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  // Add sorting
+  if (params.sort) url += `&sort=${params.sort}`;
+  if (params.sortOrder) url += `&sortorder=${params.sortOrder}`;
   
   try {
     const response = await fetch(url);
@@ -139,9 +190,22 @@ export const searchDocuments = async (
       throw new Error(`HTTP error: ${response.status}`);
     }
     const data: RiksdagDocumentResponse = await response.json();
-    return data.dokumentlista?.dokument || [];
+    const documents = data.dokumentlista?.dokument || [];
+    const totalCount = parseInt(data.dokumentlista?.['@hits'] || '0');
+    
+    return { documents, totalCount };
   } catch (error) {
     console.error('Error searching documents:', error);
     throw error;
   }
+};
+
+export const fetchMemberDocuments = async (intressentId: string): Promise<RiksdagDocument[]> => {
+  const { documents } = await searchDocuments({
+    intressentId,
+    pageSize: 100,
+    sort: 'datum',
+    sortOrder: 'desc'
+  });
+  return documents;
 };
