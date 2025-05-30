@@ -24,7 +24,7 @@ export interface CachedCalendarData {
 }
 
 export const fetchCachedCalendarData = async (limit = 100): Promise<CachedCalendarData[]> => {
-  console.log('Fetching cached calendar data...');
+  console.log(`Fetching cached calendar data with limit: ${limit}`);
   
   const { data, error } = await supabase
     .from('calendar_data')
@@ -37,6 +37,7 @@ export const fetchCachedCalendarData = async (limit = 100): Promise<CachedCalend
     throw new Error(`Failed to fetch cached calendar data: ${error.message}`);
   }
 
+  console.log(`Successfully fetched ${data?.length || 0} calendar events`);
   return data || [];
 };
 
@@ -47,11 +48,16 @@ export const fetchUpcomingEvents = async (daysAhead = 30): Promise<CachedCalenda
   const futureDate = new Date();
   futureDate.setDate(today.getDate() + daysAhead);
   
+  const todayStr = today.toISOString().split('T')[0];
+  const futureDateStr = futureDate.toISOString().split('T')[0];
+  
+  console.log(`Date range: ${todayStr} to ${futureDateStr}`);
+  
   const { data, error } = await supabase
     .from('calendar_data')
     .select('*')
-    .gte('datum', today.toISOString().split('T')[0])
-    .lte('datum', futureDate.toISOString().split('T')[0])
+    .gte('datum', todayStr)
+    .lte('datum', futureDateStr)
     .order('datum', { ascending: true });
 
   if (error) {
@@ -59,6 +65,7 @@ export const fetchUpcomingEvents = async (daysAhead = 30): Promise<CachedCalenda
     throw new Error(`Failed to fetch upcoming events: ${error.message}`);
   }
 
+  console.log(`Successfully fetched ${data?.length || 0} upcoming events`);
   return data || [];
 };
 
@@ -76,6 +83,7 @@ export const fetchEventsByOrgan = async (organ: string): Promise<CachedCalendarD
     throw new Error(`Failed to fetch events by organ: ${error.message}`);
   }
 
+  console.log(`Successfully fetched ${data?.length || 0} events for organ: ${organ}`);
   return data || [];
 };
 
@@ -93,6 +101,7 @@ export const fetchEventsByType = async (eventType: string): Promise<CachedCalend
     throw new Error(`Failed to fetch events by type: ${error.message}`);
   }
 
+  console.log(`Successfully fetched ${data?.length || 0} events of type: ${eventType}`);
   return data || [];
 };
 
@@ -111,11 +120,12 @@ export const fetchEventsByDateRange = async (fromDate: string, toDate: string): 
     throw new Error(`Failed to fetch events by date range: ${error.message}`);
   }
 
+  console.log(`Successfully fetched ${data?.length || 0} events in date range ${fromDate} to ${toDate}`);
   return data || [];
 };
 
 export const searchEvents = async (query: string): Promise<CachedCalendarData[]> => {
-  console.log(`Searching events with query: ${query}`);
+  console.log(`Searching events with query: "${query}"`);
   
   const { data, error } = await supabase
     .from('calendar_data')
@@ -128,6 +138,7 @@ export const searchEvents = async (query: string): Promise<CachedCalendarData[]>
     throw new Error(`Failed to search events: ${error.message}`);
   }
 
+  console.log(`Successfully found ${data?.length || 0} events matching query: "${query}"`);
   return data || [];
 };
 

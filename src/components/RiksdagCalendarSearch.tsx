@@ -43,87 +43,112 @@ const RiksdagCalendarSearch = () => {
   }, []);
 
   const loadRecentEvents = async () => {
+    console.log('Loading recent events...');
     setLoading(true);
     setError(null);
     
     try {
       const result = await fetchCachedCalendarData(50);
+      console.log(`Loaded ${result.length} recent events`);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata från databasen');
       console.error('Error loading recent events:', err);
+      setError('Kunde inte hämta senaste kalenderdata från databasen');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSearch = async () => {
+    console.log('Performing search with filters...');
     setLoading(true);
     setError(null);
     
     try {
       let result: CachedCalendarData[] = [];
 
-      if (searchQuery) {
-        result = await searchEvents(searchQuery);
+      if (searchQuery.trim()) {
+        console.log(`Searching for: "${searchQuery}"`);
+        result = await searchEvents(searchQuery.trim());
       } else if (fromDate && toDate) {
+        console.log(`Searching date range: ${fromDate} to ${toDate}`);
         result = await fetchEventsByDateRange(fromDate, toDate);
       } else if (selectedOrgan && selectedOrgan !== "all") {
+        console.log(`Searching by organ: ${selectedOrgan}`);
         result = await fetchEventsByOrgan(selectedOrgan);
       } else if (selectedType && selectedType !== "all") {
+        console.log(`Searching by type: ${selectedType}`);
         result = await fetchEventsByType(selectedType);
       } else {
+        console.log('Loading all events (no specific filters)');
         result = await fetchCachedCalendarData(100);
       }
 
+      console.log(`Search completed: ${result.length} events found`);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata');
       console.error('Error searching events:', err);
+      setError('Kunde inte hämta kalenderdata');
     } finally {
       setLoading(false);
     }
   };
 
   const loadThisWeek = async () => {
+    console.log('Loading this week events...');
     setLoading(true);
     setError(null);
     
     try {
-      const result = await fetchUpcomingEvents(7);
+      // Get events for the next 7 days from today
+      const today = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(today.getDate() + 7);
+      
+      const fromDateStr = today.toISOString().split('T')[0];
+      const toDateStr = nextWeek.toISOString().split('T')[0];
+      
+      console.log(`Loading events from ${fromDateStr} to ${toDateStr}`);
+      const result = await fetchEventsByDateRange(fromDateStr, toDateStr);
+      console.log(`Loaded ${result.length} events for this week`);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta denna veckans händelser');
       console.error('Error loading this week events:', err);
+      setError('Kunde inte hämta denna veckans händelser');
     } finally {
       setLoading(false);
     }
   };
 
   const loadNextWeek = async () => {
+    console.log('Loading next week events...');
     setLoading(true);
     setError(null);
     
     try {
+      // Get events from 7 days ahead to 14 days ahead
       const nextWeekStart = new Date();
       nextWeekStart.setDate(nextWeekStart.getDate() + 7);
       const nextWeekEnd = new Date();
       nextWeekEnd.setDate(nextWeekEnd.getDate() + 14);
       
-      const result = await fetchEventsByDateRange(
-        nextWeekStart.toISOString().split('T')[0],
-        nextWeekEnd.toISOString().split('T')[0]
-      );
+      const fromDateStr = nextWeekStart.toISOString().split('T')[0];
+      const toDateStr = nextWeekEnd.toISOString().split('T')[0];
+      
+      console.log(`Loading events from ${fromDateStr} to ${toDateStr}`);
+      const result = await fetchEventsByDateRange(fromDateStr, toDateStr);
+      console.log(`Loaded ${result.length} events for next week`);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta nästa veckans händelser');
       console.error('Error loading next week events:', err);
+      setError('Kunde inte hämta nästa veckans händelser');
     } finally {
       setLoading(false);
     }
   };
 
   const clearFilters = () => {
+    console.log('Clearing all filters...');
     setSelectedType("all");
     setSelectedOrgan("all");
     setSearchQuery("");
@@ -133,6 +158,7 @@ const RiksdagCalendarSearch = () => {
   };
 
   const exportToiCal = () => {
+    console.log(`Exporting ${events.length} events to iCal format`);
     const icsContent = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -276,19 +302,19 @@ const RiksdagCalendarSearch = () => {
                   )}
                   Sök händelser
                 </Button>
-                <Button variant="outline" onClick={clearFilters}>
+                <Button variant="outline" onClick={clearFilters} disabled={loading}>
                   Rensa filter
                 </Button>
-                <Button variant="outline" onClick={loadRecentEvents}>
+                <Button variant="outline" onClick={loadRecentEvents} disabled={loading}>
                   Senaste händelser
                 </Button>
-                <Button variant="outline" onClick={loadThisWeek}>
+                <Button variant="outline" onClick={loadThisWeek} disabled={loading}>
                   Denna vecka
                 </Button>
-                <Button variant="outline" onClick={loadNextWeek}>
+                <Button variant="outline" onClick={loadNextWeek} disabled={loading}>
                   Nästa vecka
                 </Button>
-                <Button variant="outline" onClick={exportToiCal}>
+                <Button variant="outline" onClick={exportToiCal} disabled={events.length === 0}>
                   <Download className="w-4 h-4 mr-2" />
                   Exportera iCal
                 </Button>
@@ -297,14 +323,24 @@ const RiksdagCalendarSearch = () => {
           </Card>
 
           {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {loading && (
             <Card>
               <CardContent className="text-center py-8">
-                <p className="text-red-600">{error}</p>
+                <div className="flex items-center justify-center space-x-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <p className="text-gray-600">Laddar kalenderhändelser...</p>
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {events.length > 0 && (
+          {!loading && events.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -361,6 +397,14 @@ const RiksdagCalendarSearch = () => {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {!loading && events.length === 0 && !error && (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-gray-500">Inga händelser hittades. Prova att ändra dina sökkriterier.</p>
               </CardContent>
             </Card>
           )}
