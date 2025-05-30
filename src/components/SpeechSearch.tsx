@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { searchSpeeches, SpeechSearchParams, RiksdagSpeech } from '../services/riksdagApi';
 import MemberAutocomplete from './MemberAutocomplete';
+import { cleanSpeechContent, createErrorContent, CleanedSpeechContent } from '../utils/speechContentCleaner';
 
 interface SpeechSearchProps {
   initialMemberId?: string;
@@ -35,7 +35,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSpeech, setSelectedSpeech] = useState<RiksdagSpeech | null>(null);
-  const [speechContent, setSpeechContent] = useState<string>('');
+  const [speechContent, setSpeechContent] = useState<CleanedSpeechContent | null>(null);
   const [loadingSpeech, setLoadingSpeech] = useState(false);
 
   const parties = [
@@ -68,7 +68,7 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
   const openSpeech = async (speech: RiksdagSpeech) => {
     setSelectedSpeech(speech);
     setLoadingSpeech(true);
-    setSpeechContent('');
+    setSpeechContent(null);
     
     try {
       // Try to fetch HTML content from the riksdag API
@@ -76,51 +76,18 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
       const response = await fetch(htmlUrl);
       
       if (response.ok) {
-        let content = await response.text();
-        
-        // Clean up problematic CSS styles
-        content = content.replace(/body\s*\{[^}]*\}/g, '');
-        content = content.replace(/#page_\d+[^{]*\{[^}]*\}/g, '');
-        content = content.replace(/margin-top:\s*0px;/g, '');
-        content = content.replace(/margin-left:\s*0px;/g, '');
-        
-        // Extract just the speech content, remove unnecessary styles
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(content, 'text/html');
-        
-        // Find the main speech div
-        const speechDiv = doc.querySelector('.anforande') || doc.querySelector('.text');
-        if (speechDiv) {
-          // Clean up and format the content
-          const cleanContent = speechDiv.innerHTML
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/body\s*\{[^}]*\}/g, '')
-            .replace(/#page_[^{]*\{[^}]*\}/g, '');
-          setSpeechContent(cleanContent);
-        } else {
-          setSpeechContent(content);
-        }
+        const rawContent = await response.text();
+        const cleanedContent = cleanSpeechContent(rawContent, speech);
+        setSpeechContent(cleanedContent);
       } else {
-        // Fallback to showing basic info if HTML fetch fails
-        setSpeechContent(`
-          <div class="speech-fallback">
-            <h4>${speech.dok_titel}</h4>
-            <p><strong>Talare:</strong> ${speech.talare}</p>
-            <p><strong>Parti:</strong> ${speech.parti}</p>
-            <p><strong>Datum:</strong> ${formatDate(speech.anforandedatum)}</p>
-            <p><strong>Kammaraktivitet:</strong> ${speech.kammaraktivitet}</p>
-            ${speech.anforandetext ? `<p><strong>Text:</strong> ${speech.anforandetext}</p>` : ''}
-          </div>
-        `);
+        // If HTML fetch fails, use fallback
+        const fallbackContent = createErrorContent(speech, `HTTP ${response.status}: Kunde inte hämta anförandets innehåll från riksdagen.se`);
+        setSpeechContent(fallbackContent);
       }
     } catch (err) {
       console.error('Error fetching speech content:', err);
-      setSpeechContent(`
-        <div class="speech-error">
-          <p>Kunde inte ladda anförandets innehåll.</p>
-          <p><a href="${speech.protokoll_url_www || '#'}" target="_blank" rel="noopener noreferrer">Öppna i riksdagens webbplats</a></p>
-        </div>
-      `);
+      const errorContent = createErrorContent(speech, 'Nätverksfel: Kunde inte ansluta till riksdagens API');
+      setSpeechContent(errorContent);
     } finally {
       setLoadingSpeech(false);
     }
@@ -430,17 +397,29 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 <span>Laddar anförande...</span>
               </div>
-            ) : (
-              <div 
-                className="prose prose-sm max-w-none speech-content"
-                dangerouslySetInnerHTML={{ __html: speechContent }}
-                style={{
-                  fontFamily: 'inherit',
-                  fontSize: '14px',
-                  lineHeight: '1.5'
-                }}
-              />
-            )}
+            ) : speechContent ? (
+              <div>
+                <div 
+                  className="prose prose-sm max-w-none speech-content"
+                  dangerouslySetInnerHTML={{ __html: speechContent.content }}
+                  style={{
+                    fontFamily: 'inherit',
+                    fontSize: '14px',
+                    lineHeight: '1.5'
+                  }}
+                />
+                {speechContent.source !== 'html' && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      {speechContent.source === 'fallback' 
+                        ? 'Visar grundläggande information eftersom fullständigt innehåll inte kunde laddas.'
+                        : 'Ett fel inträffade när innehållet skulle laddas.'
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
           
           {selectedSpeech && (
