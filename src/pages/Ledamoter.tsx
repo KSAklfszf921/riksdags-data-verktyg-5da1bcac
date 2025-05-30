@@ -10,7 +10,7 @@ import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
 import MemberProfile from "../components/MemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
-import { ResponsiveHeader } from "../components/ResponsiveHeader";
+import { PageHeader } from "../components/PageHeader";
 import { useMembers, useCommittees, getCommitteeName, getCommitteeCode } from "../hooks/useMembers";
 import { useResponsive } from "../hooks/use-responsive";
 import { RiksdagMember } from "../services/riksdagApi";
@@ -147,7 +147,7 @@ const Ledamoter = () => {
     <>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
         <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'} ${isMobile ? 'py-0' : 'py-8'}`}>
-          <ResponsiveHeader
+          <PageHeader
             title="Ledamöter"
             description="Utforska riksdagsledamöter och deras aktuella uppdrag"
             icon={<Users className="w-6 h-6 text-white" />}
