@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, Calendar, Clock, MapPin, Download } from "lucide-react";
+import { Loader2, Search, Calendar, Clock, MapPin, Download, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   fetchCalendarEvents, 
   fetchThisWeekEvents, 
@@ -29,6 +30,7 @@ const RiksdagCalendarSearch = () => {
   const [events, setEvents] = useState<RiksdagCalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [searchParams, setSearchParams] = useState<CalendarSearchParams>({
     utformat: 'json',
     sz: 100,
@@ -58,9 +60,15 @@ const RiksdagCalendarSearch = () => {
         sort: 'r', // reverse chronological for recent events
         sortorder: 'desc'
       });
+      
+      // Check if we got mock data (mock data has predictable IDs)
+      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
+      setUsingMockData(isMockData);
+      
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata från Riksdagen');
+      setError('Kunde inte hämta kalenderdata från Riksdagen. Visar exempeldata istället.');
+      setUsingMockData(true);
       console.error('Error loading recent events:', err);
     } finally {
       setLoading(false);
@@ -102,9 +110,15 @@ const RiksdagCalendarSearch = () => {
 
       console.log('Search params:', params);
       const result = await fetchCalendarEvents(params);
+      
+      // Check if we got mock data
+      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
+      setUsingMockData(isMockData);
+      
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta kalenderdata från Riksdagen');
+      setError('Kunde inte hämta kalenderdata från Riksdagen. Visar exempeldata istället.');
+      setUsingMockData(true);
       console.error('Error searching events:', err);
     } finally {
       setLoading(false);
@@ -117,9 +131,12 @@ const RiksdagCalendarSearch = () => {
     
     try {
       const result = await fetchThisWeekEvents();
+      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
+      setUsingMockData(isMockData);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta denna veckans händelser');
+      setError('Kunde inte hämta denna veckans händelser. Visar exempeldata istället.');
+      setUsingMockData(true);
       console.error('Error loading this week events:', err);
     } finally {
       setLoading(false);
@@ -132,9 +149,12 @@ const RiksdagCalendarSearch = () => {
     
     try {
       const result = await fetchNextWeekEvents();
+      const isMockData = result.some(event => ['1', '2', '3'].includes(event.id));
+      setUsingMockData(isMockData);
       setEvents(result);
     } catch (err) {
-      setError('Kunde inte hämta nästa veckans händelser');
+      setError('Kunde inte hämta nästa veckans händelser. Visar exempeldata istället.');
+      setUsingMockData(true);
       console.error('Error loading next week events:', err);
     } finally {
       setLoading(false);
@@ -200,6 +220,16 @@ const RiksdagCalendarSearch = () => {
 
   return (
     <div className="space-y-6">
+      {usingMockData && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Riksdagens API är för närvarande inte tillgängligt på grund av CORS-begränsningar. 
+            Exempeldata visas för att demonstrera funktionaliteten.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs defaultValue="search" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="search">Sök händelser</TabsTrigger>
@@ -340,7 +370,7 @@ const RiksdagCalendarSearch = () => {
           {error && (
             <Card>
               <CardContent className="text-center py-8">
-                <p className="text-red-600">{error}</p>
+                <p className="text-amber-600">{error}</p>
               </CardContent>
             </Card>
           )}
@@ -350,7 +380,14 @@ const RiksdagCalendarSearch = () => {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Kalenderhändelser</span>
-                  <Badge variant="secondary">{events.length} händelser</Badge>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary">{events.length} händelser</Badge>
+                    {usingMockData && (
+                      <Badge variant="outline" className="text-amber-600">
+                        Exempeldata
+                      </Badge>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
