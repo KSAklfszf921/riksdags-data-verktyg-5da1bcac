@@ -1,7 +1,32 @@
-
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees } from '../services/riksdagApi';
 import { Member } from '../types/member';
+
+// Committee mapping from codes to full names
+const COMMITTEE_MAPPING: { [key: string]: string } = {
+  'AU': 'Arbetsmarknadsutskottet',
+  'CU': 'Civilutskottet', 
+  'FiU': 'Finansutskottet',
+  'FöU': 'Försvarsutskottet',
+  'JuU': 'Justitieutskottet',
+  'KU': 'Konstitutionsutskottet',
+  'KrU': 'Kulturutskottet',
+  'MjU': 'Miljö- och jordbruksutskottet',
+  'NU': 'Näringsutskottet',
+  'SkU': 'Skatteutskottet',
+  'SfU': 'Socialförsäkringsutskottet',
+  'SoU': 'Socialutskottet',
+  'TU': 'Trafikutskottet',
+  'UbU': 'Utbildningsutskottet',
+  'UU': 'Utrikesutskottet',
+  'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
+  'eun': 'EU-nämnden'
+};
+
+// Reverse mapping from full names to codes
+const COMMITTEE_CODE_MAPPING: { [key: string]: string } = Object.fromEntries(
+  Object.entries(COMMITTEE_MAPPING).map(([code, name]) => [name, code])
+);
 
 const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetails): Promise<Member> => {
   // Use the real image URLs from Riksdag API when available
@@ -113,7 +138,8 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
                                   assignment.organ.toLowerCase().includes('nämnd') ||
                                   assignment.organ.toLowerCase().includes('delegation') ||
                                   assignment.organ.endsWith('U') || // Committee codes often end with 'U'
-                                  assignment.organ.endsWith('u');
+                                  assignment.organ.endsWith('u') ||
+                                  COMMITTEE_MAPPING[assignment.organ]; // Check if it's in our committee mapping
     
     const result = isActive && isNotChamber && isCommitteeOrImportant;
     
@@ -124,8 +150,12 @@ const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDeta
     return result;
   });
 
-  // Extract current committees from active assignments
-  const currentCommittees = activeAssignments.map(assignment => assignment.organ);
+  // Extract current committees from active assignments and map to full names
+  const currentCommittees = activeAssignments.map(assignment => {
+    const organ = assignment.organ;
+    // If the organ is a code, map it to full name, otherwise use the organ name as is
+    return COMMITTEE_MAPPING[organ] || organ;
+  });
 
   console.log(`Final active assignments for ${riksdagMember.efternamn}:`, activeAssignments.map(a => `${a.organ} (${a.roll})`));
   console.log(`Current committees for ${riksdagMember.efternamn}:`, currentCommittees);
@@ -173,7 +203,6 @@ export const useMembers = (
         console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
         // Always use the regular members API and then filter in frontend
-        // The committee-specific API seems to have issues
         const result = await fetchMembers(page, pageSize, status);
         console.log(`Fetched ${result.members.length} members out of ${result.totalCount} total (before committee filtering)`);
         
@@ -213,75 +242,38 @@ export const useMembers = (
           console.log(`Filtering members by committee: ${committee}`);
           
           filteredMembers = mappedMembers.filter(member => {
-            // Check if member has any active assignments matching the committee
-            const hasMatchingCommittee = member.assignments?.some(assignment => {
-              const currentDate = new Date();
-              let endDate = null;
-              
-              // Parse end date
-              if (assignment.tom) {
-                try {
-                  endDate = assignment.tom.includes('T') ? new Date(assignment.tom) : new Date(assignment.tom + 'T23:59:59');
-                  if (isNaN(endDate.getTime())) {
-                    endDate = null;
-                  }
-                } catch (e) {
-                  endDate = null;
-                }
+            // Check if member has the committee in their committees array (which now contains full names)
+            const hasMatchingCommittee = member.committees.some(memberCommittee => {
+              // Direct match with full committee name
+              if (memberCommittee === committee) {
+                return true;
               }
               
-              // Check if assignment is active
-              const isActive = !endDate || endDate > currentDate;
-              
-              // Enhanced committee matching logic
-              if (isActive) {
-                const organ = assignment.organ;
-                const committeeSearch = committee.toLowerCase();
-                const organLower = organ.toLowerCase();
-                
-                // Multiple matching strategies
-                const matches = 
-                  organ === committee || // Exact match
-                  organLower === committeeSearch || // Case insensitive exact match
-                  organLower.includes(committeeSearch) || // Contains search term
-                  committeeSearch.includes(organLower) || // Search term contains organ
-                  // Match common abbreviations
-                  (committee === 'CU' && (organ === 'Civilutskottet' || organLower.includes('civil'))) ||
-                  (committee === 'Civilutskottet' && (organ === 'CU' || organLower.includes('civil'))) ||
-                  (committee === 'AU' && (organ === 'Arbetsmarknadsutskottet' || organLower.includes('arbetsmarknad'))) ||
-                  (committee === 'FiU' && (organ === 'Finansutskottet' || organLower.includes('finans'))) ||
-                  (committee === 'FöU' && (organ === 'Försvarsutskottet' || organLower.includes('försvar'))) ||
-                  (committee === 'JuU' && (organ === 'Justitieutskottet' || organLower.includes('justitie'))) ||
-                  (committee === 'KU' && (organ === 'Konstitutionsutskottet' || organLower.includes('konstitution'))) ||
-                  (committee === 'KrU' && (organ === 'Kulturutskottet' || organLower.includes('kultur'))) ||
-                  (committee === 'MjU' && (organ === 'Miljö- och jordbruksutskottet' || organLower.includes('miljö') || organLower.includes('jordbruk'))) ||
-                  (committee === 'NU' && (organ === 'Näringsutskottet' || organLower.includes('näring'))) ||
-                  (committee === 'SkU' && (organ === 'Skatteutskottet' || organLower.includes('skatt'))) ||
-                  (committee === 'SfU' && (organ === 'Socialförsäkringsutskottet' || organLower.includes('socialförsäkring'))) ||
-                  (committee === 'SoU' && (organ === 'Socialutskottet' || organLower.includes('social'))) ||
-                  (committee === 'TU' && (organ === 'Trafikutskottet' || organLower.includes('trafik'))) ||
-                  (committee === 'UbU' && (organ === 'Utbildningsutskottet' || organLower.includes('utbildning'))) ||
-                  (committee === 'UU' && (organ === 'Utrikesutskottet' || organLower.includes('utrikes')));
-                
-                if (matches) {
-                  console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} via assignment: ${organ} (${assignment.roll})`);
-                }
-                
-                return matches;
+              // Check if the search committee is a code and member has the corresponding full name
+              const fullCommitteeName = COMMITTEE_MAPPING[committee];
+              if (fullCommitteeName && memberCommittee === fullCommitteeName) {
+                return true;
               }
               
-              return false;
+              // Check if the search committee is a full name and member has a matching code
+              const committeeCode = COMMITTEE_CODE_MAPPING[committee];
+              if (committeeCode && memberCommittee === COMMITTEE_MAPPING[committeeCode]) {
+                return true;
+              }
+              
+              // Partial matching as fallback
+              return memberCommittee.toLowerCase().includes(committee.toLowerCase()) ||
+                     committee.toLowerCase().includes(memberCommittee.toLowerCase());
             });
+            
+            if (hasMatchingCommittee) {
+              console.log(`✓ Member ${member.firstName} ${member.lastName} matches committee ${committee} - Member committees: ${member.committees.join(', ')}`);
+            }
             
             return hasMatchingCommittee;
           });
           
           console.log(`After committee filtering: ${filteredMembers.length} members match committee ${committee}`);
-          
-          // Log some examples of filtered members
-          filteredMembers.slice(0, 3).forEach(member => {
-            console.log(`Filtered member: ${member.firstName} ${member.lastName} - Committees: ${member.committees.join(', ')}`);
-          });
         }
         
         if (page === 1) {

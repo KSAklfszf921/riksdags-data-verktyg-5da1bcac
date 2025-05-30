@@ -33,8 +33,8 @@ const Ledamoter = () => {
   );
   const { committees } = useCommittees();
 
-  // Comprehensive list of all Swedish parliament committees and organs
-  const ALL_COMMITTEES = [
+  // Predefined committees with full names (no codes)
+  const COMMITTEE_LIST = [
     'Arbetsmarknadsutskottet',
     'Civilutskottet',
     'EU-nämnden',
@@ -52,56 +52,17 @@ const Ledamoter = () => {
     'Socialutskottet',
     'Trafikutskottet',
     'Utbildningsutskottet',
-    'Utrikesutskottet',
-    // Committee codes from the Riksdag API
-    'AU', // Arbetsmarknadsutskottet
-    'CU', // Civilutskottet
-    'FiU', // Finansutskottet
-    'FöU', // Försvarsutskottet
-    'JuU', // Justitieutskottet
-    'KU', // Konstitutionsutskottet
-    'KrU', // Kulturutskottet
-    'MjU', // Miljö- och jordbruksutskottet
-    'NU', // Näringsutskottet
-    'SkU', // Skatteutskottet
-    'SfU', // Socialförsäkringsutskottet
-    'SoU', // Socialutskottet
-    'TU', // Trafikutskottet
-    'UbU', // Utbildningsutskottet
-    'UU', // Utrikesutskottet
-    'UFöU', // Sammansatta utrikes- och försvarsutskottet
-    'eun', // EU-nämnden
-    // Additional organs and delegations
-    'Domarnämnden',
-    'Krigsdelegationen',
-    'Ledamotsrådet',
-    'Nordiska rådets svenska delegation',
-    'Riksbanksfullmäktige',
-    'Riksdagens ansvarsnämnd',
-    'Riksdagens arvodesnämnd',
-    'Riksdagens delegation till Arktiska parlamentarikerkonferensen',
-    'Riksdagens delegation till Europarådets parlamentariska församling',
-    'Riksdagens delegation till Interparlamentariska unionen',
-    'Riksdagens delegation till Natos parlamentariska församling',
-    'Riksdagens delegation till OSSE:s parlamentariska församling',
-    'Riksdagens delegation till parlamentariska Östersjökonferensen',
-    'Riksdagens ombudsmän',
-    'Riksdagens styrgrupp för det bilaterala demokratifrämjande samarbetet',
-    'Riksdagens överklagandenämnd',
-    'Riksdagsstyrelsen',
-    'Riksrevisionen',
-    'Riksrevisionens parlamentariska råd',
-    'Statsrådsarvodesnämnden',
-    'Utrikesnämnden',
-    'Valberedningen',
-    'Valprövningsnämnden'
+    'Utrikesutskottet'
   ];
 
   // Combine API committees with predefined list and remove duplicates
+  // Only use full names, no codes
   const allAvailableCommittees = Array.from(new Set([
     ...committees,
-    ...ALL_COMMITTEES
-  ])).sort();
+    ...COMMITTEE_LIST
+  ]))
+  .filter(committee => committee.length > 3) // Filter out short codes like "AU", "CU" etc
+  .sort();
 
   // Hämta unika valkretsar från riktig data
   const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
@@ -109,7 +70,7 @@ const Ledamoter = () => {
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
   const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
 
-  // Improved committee filtering - more comprehensive matching
+  // Simplified committee filtering - now that committees are stored as full names
   const filteredAndSortedMembers = members
     .filter(member => {
       // Om autocomplete-filter är aktivt, visa bara den valda ledamoten
@@ -122,31 +83,13 @@ const Ledamoter = () => {
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
       
-      // Enhanced committee filtering - check multiple ways to match committees
+      // Simplified committee filtering since committees are now stored as full names
       const matchesCommittee = selectedCommittee === "all" || 
-        member.assignments?.some(assignment => {
-          const currentDate = new Date();
-          let endDate = null;
-          if (assignment.tom) {
-            try {
-              endDate = assignment.tom.includes('T') ? new Date(assignment.tom) : new Date(assignment.tom + 'T23:59:59');
-            } catch (e) {
-              endDate = null;
-            }
-          }
-          const isActive = !endDate || endDate > currentDate;
-          
-          // Match by exact name, contains, code, or partial match
-          return isActive && (
-            assignment.organ === selectedCommittee ||
-            assignment.organ.toLowerCase().includes(selectedCommittee.toLowerCase()) ||
-            selectedCommittee.toLowerCase().includes(assignment.organ.toLowerCase()) ||
-            // Match committee codes (e.g., FiU for Finansutskottet)
-            (selectedCommittee.length <= 4 && assignment.organ.includes(selectedCommittee)) ||
-            // Match full committee names
-            (selectedCommittee.includes('utskott') && assignment.organ.toLowerCase().includes(selectedCommittee.split('utskott')[0].toLowerCase()))
-          );
-        });
+        member.committees.some(committee => 
+          committee === selectedCommittee ||
+          committee.toLowerCase().includes(selectedCommittee.toLowerCase()) ||
+          selectedCommittee.toLowerCase().includes(committee.toLowerCase())
+        );
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
     })
