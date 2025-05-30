@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,11 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Search, Filter, Download, BarChart3 } from "lucide-react";
+import { Loader2, Search, Filter, Download, BarChart3, ChevronDown, ChevronRight } from "lucide-react";
 import { searchVotes, VoteSearchParams, RiksdagVote } from "../services/riksdagApi";
 import { Badge } from "@/components/ui/badge";
 import { partyInfo } from "../data/mockMembers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
+interface GroupedVotes {
+  [beteckning: string]: {
+    [punkt: string]: RiksdagVote[];
+  };
+}
 
 const VoteSearch = () => {
   const [searchParams, setSearchParams] = useState<VoteSearchParams>({});
@@ -18,6 +25,8 @@ const VoteSearch = () => {
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [expandedBeteckningar, setExpandedBeteckningar] = useState<string[]>([]);
+  const [expandedPunkter, setExpandedPunkter] = useState<string[]>([]);
 
   const riksmoten = [
     '2024/25', '2023/24', '2022/23', '2021/22', '2020/21', '2019/20', '2018/19',
@@ -93,6 +102,45 @@ const VoteSearch = () => {
   const getPartyColor = (party: string) => {
     return partyInfo[party]?.color || '#6B7280';
   };
+
+  const groupVotesByBeteckningAndPunkt = (votes: RiksdagVote[]): GroupedVotes => {
+    return votes.reduce((acc, vote) => {
+      if (!acc[vote.beteckning]) {
+        acc[vote.beteckning] = {};
+      }
+      if (!acc[vote.beteckning][vote.punkt]) {
+        acc[vote.beteckning][vote.punkt] = [];
+      }
+      acc[vote.beteckning][vote.punkt].push(vote);
+      return acc;
+    }, {} as GroupedVotes);
+  };
+
+  const toggleBeteckning = (beteckning: string) => {
+    setExpandedBeteckningar(prev => 
+      prev.includes(beteckning) 
+        ? prev.filter(b => b !== beteckning)
+        : [...prev, beteckning]
+    );
+  };
+
+  const togglePunkt = (punktKey: string) => {
+    setExpandedPunkter(prev => 
+      prev.includes(punktKey) 
+        ? prev.filter(p => p !== punktKey)
+        : [...prev, punktKey]
+    );
+  };
+
+  const getRostStats = (votes: RiksdagVote[]) => {
+    const stats = votes.reduce((acc, vote) => {
+      acc[vote.rost] = (acc[vote.rost] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    return stats;
+  };
+
+  const groupedVotes = groupVotesByBeteckningAndPunkt(votes);
 
   return (
     <div className="space-y-6">
@@ -279,7 +327,7 @@ const VoteSearch = () => {
         </Card>
       )}
 
-      {votes.length > 0 && (
+      {Object.keys(groupedVotes).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -289,38 +337,154 @@ const VoteSearch = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {votes.slice(0, 50).map((vote, index) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">
-                        {vote.beteckning} - Punkt {vote.punkt}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        <strong>{vote.namn}</strong> ({vote.parti}) - {vote.valkrets}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Riksmöte: {vote.rm} | {vote.avser}
-                      </p>
-                    </div>
-                    <div className="ml-4">
-                      <Badge 
-                        variant={
-                          vote.rost === 'Ja' ? 'default' : 
-                          vote.rost === 'Nej' ? 'destructive' : 
-                          'secondary'
-                        }
-                        style={{
-                          backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
-                                         vote.rost === 'Nej' ? '#EF4444' : 
-                                         '#6B7280',
-                          color: 'white'
-                        }}
-                      >
-                        {vote.rost}
+              {Object.entries(groupedVotes).map(([beteckning, punkter]) => (
+                <div key={beteckning} className="border rounded-lg">
+                  <Collapsible 
+                    open={expandedBeteckningar.includes(beteckning)}
+                    onOpenChange={() => toggleBeteckning(beteckning)}
+                  >
+                    <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        {expandedBeteckningar.includes(beteckning) ? (
+                          <ChevronDown className="w-4 h-4" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4" />
+                        )}
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {beteckning}
+                        </h3>
+                      </div>
+                      <Badge variant="secondary">
+                        {Object.keys(punkter).length} punkt{Object.keys(punkter).length !== 1 ? 'er' : ''}
                       </Badge>
-                    </div>
-                  </div>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent className="px-4 pb-4">
+                      <Accordion type="multiple" className="w-full">
+                        <AccordionItem value="texter">
+                          <AccordionTrigger>
+                            <span className="flex items-center space-x-2">
+                              <span>Öppna texter för {beteckning}</span>
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="text-sm text-gray-600 p-4 bg-gray-50 rounded">
+                              <p>Texter och bakgrund för {beteckning} visas här...</p>
+                              <p className="mt-2">Riksmöte: {Object.values(punkter)[0]?.[0]?.rm}</p>
+                              <p>Typ: {Object.values(punkter)[0]?.[0]?.avser}</p>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                        
+                        <AccordionItem value="beslut">
+                          <AccordionTrigger>
+                            <span className="flex items-center space-x-2">
+                              <span>Beslut ({Object.keys(punkter).length} punkt{Object.keys(punkter).length !== 1 ? 'er' : ''})</span>
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-3">
+                              {Object.entries(punkter).map(([punkt, punktVotes]) => {
+                                const punktKey = `${beteckning}-${punkt}`;
+                                const rostStats = getRostStats(punktVotes);
+                                
+                                return (
+                                  <div key={punktKey} className="border rounded-lg">
+                                    <Collapsible 
+                                      open={expandedPunkter.includes(punktKey)}
+                                      onOpenChange={() => togglePunkt(punktKey)}
+                                    >
+                                      <CollapsibleTrigger className="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                        <div className="flex items-center space-x-2">
+                                          {expandedPunkter.includes(punktKey) ? (
+                                            <ChevronDown className="w-4 h-4" />
+                                          ) : (
+                                            <ChevronRight className="w-4 h-4" />
+                                          )}
+                                          <span className="font-medium">Punkt {punkt}</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <div className="flex space-x-1">
+                                            {Object.entries(rostStats).map(([rost, count]) => (
+                                              <Badge 
+                                                key={rost}
+                                                variant={
+                                                  rost === 'Ja' ? 'default' : 
+                                                  rost === 'Nej' ? 'destructive' : 
+                                                  'secondary'
+                                                }
+                                                className="text-xs"
+                                              >
+                                                {rost}: {count}
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      </CollapsibleTrigger>
+                                      
+                                      <CollapsibleContent className="px-3 pb-3">
+                                        <Accordion type="multiple" className="w-full">
+                                          <AccordionItem value="info">
+                                            <AccordionTrigger className="text-sm">
+                                              Öppna punktinformation
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                              <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded">
+                                                <p>Information om punkt {punkt} i {beteckning}</p>
+                                                <p className="mt-1">Antal röster: {punktVotes.length}</p>
+                                              </div>
+                                            </AccordionContent>
+                                          </AccordionItem>
+                                          
+                                          <AccordionItem value="resultat">
+                                            <AccordionTrigger className="text-sm">
+                                              Voteringsresultat
+                                            </AccordionTrigger>
+                                            <AccordionContent>
+                                              <div className="space-y-2">
+                                                {punktVotes.slice(0, 20).map((vote, index) => (
+                                                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                                                    <div>
+                                                      <span className="font-medium">{vote.namn}</span>
+                                                      <span className="text-gray-500 ml-2">({vote.parti}) - {vote.valkrets}</span>
+                                                    </div>
+                                                    <Badge 
+                                                      variant={
+                                                        vote.rost === 'Ja' ? 'default' : 
+                                                        vote.rost === 'Nej' ? 'destructive' : 
+                                                        'secondary'
+                                                      }
+                                                      style={{
+                                                        backgroundColor: vote.rost === 'Ja' ? '#10B981' : 
+                                                                       vote.rost === 'Nej' ? '#EF4444' : 
+                                                                       '#6B7280',
+                                                        color: 'white'
+                                                      }}
+                                                    >
+                                                      {vote.rost}
+                                                    </Badge>
+                                                  </div>
+                                                ))}
+                                                {punktVotes.length > 20 && (
+                                                  <p className="text-center text-gray-500 text-sm">
+                                                    Visar 20 av {punktVotes.length} röster
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </AccordionContent>
+                                          </AccordionItem>
+                                        </Accordion>
+                                      </CollapsibleContent>
+                                    </Collapsible>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               ))}
             </div>
