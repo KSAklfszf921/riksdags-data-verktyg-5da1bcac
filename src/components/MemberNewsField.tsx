@@ -20,6 +20,18 @@ interface MemberNewsFieldProps {
   maxItems?: number;
 }
 
+interface DatabaseNewsItem {
+  id: string;
+  member_id: string;
+  title: string;
+  link: string;
+  pub_date: string;
+  description: string | null;
+  image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsFieldProps) => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -39,7 +51,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         .select('*')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
-        .limit(maxItems);
+        .limit(maxItems) as { data: DatabaseNewsItem[] | null; error: any };
 
       if (error) {
         console.error('Database error:', error);
@@ -48,12 +60,12 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
 
       if (data && data.length > 0) {
         console.log(`Found ${data.length} news items in database`);
-        const formattedNews = data.map(item => ({
+        const formattedNews: NewsItem[] = data.map(item => ({
           title: item.title,
           link: item.link,
           pub_date: item.pub_date,
           description: item.description || '',
-          image_url: item.image_url,
+          image_url: item.image_url || undefined,
           created_at: item.created_at
         }));
         setNewsItems(formattedNews);
@@ -87,7 +99,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       if (data?.newsItems && data.newsItems.length > 0) {
         console.log(`Successfully fetched ${data.newsItems.length} news items via API`);
         
-        const formattedNews = data.newsItems.map((item: any) => ({
+        const formattedNews: NewsItem[] = data.newsItems.map((item: any) => ({
           title: item.title,
           link: item.link,
           pub_date: item.pubDate,

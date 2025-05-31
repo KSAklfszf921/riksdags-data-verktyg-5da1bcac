@@ -342,6 +342,42 @@ export type Database = {
         }
         Relationships: []
       }
+      member_news: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          link: string
+          member_id: string
+          pub_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link: string
+          member_id: string
+          pub_date: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link?: string
+          member_id?: string
+          pub_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       party_data: {
         Row: {
           active_members: number
