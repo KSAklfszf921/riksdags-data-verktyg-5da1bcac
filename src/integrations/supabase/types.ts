@@ -9,66 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      batch_progress: {
-        Row: {
-          created_at: string
-          current_batch_rss_items: number
-          current_member_index: number
-          current_member_name: string | null
-          errors: Json | null
-          estimated_completion: string | null
-          failed_fetches: number
-          id: string
-          member_list: Json | null
-          processed_members: number
-          session_id: string
-          start_time: string | null
-          status: string
-          successful_fetches: number
-          total_members: number
-          total_rss_items: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          current_batch_rss_items?: number
-          current_member_index?: number
-          current_member_name?: string | null
-          errors?: Json | null
-          estimated_completion?: string | null
-          failed_fetches?: number
-          id?: string
-          member_list?: Json | null
-          processed_members?: number
-          session_id: string
-          start_time?: string | null
-          status?: string
-          successful_fetches?: number
-          total_members?: number
-          total_rss_items?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          current_batch_rss_items?: number
-          current_member_index?: number
-          current_member_name?: string | null
-          errors?: Json | null
-          estimated_completion?: string | null
-          failed_fetches?: number
-          id?: string
-          member_list?: Json | null
-          processed_members?: number
-          session_id?: string
-          start_time?: string | null
-          status?: string
-          successful_fetches?: number
-          total_members?: number
-          total_rss_items?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       calendar_data: {
         Row: {
           aktivitet: string | null
@@ -246,6 +186,54 @@ export type Database = {
           titel?: string | null
           typ?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      feed_batch_jobs: {
+        Row: {
+          completed_at: string | null
+          config: Json | null
+          created_at: string | null
+          error_details: Json | null
+          failed_items: number | null
+          id: string
+          job_type: string
+          processed_items: number | null
+          started_at: string | null
+          status: string
+          successful_items: number | null
+          total_items: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string | null
+          error_details?: Json | null
+          failed_items?: number | null
+          id?: string
+          job_type?: string
+          processed_items?: number | null
+          started_at?: string | null
+          status?: string
+          successful_items?: number | null
+          total_items?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          config?: Json | null
+          created_at?: string | null
+          error_details?: Json | null
+          failed_items?: number | null
+          id?: string
+          job_type?: string
+          processed_items?: number | null
+          started_at?: string | null
+          status?: string
+          successful_items?: number | null
+          total_items?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -489,6 +477,108 @@ export type Database = {
           party_name?: string
           total_members?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      rss_feed_items: {
+        Row: {
+          author: string | null
+          categories: string[] | null
+          content: string | null
+          created_at: string | null
+          description: string | null
+          guid: string | null
+          id: string
+          image_url: string | null
+          is_processed: boolean | null
+          link: string
+          member_id: string | null
+          pub_date: string | null
+          relevance_score: number | null
+          source_id: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          author?: string | null
+          categories?: string[] | null
+          content?: string | null
+          created_at?: string | null
+          description?: string | null
+          guid?: string | null
+          id?: string
+          image_url?: string | null
+          is_processed?: boolean | null
+          link: string
+          member_id?: string | null
+          pub_date?: string | null
+          relevance_score?: number | null
+          source_id?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          author?: string | null
+          categories?: string[] | null
+          content?: string | null
+          created_at?: string | null
+          description?: string | null
+          guid?: string | null
+          id?: string
+          image_url?: string | null
+          is_processed?: boolean | null
+          link?: string
+          member_id?: string | null
+          pub_date?: string | null
+          relevance_score?: number | null
+          source_id?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rss_feed_items_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "member_data"
+            referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "rss_feed_items_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "rss_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rss_sources: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+          url?: string
         }
         Relationships: []
       }

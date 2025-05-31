@@ -6,10 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Database, Zap, Activity, Search, Filter, Users } from 'lucide-react';
+import { Shield, Database, Zap, Activity, Search, Filter, Users, Rss } from 'lucide-react';
 import EnhancedTestRunner from '../components/EnhancedTestRunner';
 import CalendarTestRunner from '../components/CalendarTestRunner';
 import BatchNewsRunner from '../components/BatchNewsRunner';
+import RssSourceManager from '../components/RssSourceManager';
+import NewBatchRssRunner from '../components/NewBatchRssRunner';
 
 const Testverktyg = () => {
   return (
@@ -30,7 +32,7 @@ const Testverktyg = () => {
                 <span>Enhanced Test Suite v3.0</span>
               </CardTitle>
               <CardDescription>
-                Omfattande testverktyg med detaljerad felrapportering, API-validering, sök- och filtreringsfunktioner
+                Omfattande testverktyg med detaljerad felrapportering, API-validering, sök- och filtreringsfunktioner samt ny RSS hantering
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -47,13 +49,14 @@ const Testverktyg = () => {
                       <li>Datumintervall-filtrering och ämnesbaserad sökning</li>
                       <li>Språkanalys-filtrering och kvalitetstestning</li>
                       <li>Förbättrad felklassificering och debugging-information</li>
-                      <li>Batch RSS-feed hämtning för alla aktiva ledamöter</li>
+                      <li>Ny RSS feed hantering med källadministration</li>
+                      <li>Förbättrad batch RSS-feed hämtning med jobbtjäning</li>
                     </ul>
                   </div>
                 </AlertDescription>
               </Alert>
 
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="bg-green-50 p-4 rounded-lg text-center">
                   <Database className="w-8 h-8 mx-auto text-green-600 mb-2" />
                   <div className="font-medium text-green-800">API Testing</div>
@@ -76,18 +79,25 @@ const Testverktyg = () => {
                 </div>
                 <div className="bg-indigo-50 p-4 rounded-lg text-center">
                   <Users className="w-8 h-8 mx-auto text-indigo-600 mb-2" />
-                  <div className="font-medium text-indigo-800">Batch RSS</div>
+                  <div className="font-medium text-indigo-800">Legacy RSS</div>
                   <div className="text-sm text-indigo-700">All members</div>
+                </div>
+                <div className="bg-teal-50 p-4 rounded-lg text-center">
+                  <Rss className="w-8 h-8 mx-auto text-teal-600 mb-2" />
+                  <div className="font-medium text-teal-800">New RSS System</div>
+                  <div className="text-sm text-teal-700">Advanced management</div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Tabs defaultValue="enhanced" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="enhanced">Enhanced Test Suite</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="enhanced">Enhanced Tests</TabsTrigger>
               <TabsTrigger value="calendar">Calendar Tests</TabsTrigger>
-              <TabsTrigger value="batch-rss">Batch RSS</TabsTrigger>
+              <TabsTrigger value="legacy-rss">Legacy RSS</TabsTrigger>
+              <TabsTrigger value="rss-management">RSS Management</TabsTrigger>
+              <TabsTrigger value="new-rss">New RSS System</TabsTrigger>
             </TabsList>
 
             <TabsContent value="enhanced" className="space-y-4">
@@ -118,16 +128,44 @@ const Testverktyg = () => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="batch-rss" className="space-y-4">
+            <TabsContent value="legacy-rss" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Batch RSS Feed Fetcher</CardTitle>
+                  <CardTitle>Legacy Batch RSS Feed Fetcher</CardTitle>
                   <CardDescription>
-                    Automatisk hämtning av RSS-feeds för alla aktiva riksdagsledamöter
+                    Automatisk hämtning av RSS-feeds för alla aktiva riksdagsledamöter (gamla systemet)
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <BatchNewsRunner />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="rss-management" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>RSS Källhantering</CardTitle>
+                  <CardDescription>
+                    Hantera RSS källor som används för nyhetshämtning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <RssSourceManager />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="new-rss" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ny RSS Feed System</CardTitle>
+                  <CardDescription>
+                    Avancerat RSS feed system med förbättrad batch-bearbetning och jobbtjäning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <NewBatchRssRunner />
                 </CardContent>
               </Card>
             </TabsContent>
