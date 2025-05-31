@@ -16,8 +16,8 @@ export interface TestSuite {
 }
 
 export class CalendarTester {
-  private results: TestResult[] = [];
-  private startTime: number = 0;
+  protected results: TestResult[] = [];
+  protected startTime: number = 0;
 
   constructor() {
     this.startTime = Date.now();

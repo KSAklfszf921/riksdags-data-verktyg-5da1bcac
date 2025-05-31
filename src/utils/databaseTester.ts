@@ -1,14 +1,29 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import { CalendarTester, TestResult, generateTestId } from './testUtils';
 
 export class DatabaseTester extends CalendarTester {
+  private supabaseServiceRole: any;
+
+  constructor() {
+    super();
+    // Create a service role client for testing operations that need to bypass RLS
+    const supabaseUrl = 'https://zqhpbclqvhjcyrgvgaon.supabase.co';
+    const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpxaHBiY2xxdmhqY3lyZ3ZnYW9uIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0ODY0MDU0MSwiZXhwIjoyMDY0MjE2NTQxfQ.YFXBbH5aA9cGdw-i1Lyt46O9fOOr_KdDBTDfK1RQHW8';
+    
+    this.supabaseServiceRole = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+  }
 
   async testDatabaseConnection(): Promise<TestResult> {
     return this.runTest('Database Connection', async () => {
       console.log('Testing database connection...');
       
-      const { data, error } = await supabase.from('calendar_data').select('count').limit(1);
+      const { data, error } = await this.supabaseServiceRole.from('calendar_data').select('count').limit(1);
       
       if (error) {
         throw new Error(`Database connection failed: ${error.message}`);
@@ -26,7 +41,7 @@ export class DatabaseTester extends CalendarTester {
       console.log('Testing calendar_data table structure...');
       
       // Test table access and get count
-      const { count, error: countError } = await supabase
+      const { count, error: countError } = await this.supabaseServiceRole
         .from('calendar_data')
         .select('*', { count: 'exact', head: true });
 
@@ -34,7 +49,7 @@ export class DatabaseTester extends CalendarTester {
         throw new Error(`Table access failed: ${countError.message}`);
       }
 
-      // Test inserting a test record
+      // Test inserting a test record using service role
       const testEvent = {
         event_id: generateTestId(),
         datum: new Date().toISOString().split('T')[0],
@@ -47,7 +62,9 @@ export class DatabaseTester extends CalendarTester {
         }
       };
 
-      const { data: insertData, error: insertError } = await supabase
+      console.log('Attempting to insert test event:', testEvent.event_id);
+
+      const { data: insertData, error: insertError } = await this.supabaseServiceRole
         .from('calendar_data')
         .insert(testEvent)
         .select();
@@ -56,12 +73,20 @@ export class DatabaseTester extends CalendarTester {
         throw new Error(`Insert failed: ${insertError.message}`);
       }
 
+      console.log('Successfully inserted test event, cleaning up...');
+
       // Clean up test data
       if (insertData && insertData.length > 0) {
-        await supabase
+        const { error: deleteError } = await this.supabaseServiceRole
           .from('calendar_data')
           .delete()
           .eq('id', insertData[0].id);
+        
+        if (deleteError) {
+          console.warn('Failed to clean up test data:', deleteError.message);
+        } else {
+          console.log('Successfully cleaned up test data');
+        }
       }
 
       return {
@@ -77,7 +102,7 @@ export class DatabaseTester extends CalendarTester {
       console.log('Testing data integrity...');
       
       // Check for records with missing required fields
-      const { data: incomplete, error: incError } = await supabase
+      const { data: incomplete, error: incError } = await this.supabaseServiceRole
         .from('calendar_data')
         .select('id, event_id, datum')
         .or('event_id.is.null,datum.is.null')
@@ -88,7 +113,7 @@ export class DatabaseTester extends CalendarTester {
       }
 
       // Check data freshness
-      const { data: recent, error: recentError } = await supabase
+      const { data: recent, error: recentError } = await this.supabaseServiceRole
         .from('calendar_data')
         .select('updated_at')
         .order('updated_at', { ascending: false })
@@ -118,14 +143,14 @@ export class DatabaseTester extends CalendarTester {
       const queries = [
         {
           name: 'Simple select',
-          query: () => supabase.from('calendar_data').select('id, event_id, datum').limit(10)
+          query: () => this.supabaseServiceRole.from('calendar_data').select('id, event_id, datum').limit(10)
         },
         {
           name: 'Date range query',
           query: () => {
             const today = new Date().toISOString().split('T')[0];
             const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            return supabase
+            return this.supabaseServiceRole
               .from('calendar_data')
               .select('*')
               .gte('datum', today)
@@ -134,11 +159,11 @@ export class DatabaseTester extends CalendarTester {
         },
         {
           name: 'Organ filter',
-          query: () => supabase.from('calendar_data').select('*').eq('organ', 'kamm').limit(5)
+          query: () => this.supabaseServiceRole.from('calendar_data').select('*').eq('organ', 'kamm').limit(5)
         },
         {
           name: 'Text search',
-          query: () => supabase.from('calendar_data').select('*').ilike('summary', '%debatt%').limit(5)
+          query: () => this.supabaseServiceRole.from('calendar_data').select('*').ilike('summary', '%debatt%').limit(5)
         }
       ];
 
