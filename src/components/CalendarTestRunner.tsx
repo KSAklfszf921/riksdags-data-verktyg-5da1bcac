@@ -8,46 +8,54 @@ import { Play, RefreshCw, CheckCircle, XCircle, Clock, Database, Cloud, Globe } 
 import { RiksdagApiTester } from '../utils/apiTester';
 import { EdgeFunctionTester } from '../utils/edgeFunctionTester';
 import { DatabaseTester } from '../utils/databaseTester';
-import { TestSuite, TestResult } from '../utils/testUtils';
+import { EnhancedTester, DetailedTestResult } from '../utils/enhancedTestUtils';
+
+class EnhancedCalendarTester extends EnhancedTester {
+  constructor() {
+    super('Enhanced Calendar Test Suite');
+  }
+
+  async runAllCalendarTests(): Promise<void> {
+    // API Tests
+    const apiTester = new RiksdagApiTester();
+    await this.runTest('Riksdag API Direct Access', () => apiTester.testDirectApiAccess());
+    await this.runTest('Multiple API Endpoints', () => apiTester.testMultipleEndpoints());
+    await this.runTest('API Response Time', () => apiTester.testApiResponseTime());
+
+    // Database Tests  
+    const dbTester = new DatabaseTester();
+    await this.runTest('Database Connection', () => dbTester.testDatabaseConnection());
+    await this.runTest('Calendar Data Table', () => dbTester.testCalendarDataTable());
+    await this.runTest('Data Integrity', () => dbTester.testDataIntegrity());
+    await this.runTest('Query Performance', () => dbTester.testQueryPerformance());
+
+    // Edge Function Tests
+    const edgeTester = new EdgeFunctionTester();
+    await this.runTest('Calendar Data Sync', () => edgeTester.testCalendarDataSync());
+    await this.runTest('Edge Function Error Handling', () => edgeTester.testEdgeFunctionError());
+    await this.runTest('Edge Function Timeout', () => edgeTester.testEdgeFunctionTimeout());
+  }
+}
 
 const CalendarTestRunner = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [testSuites, setTestSuites] = useState<TestSuite[]>([]);
+  const [testSuite, setTestSuite] = useState<any>(null);
   const [currentTest, setCurrentTest] = useState<string>('');
 
   const runAllTests = async () => {
     setIsRunning(true);
-    setTestSuites([]);
+    setTestSuite(null);
     setCurrentTest('');
 
     try {
-      // API Tests
-      setCurrentTest('Running API tests...');
-      const apiTester = new RiksdagApiTester();
-      await apiTester.testDirectApiAccess();
-      await apiTester.testMultipleEndpoints();
-      await apiTester.testApiResponseTime();
-      setTestSuites(prev => [...prev, apiTester.getSummary()]);
-
-      // Database Tests
-      setCurrentTest('Running database tests...');
-      const dbTester = new DatabaseTester();
-      await dbTester.testDatabaseConnection();
-      await dbTester.testCalendarDataTable();
-      await dbTester.testDataIntegrity();
-      await dbTester.testQueryPerformance();
-      setTestSuites(prev => [...prev, dbTester.getSummary()]);
-
-      // Edge Function Tests
-      setCurrentTest('Running edge function tests...');
-      const edgeTester = new EdgeFunctionTester();
-      await edgeTester.testCalendarDataSync();
-      await edgeTester.testEdgeFunctionError();
-      await edgeTester.testEdgeFunctionTimeout();
-      setTestSuites(prev => [...prev, edgeTester.getSummary()]);
-
+      const tester = new EnhancedCalendarTester();
+      
+      setCurrentTest('Running comprehensive calendar tests...');
+      await tester.runAllCalendarTests();
+      
+      setTestSuite(tester.getSummary());
     } catch (error) {
-      console.error('Test execution failed:', error);
+      console.error('Calendar test execution failed:', error);
     } finally {
       setIsRunning(false);
       setCurrentTest('');
@@ -62,15 +70,16 @@ const CalendarTestRunner = () => {
   };
 
   const getTotalStats = () => {
-    const allResults = testSuites.flatMap(suite => suite.results);
-    const passed = allResults.filter(r => r.success).length;
-    const total = allResults.length;
+    if (!testSuite) return { passed: 0, total: 0, successRate: 0 };
+    
+    const passed = testSuite.results.filter((r: any) => r.success).length;
+    const total = testSuite.results.length;
     const successRate = total > 0 ? (passed / total) * 100 : 0;
     
     return { passed, total, successRate };
   };
 
-  const renderTestResult = (result: TestResult) => (
+  const renderTestResult = (result: DetailedTestResult) => (
     <div key={result.name} className="flex items-center justify-between p-3 border rounded-lg">
       <div className="flex items-center space-x-3">
         {result.success ? (
@@ -80,9 +89,12 @@ const CalendarTestRunner = () => {
         )}
         <div>
           <div className="font-medium">{result.name}</div>
-          <div className="text-sm text-gray-500">
-            {result.success ? result.message : result.message}
-          </div>
+          <div className="text-sm text-gray-500">{result.message}</div>
+          {!result.success && result.errorDetails && (
+            <div className="text-xs text-red-600 mt-1">
+              {result.errorType}: {result.errorDetails.errorMessage}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center space-x-2">
@@ -101,7 +113,7 @@ const CalendarTestRunner = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            Test Control Panel
+            Enhanced Calendar Test Suite
             <Button 
               onClick={runAllTests} 
               disabled={isRunning}
@@ -116,7 +128,7 @@ const CalendarTestRunner = () => {
             </Button>
           </CardTitle>
           <CardDescription>
-            Comprehensive test suite for calendar functionality
+            Comprehensive testing for calendar functionality with detailed error reporting
           </CardDescription>
         </CardHeader>
         {isRunning && (
@@ -129,63 +141,56 @@ const CalendarTestRunner = () => {
         )}
       </Card>
 
-      {/* Test Results Summary */}
-      {testSuites.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Test Results Summary</CardTitle>
-            <CardDescription>
-              Overall test execution results
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{stats.passed}</div>
-                <div className="text-sm text-gray-500">Passed</div>
+      {/* Test Results */}
+      {testSuite && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Test Results Summary</CardTitle>
+              <CardDescription>
+                Overall test execution results with enhanced diagnostics
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{stats.passed}</div>
+                  <div className="text-sm text-gray-500">Passed</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-red-600">{stats.total - stats.passed}</div>
+                  <div className="text-sm text-gray-500">Failed</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{stats.successRate.toFixed(1)}%</div>
+                  <div className="text-sm text-gray-500">Success Rate</div>
+                </div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{stats.total - stats.passed}</div>
-                <div className="text-sm text-gray-500">Failed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.successRate.toFixed(1)}%</div>
-                <div className="text-sm text-gray-500">Success Rate</div>
-              </div>
-            </div>
-            <Progress value={stats.successRate} className="w-full" />
-          </CardContent>
-        </Card>
-      )}
+              <Progress value={stats.successRate} className="w-full" />
+            </CardContent>
+          </Card>
 
-      {/* Test Suite Results */}
-      {testSuites.map((suite, index) => {
-        const Icon = getTestIcon(suite.name);
-        const successRate = suite.results.length > 0 ? 
-          (suite.results.filter(r => r.success).length / suite.results.length) * 100 : 0;
-
-        return (
-          <Card key={index}>
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <Icon className="w-5 h-5" />
-                <span>{suite.name}</span>
-                <Badge variant={successRate === 100 ? 'default' : successRate > 50 ? 'secondary' : 'destructive'}>
-                  {successRate.toFixed(1)}% passed
+                <Clock className="w-5 h-5" />
+                <span>Detailed Test Results</span>
+                <Badge variant={stats.successRate === 100 ? 'default' : 'destructive'}>
+                  {stats.successRate.toFixed(1)}% passed
                 </Badge>
               </CardTitle>
               <CardDescription>
-                {suite.results.length} tests completed in {((suite.endTime || Date.now()) - suite.startTime)}ms
+                {testSuite.results.length} tests completed in {testSuite.summary?.totalDuration || 0}ms
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {suite.results.map(renderTestResult)}
+                {testSuite.results.map(renderTestResult)}
               </div>
             </CardContent>
           </Card>
-        );
-      })}
+        </>
+      )}
     </div>
   );
 };
