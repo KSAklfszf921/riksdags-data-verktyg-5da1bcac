@@ -42,14 +42,16 @@ serve(async (req) => {
     let errors = 0;
     const startTime = Date.now();
 
-    // Extended list of API endpoints to try
+    // API endpoints according to technical specification
     const apiEndpoints = [
       'https://data.riksdagen.se/kalender/?utformat=json&sz=500',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=100&sort=c',
-      'https://data.riksdagen.se/sv/riksdagen-denna-vecka?utformat=json',
-      'https://data.riksdagen.se/sv/riksdagen-nasta-vecka?utformat=json',
-      'https://data.riksdagen.se/kalender/2025?utformat=json&sz=200',
-      'https://data.riksdagen.se/kalender/2024?utformat=json&sz=200'
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&sort=c&sortorder=asc',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&sort=c&sortorder=desc',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=300&from=2024-01-01&tom=2025-12-31',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&typ=sammantrade',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&typ=debatt',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&org=kamm',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&org=eun'
     ];
 
     console.log(`Attempting to fetch from ${apiEndpoints.length} different endpoints...`);
@@ -61,7 +63,7 @@ serve(async (req) => {
         const response = await fetch(url, {
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'Riksdag-Calendar-Sync/2.0',
+            'User-Agent': 'Riksdag-Calendar-Sync/3.0',
             'Cache-Control': 'no-cache'
           }
         });
@@ -78,6 +80,12 @@ serve(async (req) => {
 
         if (!responseText || responseText.trim().length === 0) {
           console.log(`Empty response from: ${url}`);
+          continue;
+        }
+
+        // Check if response is HTML (error page)
+        if (responseText.trim().startsWith('<')) {
+          console.log(`HTML response received from: ${url}, skipping...`);
           continue;
         }
 
@@ -107,14 +115,14 @@ serve(async (req) => {
           continue;
         }
 
-        // Process events in smaller batches for better error handling
-        const batchSize = 25;
+        // Process events in smaller batches
+        const batchSize = 20;
         for (let i = 0; i < events.length; i += batchSize) {
           const batch = events.slice(i, i + batchSize);
           
           try {
             const calendarData = batch.map(event => {
-              // Generate a more unique event ID
+              // Generate unique event ID
               const eventId = event.id || `${event.datum || 'no-date'}-${event.org || 'no-org'}-${event.titel?.substring(0, 10) || 'no-title'}-${Math.random().toString(36).substr(2, 9)}`;
               
               return {
@@ -160,8 +168,8 @@ serve(async (req) => {
           }
         }
 
-        // Add delay between endpoints to be respectful
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Add delay between endpoints
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (urlError) {
         console.error(`Error fetching from ${url}:`, urlError);

@@ -1,10 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Search, Calendar, Clock, MapPin, Download, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Search, Calendar, Clock, MapPin, Download, AlertCircle, RefreshCw, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,6 +29,7 @@ const RiksdagCalendarSearch = () => {
   const [error, setError] = useState<string | null>(null);
   const [databaseEmpty, setDatabaseEmpty] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchPerformed, setSearchPerformed] = useState(false);
 
   // Form state
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -36,13 +38,47 @@ const RiksdagCalendarSearch = () => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // Get unique values for dropdowns
-  const uniqueOrgans = [...new Set(events.map(event => event.organ).filter(Boolean))];
-  const uniqueTypes = [...new Set(events.map(event => event.typ).filter(Boolean))];
+  // Predefined options based on technical specification
+  const organOptions = [
+    { value: 'kamm', label: 'Kammaren' },
+    { value: 'AU', label: 'Arbetsmarknadsutskottet' },
+    { value: 'CU', label: 'Civilutskottet' },
+    { value: 'FiU', label: 'Finansutskottet' },
+    { value: 'FöU', label: 'Försvarsutskottet' },
+    { value: 'JuU', label: 'Justitieutskottet' },
+    { value: 'KU', label: 'Konstitutionsutskottet' },
+    { value: 'KrU', label: 'Kulturutskottet' },
+    { value: 'MjU', label: 'Miljö- och jordbruksutskottet' },
+    { value: 'NU', label: 'Näringsutskottet' },
+    { value: 'eun', label: 'EU-nämnden' }
+  ];
+
+  const typeOptions = [
+    { value: 'sammantrade', label: 'Sammanträde' },
+    { value: 'debatt', label: 'Debatt' },
+    { value: 'beslut', label: 'Beslut' },
+    { value: 'besök', label: 'Besök' },
+    { value: 'seminarium', label: 'Seminarium' },
+    { value: 'presskonferens', label: 'Presskonferens' }
+  ];
 
   useEffect(() => {
-    loadRecentEvents();
+    checkDatabaseAndLoadEvents();
   }, []);
+
+  const checkDatabaseAndLoadEvents = async () => {
+    setLoading(true);
+    try {
+      const hasData = await checkDatabaseStatus();
+      if (hasData) {
+        await loadRecentEvents();
+      }
+    } catch (err) {
+      console.error('Error during initial load:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkDatabaseStatus = async () => {
     try {
@@ -60,8 +96,10 @@ const RiksdagCalendarSearch = () => {
       
       if (isEmpty) {
         console.log('Database is empty, need to fetch data first');
+        setError('Kalenderdatabasen är tom. Hämta data från Riksdagens API först.');
       } else {
         console.log(`Database contains ${count} calendar events`);
+        setError(null);
       }
       
       return !isEmpty;
@@ -91,9 +129,9 @@ const RiksdagCalendarSearch = () => {
 
       if (data?.success) {
         console.log('Data refresh successful:', data.stats);
-        // Reload events after successful refresh
         await loadRecentEvents();
         setDatabaseEmpty(false);
+        setError(null);
       } else {
         throw new Error(data?.error || 'Okänt fel vid datahämtning');
       }
@@ -111,20 +149,10 @@ const RiksdagCalendarSearch = () => {
     setError(null);
     
     try {
-      // First check if database has data
-      const hasData = await checkDatabaseStatus();
-      
-      if (!hasData) {
-        setDatabaseEmpty(true);
-        setEvents([]);
-        setError('Kalenderdatabasen är tom. Klicka på "Hämta ny data" för att fylla den.');
-        return;
-      }
-
       const result = await fetchCachedCalendarData(50);
       console.log(`Loaded ${result.length} recent events`);
       setEvents(result);
-      setDatabaseEmpty(false);
+      setSearchPerformed(false);
     } catch (err) {
       console.error('Error loading recent events:', err);
       setError('Kunde inte hämta senaste kalenderdata från databasen');
@@ -137,6 +165,7 @@ const RiksdagCalendarSearch = () => {
     console.log('Performing search with filters...');
     setLoading(true);
     setError(null);
+    setSearchPerformed(true);
     
     try {
       let result: CachedCalendarData[] = [];
@@ -172,6 +201,7 @@ const RiksdagCalendarSearch = () => {
     console.log('Loading this week events...');
     setLoading(true);
     setError(null);
+    setSearchPerformed(true);
     
     try {
       const today = new Date();
@@ -197,6 +227,7 @@ const RiksdagCalendarSearch = () => {
     console.log('Loading next week events...');
     setLoading(true);
     setError(null);
+    setSearchPerformed(true);
     
     try {
       const nextWeekStart = new Date();
@@ -267,10 +298,6 @@ const RiksdagCalendarSearch = () => {
       'FiU': 'bg-red-100 text-red-800',
       'FöU': 'bg-orange-100 text-orange-800',
       'JuU': 'bg-indigo-100 text-indigo-800',
-      'KU': 'bg-pink-100 text-pink-800',
-      'KrU': 'bg-yellow-100 text-yellow-800',
-      'MjU': 'bg-emerald-100 text-emerald-800',
-      'NU': 'bg-cyan-100 text-cyan-800',
       'eun': 'bg-violet-100 text-violet-800',
       'debatt': 'bg-blue-100 text-blue-800',
       'sammantrade': 'bg-gray-100 text-gray-800',
@@ -336,23 +363,6 @@ const RiksdagCalendarSearch = () => {
                 </div>
                 
                 <div>
-                  <Label htmlFor="eventType">Händelsetyp</Label>
-                  <Select value={selectedType} onValueChange={setSelectedType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Välj händelsetyp" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Alla typer</SelectItem>
-                      {uniqueTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
                   <Label htmlFor="organ">Organ</Label>
                   <Select value={selectedOrgan} onValueChange={setSelectedOrgan}>
                     <SelectTrigger>
@@ -360,8 +370,25 @@ const RiksdagCalendarSearch = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alla organ</SelectItem>
-                      {uniqueOrgans.map((organ) => (
-                        <SelectItem key={organ} value={organ}>{organ}</SelectItem>
+                      {organOptions.map((organ) => (
+                        <SelectItem key={organ.value} value={organ.value}>{organ.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="eventType">Händelsetyp</Label>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Välj händelsetyp" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alla typer</SelectItem>
+                      {typeOptions.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -376,9 +403,7 @@ const RiksdagCalendarSearch = () => {
                     onChange={(e) => setFromDate(e.target.value)}
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="toDate">Till datum</Label>
                   <Input
@@ -506,9 +531,10 @@ const RiksdagCalendarSearch = () => {
             </Card>
           )}
 
-          {!loading && events.length === 0 && !error && !databaseEmpty && (
+          {!loading && events.length === 0 && !error && !databaseEmpty && searchPerformed && (
             <Card>
               <CardContent className="text-center py-8">
+                <Info className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                 <p className="text-gray-500">Inga händelser hittades. Prova att ändra dina sökkriterier.</p>
               </CardContent>
             </Card>
