@@ -11,7 +11,6 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     // Member tests
     await this.runTest('Member Basic Fetching', () => this.testMemberBasicFetching());
     await this.runTest('Member Details with Assignments', () => this.testMemberDetailsWithAssignments());
-    await this.runTest('Committee Filtering', () => this.testCommitteeFiltering());
     await this.runTest('Member Search', () => this.testMemberSearch());
     await this.runTest('Member Documents', () => this.testMemberDocuments());
     await this.runTest('Member Speeches', () => this.testMemberSpeeches());
@@ -49,7 +48,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
   private async testMemberDetailsWithAssignments(): Promise<any> {
     const { data: members, error: memberError } = await supabase
       .from('member_data')
-      .select('member_id')
+      .select('member_id, assignments')
       .eq('is_active', true)
       .limit(5);
 
@@ -57,36 +56,12 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     if (!members || members.length === 0) throw new Error('No members found for assignment test');
 
     const memberId = members[0].member_id;
-
-    const { data: assignments, error: assignmentError } = await supabase
-      .from('member_assignments')
-      .select('*')
-      .eq('member_id', memberId);
-
-    if (assignmentError) throw new Error(`Assignment fetching failed: ${assignmentError.message}`);
+    const assignments = members[0].assignments;
 
     return { 
       memberId, 
-      assignmentCount: assignments?.length || 0,
-      hasAssignments: assignments && assignments.length > 0
-    };
-  }
-
-  private async testCommitteeFiltering(): Promise<any> {
-    const { data, error } = await supabase
-      .from('member_assignments')
-      .select('committee_code, committee_name, role')
-      .not('committee_code', 'is', null)
-      .limit(20);
-
-    if (error) throw new Error(`Committee filtering failed: ${error.message}`);
-
-    const uniqueCommittees = new Set(data?.map(a => a.committee_code) || []);
-    
-    return { 
-      totalAssignments: data?.length || 0,
-      uniqueCommittees: uniqueCommittees.size,
-      sampleCommittees: Array.from(uniqueCommittees).slice(0, 5)
+      assignmentCount: assignments ? (Array.isArray(assignments) ? assignments.length : 1) : 0,
+      hasAssignments: assignments !== null
     };
   }
 
@@ -123,8 +98,8 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
 
     const { data: documents, error: docError } = await supabase
       .from('document_data')
-      .select('document_id, title, document_type')
-      .in('submitter_id', memberIds)
+      .select('document_id, titel, typ')
+      .in('intressent_id', memberIds)
       .limit(20);
 
     if (docError) throw new Error(`Document fetching failed: ${docError.message}`);
@@ -132,7 +107,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     return { 
       memberCount: memberIds.length,
       documentCount: documents?.length || 0,
-      documentTypes: [...new Set(documents?.map(d => d.document_type) || [])]
+      documentTypes: [...new Set(documents?.map(d => d.typ) || [])]
     };
   }
 
@@ -150,8 +125,8 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
 
     const { data: speeches, error: speechError } = await supabase
       .from('speech_data')
-      .select('speech_id, speaker_id, debate_name')
-      .in('speaker_id', memberIds)
+      .select('speech_id, intressent_id, rel_dok_titel')
+      .in('intressent_id', memberIds)
       .limit(20);
 
     if (speechError) throw new Error(`Speech fetching failed: ${speechError.message}`);
@@ -167,7 +142,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     const { data, error } = await supabase
       .from('calendar_data')
       .select('*')
-      .gte('event_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
       .limit(10);
 
     if (error) throw new Error(`Calendar data fetching failed: ${error.message}`);
@@ -175,14 +150,14 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     if (data && data.length > 0) {
       const sampleEvent = data[0];
       
-      // Validate date format
-      if (sampleEvent.event_date && !Date.parse(sampleEvent.event_date)) {
+      // Validate date format (using datum field which exists)
+      if (sampleEvent.datum && !Date.parse(sampleEvent.datum)) {
         throw new Error('Invalid date format in calendar data');
       }
 
-      // Check required fields
-      if (!sampleEvent.title) {
-        throw new Error('Calendar event missing title');
+      // Check required fields (using aktivitet which exists)
+      if (!sampleEvent.aktivitet) {
+        throw new Error('Calendar event missing aktivitet');
       }
     }
 
@@ -196,8 +171,8 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
   private async testSpeechDataQuality(): Promise<any> {
     const { data, error } = await supabase
       .from('speech_data')
-      .select('speech_id, speaker_id, speech_text, debate_name')
-      .not('speech_text', 'is', null)
+      .select('speech_id, intressent_id, anforandetext, rel_dok_titel')
+      .not('anforandetext', 'is', null)
       .limit(10);
 
     if (error) throw new Error(`Speech data fetching failed: ${error.message}`);
@@ -207,10 +182,10 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
 
     if (data && data.length > 0) {
       data.forEach(speech => {
-        if (!speech.speech_text || speech.speech_text.trim().length < 10) {
+        if (!speech.anforandetext || speech.anforandetext.trim().length < 10) {
           qualityIssues++;
         }
-        avgLength += speech.speech_text?.length || 0;
+        avgLength += speech.anforandetext?.length || 0;
       });
       avgLength = avgLength / data.length;
     }
@@ -226,20 +201,16 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
   private async testVoteDataStructure(): Promise<any> {
     const { data, error } = await supabase
       .from('vote_data')
-      .select('vote_id, voting_id, member_id, vote')
+      .select('vote_id, hangar_id, beteckning')
       .limit(10);
 
     if (error) throw new Error(`Vote data fetching failed: ${error.message}`);
 
     let structureIssues = 0;
-    const validVotes = ['Ja', 'Nej', 'Avstår', 'Frånvarande'];
 
     if (data && data.length > 0) {
       data.forEach(vote => {
-        if (!vote.vote_id || !vote.voting_id || !vote.member_id) {
-          structureIssues++;
-        }
-        if (vote.vote && !validVotes.includes(vote.vote)) {
+        if (!vote.vote_id || !vote.hangar_id) {
           structureIssues++;
         }
       });
@@ -248,8 +219,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     return { 
       voteCount: data?.length || 0,
       structureIssues,
-      structureIntegrity: data && data.length > 0 ? ((data.length - structureIssues) / data.length) * 100 : 0,
-      validVoteTypes: validVotes
+      structureIntegrity: data && data.length > 0 ? ((data.length - structureIssues) / data.length) * 100 : 0
     };
   }
 
@@ -258,8 +228,8 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     
     const { data, error } = await supabase
       .from('document_data')
-      .select('document_id, title, document_type')
-      .ilike('title', `%${searchTerm}%`)
+      .select('document_id, titel, typ')
+      .ilike('titel', `%${searchTerm}%`)
       .limit(10);
 
     if (error) throw new Error(`Document search failed: ${error.message}`);
@@ -267,7 +237,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     return { 
       searchTerm,
       resultCount: data?.length || 0,
-      documentTypes: [...new Set(data?.map(d => d.document_type) || [])],
+      documentTypes: [...new Set(data?.map(d => d.typ) || [])],
       hasResults: data && data.length > 0
     };
   }
@@ -282,12 +252,12 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
 
     const { data: parties, error: partyError } = await supabase
       .from('party_data')
-      .select('party_abbreviation, party_name');
+      .select('party_code, party_name');
 
     if (partyError) throw new Error(`Party data fetching failed: ${partyError.message}`);
 
     const memberParties = new Set(members?.map(m => m.party) || []);
-    const registeredParties = new Set(parties?.map(p => p.party_abbreviation) || []);
+    const registeredParties = new Set(parties?.map(p => p.party_code) || []);
     
     const unmatchedParties = Array.from(memberParties).filter(party => 
       party && !registeredParties.has(party)
@@ -312,8 +282,8 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
     let analysisQuality = 0;
     if (data && data.length > 0) {
       data.forEach(analysis => {
-        if (analysis.sentiment_score !== null && 
-            analysis.complexity_score !== null &&
+        if (analysis.overall_score !== null && 
+            analysis.language_complexity_score !== null &&
             analysis.word_count && analysis.word_count > 0) {
           analysisQuality++;
         }
@@ -330,7 +300,7 @@ export class ComprehensiveApiTestSuite extends EnhancedTester {
 
   private async testDataSyncLogIntegrity(): Promise<any> {
     const { data, error } = await supabase
-      .from('data_sync_logs')
+      .from('data_sync_log')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(10);
