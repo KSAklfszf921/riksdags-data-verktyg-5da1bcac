@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle, RefreshCw, Download } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
+import { useToast } from './ui/use-toast';
 
 interface NewsItem {
   title: string;
@@ -14,34 +16,34 @@ interface NewsItem {
   created_at?: string;
 }
 
+interface FormattedNewsItem {
+  member_name: string;
+  title: string;
+  headline: string;
+  body: string;
+  image_url: string | null;
+  link: string;
+  source: string;
+  pub_date: string;
+}
+
 interface MemberNewsFieldProps {
   memberName: string;
   memberId: string;
   maxItems?: number;
 }
 
-interface DatabaseNewsItem {
-  id: string;
-  member_id: string;
-  title: string;
-  link: string;
-  pub_date: string;
-  description: string | null;
-  image_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
 const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsFieldProps) => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [formattedItems, setFormattedItems] = useState<FormattedNewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'database' | 'live' | 'cache'>('database');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const { toast } = useToast();
 
-  // Hämta nyheter från databasen
+  // Fetch news from database
   const fetchNewsFromDatabase = async () => {
     console.log(`Fetching news from database for ${memberName} (${memberId})`);
     
@@ -51,7 +53,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         .select('*')
         .eq('member_id', memberId)
         .order('created_at', { ascending: false })
-        .limit(maxItems) as { data: DatabaseNewsItem[] | null; error: any };
+        .limit(maxItems);
 
       if (error) {
         console.error('Database error:', error);
@@ -82,13 +84,13 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Hämta nyheter via edge function
-  const fetchNewsFromAPI = async () => {
+  // Fetch news via edge function
+  const fetchNewsFromAPI = async (manualFetch = false) => {
     console.log(`Fetching news via edge function for ${memberName} (${memberId})`);
     
     try {
       const { data, error } = await supabase.functions.invoke('fetch-member-news', {
-        body: { memberName, memberId }
+        body: { memberName, memberId, manualFetch }
       });
 
       if (error) {
@@ -108,12 +110,18 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         }));
         
         setNewsItems(formattedNews);
+        setFormattedItems(data.formattedItems || []);
         setDataSource(data.source === 'cache' ? 'cache' : 'live');
         setLastFetchTime(new Date());
         
         // Show success message with storage info
         if (data.stored && data.stored > 0) {
-          setSuccess(`${data.stored} nya artiklar sparades i databasen`);
+          const message = `${data.stored} nya artiklar sparades i databasen`;
+          setSuccess(message);
+          toast({
+            title: "Nyheter uppdaterade",
+            description: message,
+          });
           setTimeout(() => setSuccess(null), 5000);
         }
         
@@ -125,6 +133,9 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         return true;
       } else {
         console.log('No news items returned from API');
+        if (data?.error) {
+          throw new Error(data.error);
+        }
         return false;
       }
     } catch (err) {
@@ -133,26 +144,33 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Huvudfunktion för att hämta nyheter
-  const fetchNews = async (forceRefresh = false) => {
+  // Main fetch function
+  const fetchNews = async (forceRefresh = false, manualFetch = false) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     
     try {
-      // Försök först med databasen om inte force refresh
-      if (!forceRefresh) {
+      // If manual fetch requested, always go to API
+      if (manualFetch) {
+        await fetchNewsFromAPI(true);
+        toast({
+          title: "Manuell hämtning slutförd",
+          description: "Nyheter har hämtats direkt från RSS-flödet",
+        });
+      } else if (!forceRefresh) {
+        // Try database first if not force refresh
         const dbSuccess = await fetchNewsFromDatabase();
         if (dbSuccess) {
           setLoading(false);
-          setRetryCount(0);
           return;
         }
+        // If nothing in database, fetch via API
+        await fetchNewsFromAPI(false);
+      } else {
+        // Force refresh - go directly to API
+        await fetchNewsFromAPI(false);
       }
-      
-      // Om inget i databasen eller force refresh, hämta via API
-      await fetchNewsFromAPI();
-      setRetryCount(0);
       
     } catch (err) {
       console.error('Error in fetchNews:', err);
@@ -176,27 +194,17 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       }
       
       setError(`Kunde inte hämta nyheter: ${errorMessage}`);
-      setRetryCount(prev => prev + 1);
-      
-      // Visa mockdata som fallback vid upprepade fel
-      if (retryCount >= 2) {
-        const mockNews: NewsItem[] = [
-          {
-            title: `Senaste nyheterna om ${memberName} kommer snart`,
-            link: '#',
-            pub_date: new Date().toISOString(),
-            description: 'Nyhetsflödet är tillfälligt otillgängligt. Försök igen senare.',
-          }
-        ];
-        setNewsItems(mockNews);
-        setDataSource('database');
-      }
+      toast({
+        title: "Fel vid hämtning",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // Formatera datum
+  // Format date
   const formatDate = (dateString: string): string => {
     try {
       return new Date(dateString).toLocaleDateString('sv-SE', {
@@ -211,7 +219,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Få rätt ikon för datakälla
+  // Get source icon
   const getSourceIcon = () => {
     switch (dataSource) {
       case 'cache':
@@ -223,7 +231,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Få rätt text för datakälla
+  // Get source text
   const getSourceText = () => {
     switch (dataSource) {
       case 'cache':
@@ -235,7 +243,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Hämta nyheter när komponenten laddas
+  // Fetch news when component loads
   useEffect(() => {
     if (memberName && memberId) {
       fetchNews();
@@ -285,9 +293,23 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Wifi className="w-4 h-4" />
+                <RefreshCw className="w-4 h-4" />
               )}
               <span className="text-sm">Uppdatera</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchNews(false, true)}
+              disabled={loading}
+              className="flex items-center space-x-1"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span className="text-sm">Manuell hämtning</span>
             </Button>
           </div>
         </CardTitle>
@@ -306,20 +328,11 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           <div className="text-center py-8">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
             <p className="text-gray-600">Hämtar senaste nyheterna...</p>
-            {retryCount > 0 && (
-              <p className="text-sm text-orange-500 mt-2">
-                Försök {retryCount + 1} - detta kan ta lite tid...
-              </p>
-            )}
           </div>
         ) : error && newsItems.length === 0 ? (
           <div className="text-center py-8">
             <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-4" />
             <p className="text-orange-600 text-sm mb-4">{error}</p>
-            <div className="text-xs text-gray-500 mb-4">
-              Tips: Nyhetsflödet kan vara tillfälligt otillgängligt på grund av Google News begränsningar.
-              {retryCount > 0 && ` (${retryCount} misslyckade försök)`}
-            </div>
             <Button
               variant="outline"
               size="sm"
@@ -334,6 +347,15 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           <div className="text-center py-8">
             <Newspaper className="w-8 h-8 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">Inga nyheter tillgängliga</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchNews(false, true)}
+              disabled={loading}
+              className="mt-2"
+            >
+              Hämta nyheter manuellt
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

@@ -1,4 +1,3 @@
-
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -239,6 +238,7 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
           <MemberNewsField 
             memberName={`${member.firstName} ${member.lastName}`} 
             memberId={member.id}
+            maxItems={10}
           />
 
           {/* Aktuella uppdrag */}
