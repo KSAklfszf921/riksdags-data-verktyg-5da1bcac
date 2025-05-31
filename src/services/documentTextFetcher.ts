@@ -1,4 +1,3 @@
-
 import { fetchDocumentText, fetchSpeechText, fetchMemberContentForAnalysis } from './riksdagApi';
 
 export interface CachedDocument {
@@ -24,6 +23,38 @@ class DocumentTextFetcher {
     return (now.getTime() - cached.fetchedAt.getTime()) < this.cacheExpiry;
   }
 
+  // Enhanced text cleaning function
+  private cleanText(text: string): string {
+    if (!text) return '';
+    
+    return text
+      // Remove HTML/XML tags more thoroughly
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&[a-zA-Z0-9#]+;/g, ' ') // Remove HTML entities
+      // Remove URLs
+      .replace(/https?:\/\/[^\s]+/g, ' ')
+      // Remove multiple whitespaces
+      .replace(/\s+/g, ' ')
+      // Remove special characters but keep Swedish letters
+      .replace(/[^\w\såäöÅÄÖ.,!?;:-]/g, ' ')
+      .trim();
+  }
+
+  // Enhanced text validation
+  private isValidText(text: string, minLength: number = 100): boolean {
+    if (!text || typeof text !== 'string') return false;
+    
+    const cleaned = this.cleanText(text);
+    if (cleaned.length < minLength) return false;
+    
+    // Check if text has actual words (not just numbers/punctuation)
+    const wordCount = cleaned.split(/\s+/).filter(word => 
+      word.length > 2 && /[a-zA-ZåäöÅÄÖ]/.test(word)
+    ).length;
+    
+    return wordCount >= 10; // At least 10 meaningful words
+  }
+
   async fetchDocumentTextWithCache(
     documentId: string, 
     documentType?: string
@@ -38,16 +69,18 @@ class DocumentTextFetcher {
     
     const text = await fetchDocumentText(documentId, documentType);
     
-    if (text) {
+    if (text && this.isValidText(text)) {
+      const cleanedText = this.cleanText(text);
       this.cache.set(cacheKey, {
         id: documentId,
-        text,
+        text: cleanedText,
         fetchedAt: new Date(),
         type: 'document'
       });
+      return cleanedText;
     }
     
-    return text;
+    return null;
   }
 
   async fetchSpeechTextWithCache(speechId: string): Promise<string | null> {
@@ -61,16 +94,18 @@ class DocumentTextFetcher {
     
     const text = await fetchSpeechText(speechId);
     
-    if (text) {
+    if (text && this.isValidText(text, 50)) { // Lower threshold for speeches
+      const cleanedText = this.cleanText(text);
       this.cache.set(cacheKey, {
         id: speechId,
-        text,
+        text: cleanedText,
         fetchedAt: new Date(),
         type: 'speech'
       });
+      return cleanedText;
     }
     
-    return text;
+    return null;
   }
 
   async fetchMemberContentBatch(
@@ -90,19 +125,36 @@ class DocumentTextFetcher {
         });
       }
 
-      const content = await fetchMemberContentForAnalysis(memberId, 25);
+      const content = await fetchMemberContentForAnalysis(memberId, 30);
       
       if (onProgress) {
         onProgress({
-          currentItem: 'Innehåll hämtat från API',
-          completed: 100,
+          currentItem: 'Bearbetar och validerar text...',
+          completed: 50,
           total: 100,
           errors: []
         });
       }
 
+      // Enhanced processing with better text validation
+      const validSpeeches = content.speeches
+        .filter(speech => this.isValidText(speech.text, 100))
+        .map(speech => ({
+          ...speech,
+          text: this.cleanText(speech.text)
+        }))
+        .slice(0, 15); // Limit to 15 best speeches
+
+      const validDocuments = content.documents
+        .filter(doc => this.isValidText(doc.text, 150))
+        .map(doc => ({
+          ...doc,
+          text: this.cleanText(doc.text)
+        }))
+        .slice(0, 10); // Limit to 10 best documents
+
       // Cache the results
-      content.speeches.forEach(speech => {
+      validSpeeches.forEach(speech => {
         this.cache.set(`speech_${speech.id}`, {
           id: speech.id,
           text: speech.text,
@@ -111,7 +163,7 @@ class DocumentTextFetcher {
         });
       });
 
-      content.documents.forEach(doc => {
+      validDocuments.forEach(doc => {
         this.cache.set(`doc_${doc.id}`, {
           id: doc.id,
           text: doc.text,
@@ -120,7 +172,19 @@ class DocumentTextFetcher {
         });
       });
 
-      return content;
+      if (onProgress) {
+        onProgress({
+          currentItem: `Klar: ${validSpeeches.length} anföranden, ${validDocuments.length} dokument`,
+          completed: 100,
+          total: 100,
+          errors: []
+        });
+      }
+
+      return {
+        speeches: validSpeeches,
+        documents: validDocuments
+      };
     } catch (error) {
       console.error('Error in fetchMemberContentBatch:', error);
       
