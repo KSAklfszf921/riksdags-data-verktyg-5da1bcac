@@ -19,9 +19,11 @@ import {
   Activity,
   TrendingUp,
   Database,
-  Zap
+  Zap,
+  Shield
 } from 'lucide-react';
 import { LanguageAnalysisService, BatchProgress } from '../services/languageAnalysisService';
+import DataValidationDashboard from './DataValidationDashboard';
 
 const LanguageAnalysisBatchRunner = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -63,7 +65,7 @@ const LanguageAnalysisBatchRunner = () => {
     setIsRunning(true);
     setBatchResult(null);
     setProgress({
-      currentMember: 'Förbereder analys...',
+      currentMember: 'Förbereder enhanced analys...',
       completedCount: 0,
       totalCount: 0,
       successCount: 0,
@@ -84,7 +86,7 @@ const LanguageAnalysisBatchRunner = () => {
       await loadStatistics(); // Uppdatera statistik efter analys
       
     } catch (error: any) {
-      console.error('Fel vid batch-analys:', error);
+      console.error('Fel vid enhanced batch-analys:', error);
       setBatchResult({
         success: progress.successCount,
         errors: progress.errorCount + 1,
@@ -132,7 +134,11 @@ const LanguageAnalysisBatchRunner = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Brain className="w-5 h-5" />
-            <span>Batch-språkanalys för aktiva ledamöter</span>
+            <span>Enhanced Batch-språkanalys för aktiva ledamöter</span>
+            <Badge className="bg-green-100 text-green-800">
+              <Zap className="w-3 h-3 mr-1" />
+              v2.1
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -157,11 +163,19 @@ const LanguageAnalysisBatchRunner = () => {
             </div>
           )}
 
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
+          <Alert className="border-blue-200">
+            <Shield className="h-4 w-4" />
             <AlertDescription>
-              Denna process analyserar språket i anföranden och skriftliga frågor för alla aktiva riksdagsledamöter. 
-              Analysen kan ta 15-30 minuter beroende på mängden data och hoppar över ledamöter med recenta analyser.
+              <div className="space-y-2">
+                <span className="font-medium">Enhanced språkanalys v2.1 innehåller:</span>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Förbättrad textbearbetning och rensning</li>
+                  <li>Mer robust validering av textinnehåll</li>
+                  <li>Enhanced felhantering och rapportering</li>
+                  <li>Automatisk datavalidering före analys</li>
+                  <li>Bättre hantering av korta och tomma texter</li>
+                </ul>
+              </div>
             </AlertDescription>
           </Alert>
 
@@ -172,7 +186,7 @@ const LanguageAnalysisBatchRunner = () => {
               className="flex items-center space-x-2"
             >
               <Play className="w-4 h-4" />
-              <span>Starta batch-analys</span>
+              <span>Starta Enhanced Batch-analys</span>
             </Button>
 
             {isRunning && (
@@ -211,7 +225,7 @@ const LanguageAnalysisBatchRunner = () => {
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Framsteg</span>
+                  <span className="text-sm font-medium">Enhanced Analys - Framsteg</span>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-600">
                       {progress.completedCount}/{progress.totalCount}
@@ -256,37 +270,78 @@ const LanguageAnalysisBatchRunner = () => {
         </CardContent>
       </Card>
 
-      {batchResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Database className="w-5 h-5" />
-              <span>Analysresultat</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">{batchResult.success}</div>
-                <div className="text-sm text-green-800">Lyckade analyser</div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-red-600">{batchResult.errors}</div>
-                <div className="text-sm text-red-800">Fel uppstod</div>
-              </div>
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {Math.round((batchResult.success / (batchResult.success + batchResult.errors)) * 100)}%
-                </div>
-                <div className="text-sm text-blue-800">Framgångsgrad</div>
-              </div>
-            </div>
+      <Tabs defaultValue="validation" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="validation">Datavalidering</TabsTrigger>
+          <TabsTrigger value="results">Resultat</TabsTrigger>
+          <TabsTrigger value="errors">Fel</TabsTrigger>
+          <TabsTrigger value="info">Information</TabsTrigger>
+        </TabsList>
 
-            {batchResult.details.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-gray-900">Feldetaljer:</h4>
-                <div className="max-h-48 overflow-y-auto space-y-1">
-                  {batchResult.details.slice(-20).map((error, index) => (
+        <TabsContent value="validation" className="space-y-4">
+          <DataValidationDashboard />
+        </TabsContent>
+
+        <TabsContent value="results" className="space-y-4">
+          {batchResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Database className="w-5 h-5" />
+                  <span>Analysresultat</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="bg-green-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-600">{batchResult.success}</div>
+                    <div className="text-sm text-green-800">Lyckade analyser</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-red-600">{batchResult.errors}</div>
+                    <div className="text-sm text-red-800">Fel uppstod</div>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {batchResult.success + batchResult.errors > 0 ? 
+                        Math.round((batchResult.success / (batchResult.success + batchResult.errors)) * 100) : 0}%
+                    </div>
+                    <div className="text-sm text-blue-800">Framgångsgrad</div>
+                  </div>
+                </div>
+
+                {batchResult.details.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-gray-900">Feldetaljer ({batchResult.details.length}):</h4>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {batchResult.details.slice(-20).map((error, index) => (
+                        <Alert key={index} className="border-red-200 py-2">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-red-700 text-sm">
+                            {error}
+                          </AlertDescription>
+                        </Alert>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="errors" className="space-y-4">
+          {progress.errors.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <span>Aktuella fel ({progress.errors.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {progress.errors.map((error, index) => (
                     <Alert key={index} className="border-red-200 py-2">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription className="text-red-700 text-sm">
@@ -295,90 +350,100 @@ const LanguageAnalysisBatchRunner = () => {
                     </Alert>
                   ))}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
+          
+          {progress.errors.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Inga fel rapporterade
+                </h3>
+                <p className="text-gray-600">
+                  Alla analyser har körts utan fel, eller så har ingen analys startats ännu.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
-      {progress.errors.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <span>Aktuella fel ({progress.errors.length})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {progress.errors.map((error, index) => (
-                <Alert key={index} className="border-red-200 py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-red-700 text-sm">
-                    {error}
-                  </AlertDescription>
-                </Alert>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="info" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <BarChart3 className="w-5 h-5" />
+                <span>Enhanced Språkanalys v2.1</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="what" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="what">Vad analyseras</TabsTrigger>
+                  <TabsTrigger value="how">Hur det fungerar</TabsTrigger>
+                  <TabsTrigger value="improvements">Förbättringar</TabsTrigger>
+                  <TabsTrigger value="results">Resultat</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="what" className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Analyserade dokument:</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Anföranden i riksdagen (upp till 20 per ledamot, filtrerade för kvalitet)</li>
+                      <li>• Skriftliga frågor (upp till 15 per ledamot, förbättrad validering)</li>
+                      <li>• Enhanced textvalidering: minst 200 tecken för anföranden, 100 för frågor</li>
+                      <li>• Automatisk datavalidering före analys startas</li>
+                      <li>• Hoppar över ledamöter med analyser från senaste veckan</li>
+                    </ul>
+                  </div>
+                </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="w-5 h-5" />
-            <span>Information om analysen</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="what" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="what">Vad analyseras</TabsTrigger>
-              <TabsTrigger value="how">Hur det fungerar</TabsTrigger>
-              <TabsTrigger value="results">Resultat</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="what" className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Analyserade dokument:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Anföranden i riksdagen (de senaste 15 per ledamot)</li>
-                  <li>• Skriftliga frågor (de senaste 8 per ledamot)</li>
-                  <li>• Endast text längre än 150 tecken (anföranden) eller 80 tecken (frågor)</li>
-                  <li>• Hoppar över ledamöter med analyser från senaste veckan</li>
-                </ul>
-              </div>
-            </TabsContent>
+                <TabsContent value="how" className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Enhanced analysprocess:</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• <strong>Förbättrad textrensning:</strong> Mer robust HTML/XML-borttagning, URL-filtrering</li>
+                      <li>• <strong>Enhanced språkkomplexitet:</strong> Förbättrad passiv form-detektion för svenska</li>
+                      <li>• <strong>Intelligent ordförrådsanalys:</strong> Bättre filtrering av tekniska termer</li>
+                      <li>• <strong>Robust felhantering:</strong> Säkra fallback-värden vid parsningsfel</li>
+                      <li>• <strong>Datavalidering:</strong> Kontrollerar datatillgänglighet före start</li>
+                    </ul>
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="how" className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Analysparametrar:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• <strong>Språkkomplexitet:</strong> Meningslängd, ordlängd, komplexa ord, passiv form</li>
-                  <li>• <strong>Ordförrådsrikedom:</strong> Unika ord, variation, ordval</li>
-                  <li>• <strong>Retoriska element:</strong> Frågor, utropstecken, formella markörer, tekniska termer</li>
-                  <li>• <strong>Strukturell tydlighet:</strong> Meningsbalans, styckeindelning, läsbarhet</li>
-                </ul>
-              </div>
-            </TabsContent>
+                <TabsContent value="improvements" className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Nya förbättringar i v2.1:</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• <strong>Enhanced textbearbetning:</strong> Bättre rensning av XML/HTML-taggar</li>
+                      <li>• <strong>Förbättrad validering:</strong> Kontrollerar textlängd och ordantal</li>
+                      <li>• <strong>Robust felhantering:</strong> Fortsätter vid fel istället för att krascha</li>
+                      <li>• <strong>Bättre progress-rapportering:</strong> Mer detaljerad information om framsteg</li>
+                      <li>• <strong>Datavalidering dashboard:</strong> Visar datakvalitet före analys</li>
+                      <li>• <strong>Enhanced metriker:</strong> Förbättrade algoritmer för alla språkaspekter</li>
+                    </ul>
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="results" className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Resultat och poängsystem:</h4>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Poäng 1-100 för varje kategori och totalt</li>
-                  <li>• <strong>Mycket hög (85-100):</strong> Exceptionell språklig kvalitet</li>
-                  <li>• <strong>Hög (70-84):</strong> Hög språklig kvalitet</li>
-                  <li>• <strong>Medel (55-69):</strong> Genomsnittlig kvalitet</li>
-                  <li>• <strong>Låg (40-54):</strong> Grundläggande kvalitet</li>
-                  <li>• <strong>Mycket låg (1-39):</strong> Begränsad kvalitet</li>
-                </ul>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+                <TabsContent value="results" className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Resultat och poängsystem:</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Poäng 1-100 för varje kategori och totalt</li>
+                      <li>• <strong>Mycket hög (85-100):</strong> Exceptionell språklig kvalitet</li>
+                      <li>• <strong>Hög (70-84):</strong> Hög språklig kvalitet</li>
+                      <li>• <strong>Medel (55-69):</strong> Genomsnittlig kvalitet</li>
+                      <li>• <strong>Låg (40-54):</strong> Grundläggande kvalitet</li>
+                      <li>• <strong>Mycket låg (1-39):</strong> Begränsad kvalitet</li>
+                    </ul>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

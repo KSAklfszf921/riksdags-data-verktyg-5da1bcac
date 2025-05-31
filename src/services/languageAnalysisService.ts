@@ -70,6 +70,18 @@ export interface BatchProgress {
   errors: string[];
 }
 
+export interface DataValidationResult {
+  totalMembers: number;
+  membersWithSpeeches: number;
+  membersWithQuestions: number;
+  membersWithValidContent: number;
+  avgSpeechLength: number;
+  avgQuestionLength: number;
+  emptyContentCount: number;
+  shortContentCount: number;
+  recommendations: string[];
+}
+
 export class LanguageAnalysisService {
   private static complexWords = new Set([
     'återgång', 'förutsättning', 'ansvarighet', 'genomförande', 'utveckling',
@@ -95,6 +107,174 @@ export class LanguageAnalysisService {
     'remiss', 'departement', 'myndighet', 'delegation'
   ]);
 
+  static validateDataAvailability = async (): Promise<DataValidationResult> => {
+    try {
+      console.log('Starting data availability validation...');
+      
+      // Get active members
+      const { data: members, error: membersError } = await supabase
+        .from('member_data')
+        .select('member_id, first_name, last_name')
+        .eq('is_active', true);
+
+      if (membersError) {
+        throw new Error(`Error fetching members: ${membersError.message}`);
+      }
+
+      const totalMembers = members?.length || 0;
+      let membersWithSpeeches = 0;
+      let membersWithQuestions = 0;
+      let membersWithValidContent = 0;
+      let totalSpeechLength = 0;
+      let totalQuestionLength = 0;
+      let speechCount = 0;
+      let questionCount = 0;
+      let emptyContentCount = 0;
+      let shortContentCount = 0;
+
+      // Check each member's data
+      for (const member of members || []) {
+        let memberHasValidContent = false;
+
+        // Check speeches
+        const { data: speeches } = await supabase
+          .from('speech_data')
+          .select('anforandetext')
+          .eq('intressent_id', member.member_id)
+          .not('anforandetext', 'is', null)
+          .limit(5);
+
+        if (speeches && speeches.length > 0) {
+          membersWithSpeeches++;
+          for (const speech of speeches) {
+            speechCount++;
+            const textLength = speech.anforandetext?.trim().length || 0;
+            totalSpeechLength += textLength;
+            
+            if (textLength === 0) {
+              emptyContentCount++;
+            } else if (textLength < 150) {
+              shortContentCount++;
+            } else {
+              memberHasValidContent = true;
+            }
+          }
+        }
+
+        // Check written questions
+        const { data: questions } = await supabase
+          .from('document_data')
+          .select('content_preview')
+          .eq('intressent_id', member.member_id)
+          .eq('typ', 'fr')
+          .not('content_preview', 'is', null)
+          .limit(5);
+
+        if (questions && questions.length > 0) {
+          membersWithQuestions++;
+          for (const question of questions) {
+            questionCount++;
+            const textLength = question.content_preview?.trim().length || 0;
+            totalQuestionLength += textLength;
+            
+            if (textLength === 0) {
+              emptyContentCount++;
+            } else if (textLength < 80) {
+              shortContentCount++;
+            } else {
+              memberHasValidContent = true;
+            }
+          }
+        }
+
+        if (memberHasValidContent) {
+          membersWithValidContent++;
+        }
+      }
+
+      const avgSpeechLength = speechCount > 0 ? Math.round(totalSpeechLength / speechCount) : 0;
+      const avgQuestionLength = questionCount > 0 ? Math.round(totalQuestionLength / questionCount) : 0;
+
+      // Generate recommendations
+      const recommendations: string[] = [];
+      
+      if (membersWithValidContent < totalMembers * 0.5) {
+        recommendations.push('Över 50% av ledamöterna saknar analysbar text - överväg dataimport från externa källor');
+      }
+      
+      if (emptyContentCount > totalMembers * 0.2) {
+        recommendations.push('Många tomma textfält hittades - implementera datavalidering vid import');
+      }
+      
+      if (avgSpeechLength < 300) {
+        recommendations.push('Anföranden är generellt korta - justera minimikrav för analys');
+      }
+      
+      if (avgQuestionLength < 150) {
+        recommendations.push('Skriftliga frågor är generellt korta - överväg att inkludera motiveringstexter');
+      }
+
+      if (recommendations.length === 0) {
+        recommendations.push('Datan verkar vara i bra skick för språkanalys');
+      }
+
+      console.log('Data validation completed');
+
+      return {
+        totalMembers,
+        membersWithSpeeches,
+        membersWithQuestions,
+        membersWithValidContent,
+        avgSpeechLength,
+        avgQuestionLength,
+        emptyContentCount,
+        shortContentCount,
+        recommendations
+      };
+    } catch (error) {
+      console.error('Error validating data availability:', error);
+      throw error;
+    }
+  };
+
+  static enhancedTextExtraction = (rawText: string): string => {
+    if (!rawText) return '';
+
+    try {
+      let cleanText = rawText;
+
+      // Remove HTML tags more comprehensively
+      cleanText = cleanText.replace(/<[^>]*>/g, ' ');
+      
+      // Remove XML/markup tags
+      cleanText = cleanText.replace(/<\/?[^>]+(>|$)/g, ' ');
+      
+      // Remove URLs
+      cleanText = cleanText.replace(/https?:\/\/[^\s]+/g, ' ');
+      
+      // Remove email addresses
+      cleanText = cleanText.replace(/[^\s]+@[^\s]+\.[^\s]+/g, ' ');
+      
+      // Remove excessive whitespace and normalize
+      cleanText = cleanText.replace(/\s+/g, ' ');
+      
+      // Remove special characters but keep Swedish characters
+      cleanText = cleanText.replace(/[^\w\såäöÅÄÖ.,!?:;()-]/g, ' ');
+      
+      // Remove standalone numbers and short fragments
+      cleanText = cleanText.replace(/\b\d+\b/g, ' ');
+      cleanText = cleanText.replace(/\b\w{1,2}\b/g, ' ');
+      
+      // Final cleanup
+      cleanText = cleanText.replace(/\s+/g, ' ').trim();
+      
+      return cleanText;
+    } catch (error) {
+      console.error('Error in enhanced text extraction:', error);
+      return rawText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+  };
+
   static analyzeText(text: string): TextAnalysisMetrics {
     if (!text || text.trim().length === 0) {
       return {
@@ -114,69 +294,83 @@ export class LanguageAnalysisService {
     }
 
     try {
-      // Clean text from HTML tags and normalize whitespace
-      const cleanText = text
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/[^\w\såäöÅÄÖ.,!?:;-]/g, '')
-        .trim();
+      // Enhanced text preprocessing
+      const cleanText = this.enhancedTextExtraction(text);
       
-      if (!cleanText) {
-        throw new Error('No valid text content after cleaning');
+      if (!cleanText || cleanText.length < 10) {
+        throw new Error('Text too short after cleaning');
       }
 
-      // Basic counts with improved sentence detection
+      // Enhanced sentence detection
       const sentences = cleanText
         .split(/[.!?]+/)
-        .filter(s => s.trim().length > 5 && /\w/.test(s))
+        .filter(s => {
+          const trimmed = s.trim();
+          return trimmed.length > 8 && /[a-zåäöA-ZÅÄÖ]/.test(trimmed) && 
+                 trimmed.split(/\s+/).length >= 3; // At least 3 words
+        })
         .map(s => s.trim());
       
+      // Enhanced paragraph detection
       const paragraphs = cleanText
-        .split(/\n\s*\n/)
-        .filter(p => p.trim().length > 10);
+        .split(/\n\s*\n|\.\s*\n/)
+        .filter(p => {
+          const trimmed = p.trim();
+          return trimmed.length > 20 && trimmed.split(/\s+/).length >= 5; // At least 5 words
+        });
       
+      // Enhanced word extraction
       const words = cleanText
         .toLowerCase()
         .split(/\s+/)
-        .filter(w => w.length > 2 && /[a-zåäö]/.test(w))
+        .filter(w => {
+          const cleaned = w.replace(/[^a-zåäö]/g, '');
+          return cleaned.length >= 3 && /[a-zåäö]{3,}/.test(cleaned);
+        })
         .map(w => w.replace(/[^a-zåäö]/g, ''));
       
       if (words.length === 0) {
-        throw new Error('No valid words found in text');
+        throw new Error('No valid words found after filtering');
       }
 
-      // Word analysis
+      // Word analysis with better filtering
       const uniqueWords = new Set(words);
       const complexWordCount = words.filter(word => 
-        this.complexWords.has(word) || word.length > 12
+        this.complexWords.has(word) || (word.length > 12 && /[a-zåäö]{12,}/.test(word))
       ).length;
       
-      // Improved passive voice detection for Swedish
+      // Enhanced passive voice detection for Swedish
       const passivePatterns = [
-        /\b(blev|blivit|är|var|varit|kommer att|har\s+\w+ts?)\b/gi,
-        /\b\w+a[ds]\s+av\b/gi, // words ending in -ad/-as followed by "av"
-        /\b\w+ts?\s+(av|genom)\b/gi // words ending in -t/-ts followed by "av/genom"
+        /\b(blev|blivit|är|var|varit|kommer\s+att|har\s+\w+[td]s?)\b/gi,
+        /\b\w+a[ds]\s+av\b/gi,
+        /\b\w+[td]s?\s+(av|genom|med)\b/gi,
+        /\b(utförs|genomförs|behandlas|diskuteras|föreslås)\b/gi
       ];
       
       const passiveCount = sentences.filter(sentence => 
-        passivePatterns.some(pattern => pattern.test(sentence))
+        passivePatterns.some(pattern => {
+          pattern.lastIndex = 0; // Reset regex
+          return pattern.test(sentence);
+        })
       ).length;
       
-      // Question and exclamation counts
+      // Enhanced punctuation analysis
       const questionCount = (cleanText.match(/\?/g) || []).length;
       const exclamationCount = (cleanText.match(/!/g) || []).length;
       
-      // Formal language indicators (phrase matching)
+      // Enhanced formal language detection
       let formalCount = 0;
       const textLower = cleanText.toLowerCase();
       for (const indicator of this.formalIndicators) {
-        const matches = textLower.split(indicator).length - 1;
-        formalCount += matches;
+        const regex = new RegExp(`\\b${indicator.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        const matches = textLower.match(regex) || [];
+        formalCount += matches.length;
       }
       
-      // Technical terms
+      // Enhanced technical terms detection
       const technicalCount = words.filter(word => 
-        this.technicalTerms.has(word)
+        this.technicalTerms.has(word) || 
+        (/^(riks|parlaments|demokrati|konstitution)/.test(word) && word.length > 8)
       ).length;
       
       return {
@@ -195,14 +389,14 @@ export class LanguageAnalysisService {
       };
     } catch (error) {
       console.error('Error analyzing text:', error);
-      // Return minimal valid metrics on error
+      // Return safe fallback metrics
       return {
-        wordCount: 1,
+        wordCount: Math.max(text.split(/\s+/).length, 1),
         sentenceCount: 1,
         paragraphCount: 1,
-        avgSentenceLength: 1,
+        avgSentenceLength: 10,
         avgWordLength: 5,
-        uniqueWordsRatio: 0.5,
+        uniqueWordsRatio: 0.6,
         complexWordsRatio: 0.1,
         passiveVoiceRatio: 0.1,
         questionCount: 0,
@@ -271,7 +465,6 @@ export class LanguageAnalysisService {
       };
     } catch (error) {
       console.error('Error calculating scores:', error);
-      // Return default scores on error
       return {
         languageComplexity: 50,
         vocabularyRichness: 50,
@@ -292,9 +485,17 @@ export class LanguageAnalysisService {
     const errorDetails: string[] = [];
 
     try {
-      console.log('Starting batch language analysis...');
+      console.log('Starting enhanced batch language analysis...');
       
-      // Hämta aktiva ledamöter
+      // First validate data availability
+      const validation = await this.validateDataAvailability();
+      console.log('Data validation results:', validation);
+      
+      if (validation.membersWithValidContent < 10) {
+        throw new Error(`Otillräckligt med analysbar data: endast ${validation.membersWithValidContent} ledamöter har giltig text`);
+      }
+
+      // Get active members with priority for those with more content
       const { data: members, error: membersError } = await supabase
         .from('member_data')
         .select('member_id, first_name, last_name')
@@ -315,7 +516,7 @@ export class LanguageAnalysisService {
         const member = members[i];
         const memberName = `${member.first_name} ${member.last_name}`;
         
-        // Uppdatera progress
+        // Enhanced progress reporting
         if (onProgress) {
           const elapsed = new Date().getTime() - startTime.getTime();
           const avgTimePerMember = elapsed / Math.max(i, 1);
@@ -326,23 +527,29 @@ export class LanguageAnalysisService {
           const seconds = Math.floor((estimatedRemaining % 60000) / 1000);
           
           onProgress({
-            currentMember: memberName,
+            currentMember: `${memberName} (${i + 1}/${members.length})`,
             completedCount: i,
             totalCount: members.length,
             successCount,
             errorCount,
             estimatedTimeLeft: `${minutes}m ${seconds}s`,
-            errors: errorDetails.slice(-5) // Visa bara de senaste 5 felen
+            errors: errorDetails.slice(-5)
           });
         }
         
         try {
-          await this.analyzeMemberLanguage(member.member_id, memberName);
-          successCount++;
-          console.log(`✓ Slutförd analys för ${memberName} (${i + 1}/${members.length})`);
+          const analyzedCount = await this.analyzeMemberLanguageEnhanced(member.member_id, memberName);
+          if (analyzedCount > 0) {
+            successCount++;
+            console.log(`✓ Slutförd analys för ${memberName}: ${analyzedCount} dokument (${i + 1}/${members.length})`);
+          } else {
+            errorCount++;
+            errorDetails.push(`${memberName}: Ingen analysbar text hittades`);
+            console.warn(`⚠ Inga dokument analyserade för ${memberName}`);
+          }
           
-          // Paus för att inte överbelasta systemet
-          await new Promise(resolve => setTimeout(resolve, 200));
+          // Adaptive pause based on system load
+          await new Promise(resolve => setTimeout(resolve, 150));
           
         } catch (memberError: any) {
           errorCount++;
@@ -365,7 +572,7 @@ export class LanguageAnalysisService {
         });
       }
 
-      console.log(`Batch-analys slutförd: ${successCount} lyckades, ${errorCount} fel`);
+      console.log(`Enhanced batch-analys slutförd: ${successCount} lyckades, ${errorCount} fel`);
       
       return {
         success: successCount,
@@ -374,7 +581,7 @@ export class LanguageAnalysisService {
       };
 
     } catch (error: any) {
-      console.error('Kritiskt fel i batch-analys:', error);
+      console.error('Kritiskt fel i enhanced batch-analys:', error);
       errorDetails.push(`Kritiskt fel: ${error.message}`);
       
       if (onProgress) {
@@ -397,13 +604,13 @@ export class LanguageAnalysisService {
     }
   }
 
-  static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<number> {
+  static async analyzeMemberLanguageEnhanced(memberId: string, memberName: string): Promise<number> {
     let analyzedCount = 0;
     
     try {
-      console.log(`Analyserar språk för ${memberName} (${memberId})`);
+      console.log(`Enhanced språkanalys för ${memberName} (${memberId})`);
 
-      // Kontrollera om medlemmen redan har recenta analyser
+      // Check for recent analyses
       const { data: existingAnalyses } = await supabase
         .from('language_analysis')
         .select('analysis_date')
@@ -416,82 +623,94 @@ export class LanguageAnalysisService {
         return 0;
       }
 
-      // Hämta anföranden
+      // Enhanced speech fetching with better filtering
       const { data: speeches, error: speechError } = await supabase
         .from('speech_data')
         .select('speech_id, anforandetext, rel_dok_titel, anforandedatum')
         .eq('intressent_id', memberId)
         .not('anforandetext', 'is', null)
-        .gte('anforandetext', '') // Undvik tomma strängar
+        .neq('anforandetext', '')
         .order('anforandedatum', { ascending: false })
-        .limit(15);
+        .limit(20); // Increased limit for better selection
 
       if (speechError) {
         console.error('Fel vid hämtning av anföranden:', speechError);
       }
 
-      // Analysera anföranden
-      for (const speech of speeches || []) {
-        if (speech.anforandetext && speech.anforandetext.trim().length > 150) {
-          try {
-            await this.saveAnalysis(
-              memberId,
-              memberName,
-              'speech',
-              speech.speech_id,
-              speech.rel_dok_titel || 'Anförande',
-              speech.anforandetext
-            );
-            analyzedCount++;
-          } catch (error) {
-            console.error(`Fel vid analys av anförande för ${memberName}:`, error);
-          }
+      // Enhanced speech analysis with better content validation
+      const validSpeeches = (speeches || []).filter(speech => {
+        if (!speech.anforandetext) return false;
+        const cleanText = this.enhancedTextExtraction(speech.anforandetext);
+        return cleanText.length > 200 && cleanText.split(/\s+/).length > 30;
+      });
+
+      console.log(`Hittade ${validSpeeches.length} giltiga anföranden för ${memberName}`);
+
+      for (const speech of validSpeeches.slice(0, 15)) {
+        try {
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            'speech',
+            speech.speech_id,
+            speech.rel_dok_titel || 'Anförande',
+            speech.anforandetext
+          );
+          analyzedCount++;
+        } catch (error) {
+          console.error(`Fel vid analys av anförande för ${memberName}:`, error);
         }
       }
 
-      // Hämta skriftliga frågor
+      // Enhanced written questions fetching
       const { data: questions, error: questionError } = await supabase
         .from('document_data')
         .select('document_id, titel, datum, content_preview')
         .eq('intressent_id', memberId)
         .eq('typ', 'fr')
         .not('content_preview', 'is', null)
-        .gte('content_preview', '') // Undvik tomma strängar
+        .neq('content_preview', '')
         .order('datum', { ascending: false })
-        .limit(8);
+        .limit(15); // Increased limit
 
       if (questionError) {
         console.error('Fel vid hämtning av skriftliga frågor:', questionError);
       }
 
-      // Analysera skriftliga frågor
-      for (const question of questions || []) {
-        if (question.content_preview && question.content_preview.trim().length > 80) {
-          try {
-            await this.saveAnalysis(
-              memberId,
-              memberName,
-              'written_question',
-              question.document_id,
-              question.titel || 'Skriftlig fråga',
-              question.content_preview
-            );
-            analyzedCount++;
-          } catch (error) {
-            console.error(`Fel vid analys av skriftlig fråga för ${memberName}:`, error);
-          }
+      // Enhanced question analysis with better content validation
+      const validQuestions = (questions || []).filter(question => {
+        if (!question.content_preview) return false;
+        const cleanText = this.enhancedTextExtraction(question.content_preview);
+        return cleanText.length > 100 && cleanText.split(/\s+/).length > 15;
+      });
+
+      console.log(`Hittade ${validQuestions.length} giltiga frågor för ${memberName}`);
+
+      for (const question of validQuestions.slice(0, 10)) {
+        try {
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            'written_question',
+            question.document_id,
+            question.titel || 'Skriftlig fråga',
+            question.content_preview
+          );
+          analyzedCount++;
+        } catch (error) {
+          console.error(`Fel vid analys av skriftlig fråga för ${memberName}:`, error);
         }
       }
 
       if (analyzedCount === 0) {
-        throw new Error('Ingen giltig text hittades för analys');
+        throw new Error(`Ingen analysbar text hittades (kontrollerade ${validSpeeches.length} anföranden och ${validQuestions.length} frågor)`);
       }
 
-      console.log(`Slutförde analys för ${memberName}: ${analyzedCount} dokument`);
+      console.log(`Slutförde enhanced analys för ${memberName}: ${analyzedCount} dokument`);
       return analyzedCount;
       
     } catch (error: any) {
-      console.error(`Fel vid analys av ${memberName}:`, error);
+      console.error(`Enhanced analys misslyckades för ${memberName}:`, error);
       throw new Error(`Analys misslyckades: ${error.message}`);
     }
   }
@@ -505,11 +724,25 @@ export class LanguageAnalysisService {
     text: string
   ): Promise<LanguageAnalysisResult | null> {
     try {
-      if (!text || text.trim().length < 50) {
-        throw new Error('Text för kort för analys');
+      // Enhanced text preprocessing before analysis
+      const cleanedText = this.enhancedTextExtraction(text);
+      
+      if (!cleanedText || cleanedText.trim().length < 50) {
+        throw new Error(`Text för kort för analys: ${cleanedText.length} tecken`);
       }
 
-      const metrics = this.analyzeText(text);
+      const wordCount = cleanedText.split(/\s+/).length;
+      if (wordCount < 10) {
+        throw new Error(`För få ord för analys: ${wordCount} ord`);
+      }
+
+      const metrics = this.analyzeText(cleanedText);
+      
+      // Validate metrics before scoring
+      if (metrics.wordCount === 0) {
+        throw new Error('Inga giltiga ord hittades efter textanalys');
+      }
+
       const scores = this.calculateScores(metrics);
 
       const analysisData = {
@@ -525,7 +758,7 @@ export class LanguageAnalysisService {
         structural_clarity_score: scores.structuralClarity,
         word_count: metrics.wordCount,
         sentence_count: metrics.sentenceCount,
-        paragraph_count: metrics.paragraph_count,
+        paragraph_count: metrics.paragraphCount, // Fixed: use paragraphCount instead of paragraph_count
         avg_sentence_length: Math.round(metrics.avgSentenceLength * 10) / 10,
         avg_word_length: Math.round(metrics.avgWordLength * 10) / 10,
         unique_words_ratio: Math.round(metrics.uniqueWordsRatio * 1000) / 1000,
@@ -535,8 +768,8 @@ export class LanguageAnalysisService {
         exclamation_count: metrics.exclamationCount,
         formal_language_indicators: metrics.formalLanguageIndicators,
         technical_terms_count: metrics.technicalTermsCount,
-        full_text: text.length > 10000 ? text.substring(0, 10000) + '...' : text,
-        analysis_version: '2.0'
+        full_text: cleanedText.length > 10000 ? cleanedText.substring(0, 10000) + '...' : cleanedText,
+        analysis_version: '2.1' // Updated version to reflect enhancements
       };
 
       const { data, error } = await supabase
@@ -555,7 +788,7 @@ export class LanguageAnalysisService {
 
       return data as LanguageAnalysisResult;
     } catch (error: any) {
-      console.error('Fel i språkanalys:', error);
+      console.error('Fel i saveAnalysis:', error);
       throw error;
     }
   }
