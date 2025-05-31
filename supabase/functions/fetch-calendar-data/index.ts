@@ -21,10 +21,41 @@ interface RiksdagCalendarEvent {
 }
 
 interface RiksdagCalendarResponse {
-  kalender: {
+  kalender?: {
     händelse: RiksdagCalendarEvent[] | RiksdagCalendarEvent;
   };
+  kalenderlista?: {
+    kalender?: RiksdagCalendarEvent[] | RiksdagCalendarEvent;
+  };
 }
+
+const isValidJsonResponse = (text: string): boolean => {
+  if (!text || text.trim().length === 0) return false;
+  if (text.trim().startsWith('<')) return false; // HTML response
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const extractEvents = (data: RiksdagCalendarResponse): RiksdagCalendarEvent[] => {
+  // Try different response structures
+  if (data.kalender?.händelse) {
+    return Array.isArray(data.kalender.händelse) 
+      ? data.kalender.händelse 
+      : [data.kalender.händelse];
+  }
+  
+  if (data.kalenderlista?.kalender) {
+    return Array.isArray(data.kalenderlista.kalender) 
+      ? data.kalenderlista.kalender 
+      : [data.kalenderlista.kalender];
+  }
+  
+  return [];
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -32,7 +63,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting comprehensive calendar data sync...');
+    console.log('Starting improved calendar data sync...');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -42,16 +73,15 @@ serve(async (req) => {
     let errors = 0;
     const startTime = Date.now();
 
-    // API endpoints according to technical specification
+    // Updated API endpoints with better parameter combinations
     const apiEndpoints = [
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=500',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&sort=c&sortorder=asc',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&sort=c&sortorder=desc',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=300&from=2024-01-01&tom=2025-12-31',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&typ=sammantrade',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&typ=debatt',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&org=kamm',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=200&org=eun'
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=100',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&sort=datum&sortorder=desc',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&sort=datum&sortorder=asc',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&typ=sammanträde',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&org=kamm',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&from=2024-11-01',
+      'https://data.riksdagen.se/kalender/?utformat=json&sz=30'
     ];
 
     console.log(`Attempting to fetch from ${apiEndpoints.length} different endpoints...`);
@@ -63,7 +93,7 @@ serve(async (req) => {
         const response = await fetch(url, {
           headers: {
             'Accept': 'application/json',
-            'User-Agent': 'Riksdag-Calendar-Sync/3.0',
+            'User-Agent': 'Mozilla/5.0 (compatible; Riksdag-Calendar-Sync/3.0)',
             'Cache-Control': 'no-cache'
           }
         });
@@ -72,20 +102,17 @@ serve(async (req) => {
 
         if (!response.ok) {
           console.log(`HTTP error ${response.status} for URL: ${url}`);
+          errors++;
           continue;
         }
 
         const responseText = await response.text();
         console.log(`Response length: ${responseText.length} characters`);
 
-        if (!responseText || responseText.trim().length === 0) {
-          console.log(`Empty response from: ${url}`);
-          continue;
-        }
-
-        // Check if response is HTML (error page)
-        if (responseText.trim().startsWith('<')) {
-          console.log(`HTML response received from: ${url}, skipping...`);
+        if (!isValidJsonResponse(responseText)) {
+          console.log(`Invalid JSON response from: ${url} (likely HTML error page)`);
+          console.log(`Response preview: ${responseText.substring(0, 200)}...`);
+          errors++;
           continue;
         }
 
@@ -94,21 +121,12 @@ serve(async (req) => {
           data = JSON.parse(responseText);
         } catch (parseError) {
           console.error(`JSON parse error for ${url}:`, parseError);
-          console.log(`Response snippet: ${responseText.substring(0, 200)}...`);
+          errors++;
           continue;
         }
 
-        if (!data.kalender || !data.kalender.händelse) {
-          console.log(`No events found in response from: ${url}`);
-          console.log(`Response structure:`, Object.keys(data));
-          continue;
-        }
-
-        const events = Array.isArray(data.kalender.händelse) 
-          ? data.kalender.händelse 
-          : [data.kalender.händelse];
-
-        console.log(`Processing ${events.length} events from ${url}`);
+        const events = extractEvents(data);
+        console.log(`Found ${events.length} events from ${url}`);
 
         if (events.length === 0) {
           console.log(`No events to process from: ${url}`);
@@ -116,14 +134,15 @@ serve(async (req) => {
         }
 
         // Process events in smaller batches
-        const batchSize = 20;
+        const batchSize = 10;
         for (let i = 0; i < events.length; i += batchSize) {
           const batch = events.slice(i, i + batchSize);
           
           try {
             const calendarData = batch.map(event => {
-              // Generate unique event ID
-              const eventId = event.id || `${event.datum || 'no-date'}-${event.org || 'no-org'}-${event.titel?.substring(0, 10) || 'no-title'}-${Math.random().toString(36).substr(2, 9)}`;
+              // Generate unique event ID with better fallback
+              const eventId = event.id || 
+                `${event.datum || new Date().toISOString().split('T')[0]}-${event.org || 'unknown'}-${event.titel?.substring(0, 20).replace(/\s+/g, '-') || 'event'}-${Math.random().toString(36).substr(2, 6)}`;
               
               return {
                 event_id: eventId,
@@ -143,7 +162,8 @@ serve(async (req) => {
                 metadata: {
                   source_url: url,
                   synced_at: new Date().toISOString(),
-                  original_id: event.id || null
+                  original_id: event.id || null,
+                  api_response_type: data.kalender ? 'kalender' : 'kalenderlista'
                 }
               };
             });
@@ -168,11 +188,12 @@ serve(async (req) => {
           }
         }
 
-        // Add delay between endpoints
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Add delay between endpoints to be respectful
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
       } catch (urlError) {
         console.error(`Error fetching from ${url}:`, urlError);
+        errors++;
         continue;
       }
     }
@@ -191,8 +212,9 @@ serve(async (req) => {
         errors_count: errors,
         sync_duration_ms: syncDuration,
         error_details: errors > 0 ? { 
-          message: `${errors} events failed to process`,
-          total_attempted: totalProcessed + errors 
+          message: `${errors} endpoint/batch failures during sync`,
+          total_attempted: totalProcessed + errors,
+          endpoints_tried: apiEndpoints.length
         } : null
       });
 
@@ -207,7 +229,7 @@ serve(async (req) => {
       JSON.stringify({
         success,
         message: success 
-          ? `Calendar data sync completed successfully. ${totalProcessed} events processed.`
+          ? `Calendar data sync completed successfully. ${totalProcessed} events processed with ${errors} errors.`
           : 'No calendar data could be retrieved from any endpoint.',
         stats: {
           events_processed: totalProcessed,

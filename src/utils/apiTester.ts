@@ -1,127 +1,149 @@
 
 import { CalendarTester, TestResult } from './testUtils';
 
-export interface RiksdagApiTestConfig {
-  baseUrl: string;
-  endpoints: string[];
-  timeout: number;
-}
-
 export class RiksdagApiTester extends CalendarTester {
-  private config: RiksdagApiTestConfig;
-
-  constructor(config?: Partial<RiksdagApiTestConfig>) {
-    super();
-    this.config = {
-      baseUrl: 'https://data.riksdagen.se',
-      endpoints: [
-        '/kalender/?utformat=json&sz=10',
-        '/kalender/?utformat=json&sz=10&org=kamm',
-        '/kalender/?utformat=json&sz=10&typ=sammantrade'
-      ],
-      timeout: 30000,
-      ...config
-    };
-  }
 
   async testDirectApiAccess(): Promise<TestResult> {
-    return this.runTest('Direct Riksdag API Access', async () => {
-      const endpoint = this.config.endpoints[0];
-      const url = `${this.config.baseUrl}${endpoint}`;
+    return this.runTest('Direct API Access', async () => {
+      console.log('Testing direct access to Riksdag calendar API...');
       
-      console.log(`Testing direct API access to: ${url}`);
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-      
-      try {
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Calendar-Test/1.0'
-          }
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const contentType = response.headers.get('content-type');
-        if (!contentType?.includes('application/json')) {
-          const text = await response.text();
-          if (text.trim().startsWith('<')) {
-            throw new Error('Received HTML instead of JSON (likely error page)');
-          }
-        }
-        
-        const data = await response.json();
-        
-        // Validate response structure
-        if (!data.kalender) {
-          throw new Error('Missing kalender property in response');
-        }
-        
-        console.log(`API Response structure:`, Object.keys(data));
-        if (data.kalender.händelse) {
-          const events = Array.isArray(data.kalender.händelse) 
-            ? data.kalender.händelse 
-            : [data.kalender.händelse];
-          console.log(`Found ${events.length} calendar events`);
-        }
-        
-        return {
-          url,
-          status: response.status,
-          data: data,
-          hasEvents: !!data.kalender?.händelse
-        };
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    });
-  }
+      const testUrls = [
+        'https://data.riksdagen.se/kalender/?utformat=json&sz=5',
+        'https://data.riksdagen.se/kalender/?utformat=json&sz=3&typ=sammanträde'
+      ];
 
-  async testMultipleEndpoints(): Promise<TestResult> {
-    return this.runTest('Multiple API Endpoints', async () => {
       const results = [];
-      
-      for (const endpoint of this.config.endpoints) {
-        const url = `${this.config.baseUrl}${endpoint}`;
-        console.log(`Testing endpoint: ${endpoint}`);
-        
+
+      for (const url of testUrls) {
         try {
           const response = await fetch(url, {
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'Calendar-Test/1.0'
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
             }
           });
+
+          const responseText = await response.text();
+          const isHtml = responseText.trim().startsWith('<');
           
+          let jsonValid = false;
+          let eventCount = 0;
+          
+          if (!isHtml) {
+            try {
+              const data = JSON.parse(responseText);
+              jsonValid = true;
+              
+              // Check different response structures
+              if (data.kalender?.händelse) {
+                eventCount = Array.isArray(data.kalender.händelse) 
+                  ? data.kalender.händelse.length 
+                  : 1;
+              } else if (data.kalenderlista?.kalender) {
+                eventCount = Array.isArray(data.kalenderlista.kalender) 
+                  ? data.kalenderlista.kalender.length 
+                  : 1;
+              }
+            } catch (e) {
+              jsonValid = false;
+            }
+          }
+
           results.push({
-            endpoint,
+            url,
             status: response.status,
-            success: response.ok,
-            contentType: response.headers.get('content-type')
+            isJson: !isHtml && jsonValid,
+            eventCount,
+            responseLength: responseText.length
           });
+
         } catch (error) {
           results.push({
-            endpoint,
-            status: 0,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            url,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            status: 0
           });
         }
       }
-      
-      const successCount = results.filter(r => r.success).length;
-      console.log(`Endpoint test results: ${successCount}/${results.length} successful`);
+
+      const successfulRequests = results.filter(r => r.status === 200 && r.isJson);
       
       return {
-        total: results.length,
-        successful: successCount,
+        successful_requests: successfulRequests.length,
+        total_requests: results.length,
+        results,
+        api_accessible: successfulRequests.length > 0
+      };
+    });
+  }
+
+  async testMultipleEndpoints(): Promise<TestResult> {
+    return this.runTest('Multiple Endpoints', async () => {
+      console.log('Testing multiple Riksdag API endpoints...');
+
+      const endpoints = [
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=10', name: 'Basic calendar' },
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=5&typ=sammanträde', name: 'Meetings only' },
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=5&org=kamm', name: 'Committee calendar' }
+      ];
+
+      const results = [];
+
+      for (const endpoint of endpoints) {
+        try {
+          const startTime = Date.now();
+          const response = await fetch(endpoint.url, {
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
+            }
+          });
+          const duration = Date.now() - startTime;
+
+          const responseText = await response.text();
+          const isValidJson = !responseText.trim().startsWith('<');
+          
+          let eventCount = 0;
+          if (isValidJson) {
+            try {
+              const data = JSON.parse(responseText);
+              if (data.kalender?.händelse) {
+                eventCount = Array.isArray(data.kalender.händelse) 
+                  ? data.kalender.händelse.length 
+                  : 1;
+              } else if (data.kalenderlista?.kalender) {
+                eventCount = Array.isArray(data.kalenderlista.kalender) 
+                  ? data.kalenderlista.kalender.length 
+                  : 1;
+              }
+            } catch (e) {
+              // JSON parsing failed
+            }
+          }
+
+          results.push({
+            endpoint: endpoint.name,
+            url: endpoint.url,
+            status: response.status,
+            duration,
+            isValidJson,
+            eventCount,
+            success: response.status === 200 && isValidJson
+          });
+
+        } catch (error) {
+          results.push({
+            endpoint: endpoint.name,
+            url: endpoint.url,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            success: false
+          });
+        }
+      }
+
+      return {
+        endpoints_tested: endpoints.length,
+        successful_endpoints: results.filter(r => r.success).length,
         results
       };
     });
@@ -129,53 +151,55 @@ export class RiksdagApiTester extends CalendarTester {
 
   async testApiResponseTime(): Promise<TestResult> {
     return this.runTest('API Response Time', async () => {
-      const url = `${this.config.baseUrl}${this.config.endpoints[0]}`;
+      console.log('Testing Riksdag API response times...');
+
+      const testUrl = 'https://data.riksdagen.se/kalender/?utformat=json&sz=5';
       const measurements = [];
-      
+
+      // Take 3 measurements
       for (let i = 0; i < 3; i++) {
-        const start = Date.now();
-        
         try {
-          const response = await fetch(url, {
+          const startTime = Date.now();
+          const response = await fetch(testUrl, {
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'Calendar-Test/1.0'
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
             }
           });
-          
-          const duration = Date.now() - start;
+          const duration = Date.now() - startTime;
+
+          const responseText = await response.text();
+          const isValidResponse = response.status === 200 && !responseText.trim().startsWith('<');
+
           measurements.push({
             attempt: i + 1,
             duration,
             status: response.status,
-            success: response.ok
+            isValidResponse,
+            responseSize: responseText.length
           });
-          
-          console.log(`Attempt ${i + 1}: ${duration}ms (${response.status})`);
+
+          // Wait a bit between requests
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
         } catch (error) {
-          const duration = Date.now() - start;
           measurements.push({
             attempt: i + 1,
-            duration,
-            status: 0,
-            success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
           });
         }
-        
-        // Small delay between requests
-        if (i < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
       }
-      
-      const avgDuration = measurements.reduce((sum, m) => sum + m.duration, 0) / measurements.length;
-      console.log(`Average response time: ${avgDuration.toFixed(2)}ms`);
-      
+
+      const successfulMeasurements = measurements.filter(m => m.isValidResponse);
+      const avgResponseTime = successfulMeasurements.length > 0 
+        ? successfulMeasurements.reduce((sum, m) => sum + (m.duration || 0), 0) / successfulMeasurements.length
+        : 0;
+
       return {
         measurements,
-        averageResponseTime: avgDuration,
-        successRate: measurements.filter(m => m.success).length / measurements.length * 100
+        average_response_time: Math.round(avgResponseTime),
+        successful_requests: successfulMeasurements.length,
+        total_requests: measurements.length
       };
     });
   }
