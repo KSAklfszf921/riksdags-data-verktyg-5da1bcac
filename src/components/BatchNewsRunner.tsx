@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
-import { Loader2, Play, Square, RefreshCw, Users } from 'lucide-react';
+import { Loader2, Play, Square, RefreshCw, Users, Info } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { Alert, AlertDescription } from './ui/alert';
 import { BatchProgressDisplay } from './batch/BatchProgressDisplay';
@@ -33,7 +33,7 @@ const BatchNewsRunner = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Users className="w-5 h-5" />
-            <span>Batch RSS Feed Hämtare</span>
+            <span>Batch RSS Feed Hämtare (Chunked)</span>
             <Badge variant="outline" className={`text-white ${getBadgeColor(progress.status)}`}>
               {getBadgeIcon(progress.status)}
               <span className="ml-1 capitalize">{progress.status}</span>
@@ -48,6 +48,18 @@ const BatchNewsRunner = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Chunked Processing Info */}
+        <Alert className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <div className="space-y-1">
+              <span className="font-medium">Chunked Processing:</span> Bearbetar 5 ledamöter åt gången för att undvika timeouts.
+              <br />
+              <span className="text-sm">Processen fortsätter automatiskt mellan chunks tills alla ledamöter är bearbetade.</span>
+            </div>
+          </AlertDescription>
+        </Alert>
+
         <BatchProgressDisplay
           progress={progress}
           progressPercentage={progressPercentage}

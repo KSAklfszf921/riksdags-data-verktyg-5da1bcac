@@ -28,6 +28,10 @@ export const BatchProgressDisplay: React.FC<BatchProgressDisplayProps> = ({
     return null;
   }
 
+  const remainingMembers = progress.totalMembers - progress.processedMembers;
+  const chunksCompleted = Math.floor(progress.processedMembers / 5);
+  const totalChunks = Math.ceil(progress.totalMembers / 5);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between text-sm">
@@ -35,6 +39,21 @@ export const BatchProgressDisplay: React.FC<BatchProgressDisplayProps> = ({
         <span className="font-medium">{progressPercentage}%</span>
       </div>
       <Progress value={progressPercentage} className="w-full" />
+      
+      {/* Chunk Progress Info */}
+      <div className="bg-gray-50 p-3 rounded-lg">
+        <div className="text-sm font-medium text-gray-800 mb-2">
+          Chunk-framsteg
+        </div>
+        <div className="grid grid-cols-2 gap-4 text-sm text-gray-700">
+          <div>
+            <span className="font-medium">Chunks slutförda:</span> {chunksCompleted} / {totalChunks}
+          </div>
+          <div>
+            <span className="font-medium">Kvarvarande ledamöter:</span> {remainingMembers}
+          </div>
+        </div>
+      </div>
       
       {progress.currentMember && progress.status === 'running' && (
         <div className="text-sm text-gray-600 animate-pulse">
@@ -50,7 +69,7 @@ export const BatchProgressDisplay: React.FC<BatchProgressDisplayProps> = ({
         <div className="flex justify-between text-sm text-blue-700">
           <span>Totalt hämtade: <span className="font-bold">{progress.totalRssItems}</span></span>
           {progress.status === 'running' && progress.currentBatchRssItems > 0 && (
-            <span className="animate-pulse">Senaste batch: <span className="font-bold">{progress.currentBatchRssItems}</span></span>
+            <span className="animate-pulse">Senaste fetch: <span className="font-bold">{progress.currentBatchRssItems}</span></span>
           )}
         </div>
       </div>

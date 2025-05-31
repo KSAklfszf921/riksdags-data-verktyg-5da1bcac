@@ -9,6 +9,66 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      batch_progress: {
+        Row: {
+          created_at: string
+          current_batch_rss_items: number
+          current_member_index: number
+          current_member_name: string | null
+          errors: Json | null
+          estimated_completion: string | null
+          failed_fetches: number
+          id: string
+          member_list: Json | null
+          processed_members: number
+          session_id: string
+          start_time: string | null
+          status: string
+          successful_fetches: number
+          total_members: number
+          total_rss_items: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_batch_rss_items?: number
+          current_member_index?: number
+          current_member_name?: string | null
+          errors?: Json | null
+          estimated_completion?: string | null
+          failed_fetches?: number
+          id?: string
+          member_list?: Json | null
+          processed_members?: number
+          session_id: string
+          start_time?: string | null
+          status?: string
+          successful_fetches?: number
+          total_members?: number
+          total_rss_items?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_batch_rss_items?: number
+          current_member_index?: number
+          current_member_name?: string | null
+          errors?: Json | null
+          estimated_completion?: string | null
+          failed_fetches?: number
+          id?: string
+          member_list?: Json | null
+          processed_members?: number
+          session_id?: string
+          start_time?: string | null
+          status?: string
+          successful_fetches?: number
+          total_members?: number
+          total_rss_items?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       calendar_data: {
         Row: {
           aktivitet: string | null
