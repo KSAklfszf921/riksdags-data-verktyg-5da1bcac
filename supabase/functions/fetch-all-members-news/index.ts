@@ -13,7 +13,7 @@ interface BatchProgress {
   successfulFetches: number;
   failedFetches: number;
   currentMember: string;
-  status: 'running' | 'completed' | 'paused' | 'error';
+  status: 'running' | 'completed' | 'paused' | 'error' | 'idle';
   startTime: string;
   estimatedCompletion?: string;
   errors: Array<{ memberName: string; error: string }>;
@@ -22,9 +22,8 @@ interface BatchProgress {
 }
 
 // Process control
-const DELAY_BETWEEN_MEMBERS = 2000; // 2 seconds between each member
+const DELAY_BETWEEN_MEMBERS = 2000;
 const MAX_RETRIES = 2;
-const REQUEST_TIMEOUT = 30000; // 30 seconds per member
 
 // Global progress tracking
 let currentProgress: BatchProgress | null = null;
@@ -61,10 +60,7 @@ async function fetchMemberNewsWithRetry(
     const newsCount = data?.newsItems?.length || 0;
     console.log(`✅ Hämtade ${newsCount} nyhetsobjekt för ${memberName}`);
     
-    return { 
-      success: true, 
-      newsCount 
-    };
+    return { success: true, newsCount };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Okänt fel';
     console.error(`❌ Misslyckades att hämta nyheter för ${memberName}: ${errorMessage}`);
@@ -75,15 +71,11 @@ async function fetchMemberNewsWithRetry(
       return fetchMemberNewsWithRetry(memberName, memberId, supabase, retryCount + 1);
     }
     
-    return { 
-      success: false, 
-      error: errorMessage 
-    };
+    return { success: false, error: errorMessage };
   }
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -129,7 +121,6 @@ serve(async (req) => {
 
     // Start batch processing
     if (action === 'start') {
-      // Check if already running
       if (currentProgress && currentProgress.status === 'running') {
         return new Response(
           JSON.stringify({ 
@@ -140,9 +131,8 @@ serve(async (req) => {
         )
       }
 
-      console.log('🚀 Startar en-i-taget RSS-hämtning för alla ledamöter...');
+      console.log('🚀 Startar batch RSS-hämtning för alla ledamöter...');
 
-      // Fetch all active members
       const { data: members, error: membersError } = await supabase
         .from('member_data')
         .select('member_id, first_name, last_name')
@@ -159,7 +149,6 @@ serve(async (req) => {
 
       console.log(`Hittade ${members.length} aktiva ledamöter att bearbeta`);
 
-      // Initialize progress tracking
       const startTime = new Date();
       currentProgress = {
         totalMembers: members.length,
@@ -174,11 +163,10 @@ serve(async (req) => {
         currentBatchRssItems: 0
       };
 
-      // Process one member at a time (background task)
+      // Process members in background
       EdgeRuntime.waitUntil((async () => {
         try {
           for (let i = 0; i < members.length; i++) {
-            // Check if we should stop
             if (currentProgress?.status === 'paused') {
               console.log('⏸️ Batch-bearbetning pausad av användare');
               break;
@@ -191,12 +179,11 @@ serve(async (req) => {
 
             if (currentProgress) {
               currentProgress.currentMember = memberName;
-              currentProgress.currentBatchRssItems = 0; // Reset for new member
+              currentProgress.currentBatchRssItems = 0;
             }
 
             const result = await fetchMemberNewsWithRetry(memberName, member.member_id, supabase);
 
-            // Update progress immediately after each member
             if (currentProgress) {
               currentProgress.processedMembers++;
               
@@ -221,24 +208,20 @@ serve(async (req) => {
                 currentProgress.totalMembers,
                 new Date(currentProgress.startTime)
               );
-
-              console.log(`📈 Framsteg: ${currentProgress.processedMembers}/${currentProgress.totalMembers} - ${currentProgress.successfulFetches} lyckade, ${currentProgress.failedFetches} misslyckade`);
             }
 
-            // Delay between members (except for the last one)
             if (i < members.length - 1 && currentProgress?.status === 'running') {
               console.log(`⏱️ Väntar ${DELAY_BETWEEN_MEMBERS}ms innan nästa ledamot...`);
               await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_MEMBERS));
             }
           }
 
-          // Mark as completed
           if (currentProgress && currentProgress.status === 'running') {
             currentProgress.status = 'completed';
             currentProgress.currentMember = 'Slutförd';
             
             const duration = Date.now() - new Date(currentProgress.startTime).getTime();
-            console.log(`🎉 En-i-taget bearbetning slutförd på ${Math.round(duration / 1000)}s`);
+            console.log(`🎉 Batch-bearbetning slutförd på ${Math.round(duration / 1000)}s`);
             console.log(`📊 Slutresultat: ${currentProgress.successfulFetches} lyckade, ${currentProgress.failedFetches} misslyckade, ${currentProgress.totalRssItems} RSS-objekt totalt`);
           }
 
@@ -254,10 +237,9 @@ serve(async (req) => {
         }
       })());
 
-      // Return immediate response
       return new Response(
         JSON.stringify({ 
-          message: `Startade en-i-taget bearbetning för ${members.length} ledamöter`,
+          message: `Startade batch-bearbetning för ${members.length} ledamöter`,
           progress: currentProgress
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
