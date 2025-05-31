@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -17,6 +18,8 @@ interface BatchProgress {
   startTime: string;
   estimatedCompletion?: string;
   errors: Array<{ memberName: string; error: string }>;
+  totalRssItems: number;
+  currentBatchRssItems: number;
 }
 
 const BatchNewsRunner = () => {
@@ -28,12 +31,14 @@ const BatchNewsRunner = () => {
     currentMember: '',
     status: 'idle',
     startTime: '',
-    errors: []
+    errors: [],
+    totalRssItems: 0,
+    currentBatchRssItems: 0
   });
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  // Poll for progress updates
+  // Poll for progress updates more frequently for better responsiveness
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
@@ -61,7 +66,7 @@ const BatchNewsRunner = () => {
         } catch (error) {
           console.error('Polling error:', error);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 1000); // Poll every 1 second for more responsive updates
     }
 
     return () => {
@@ -179,7 +184,7 @@ const BatchNewsRunner = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Users className="w-5 h-5" />
-            <span>Batch RSS Feed Fetcher</span>
+            <span>En-i-taget RSS Feed Hämtare</span>
             <Badge variant="outline" className={`text-white ${getStatusColor(progress.status)}`}>
               {getStatusIcon(progress.status)}
               <span className="ml-1 capitalize">{progress.status}</span>
@@ -201,7 +206,7 @@ const BatchNewsRunner = () => {
                 onClick={stopBatchProcess}
               >
                 <Square className="w-4 h-4 mr-1" />
-                Stop
+                Stoppa
               </Button>
             ) : (
               <Button
@@ -211,47 +216,60 @@ const BatchNewsRunner = () => {
                 disabled={progress.status === 'running'}
               >
                 <Play className="w-4 h-4 mr-1" />
-                Start Batch
+                Starta
               </Button>
             )}
           </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Progress Section */}
+        {/* Live Progress Section */}
         {progress.totalMembers > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between text-sm">
-              <span>Progress: {progress.processedMembers} / {progress.totalMembers} members</span>
+              <span>Framsteg: {progress.processedMembers} / {progress.totalMembers} ledamöter</span>
               <span className="font-medium">{progressPercentage}%</span>
             </div>
             <Progress value={progressPercentage} className="w-full" />
             
-            {progress.currentMember && (
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Currently processing:</span> {progress.currentMember}
+            {progress.currentMember && progress.status === 'running' && (
+              <div className="text-sm text-gray-600 animate-pulse">
+                <span className="font-medium">Bearbetar just nu:</span> {progress.currentMember}
               </div>
             )}
+
+            {/* Live RSS Items Counter */}
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="text-sm font-medium text-blue-800 mb-1">
+                RSS-objekt Live-räkning
+              </div>
+              <div className="flex justify-between text-sm text-blue-700">
+                <span>Totalt hämtade: <span className="font-bold">{progress.totalRssItems}</span></span>
+                {progress.status === 'running' && progress.currentBatchRssItems > 0 && (
+                  <span className="animate-pulse">Senaste batch: <span className="font-bold">{progress.currentBatchRssItems}</span></span>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Statistics */}
+        {/* Enhanced Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-50 p-3 rounded-lg text-center">
             <div className="text-2xl font-bold text-blue-600">{progress.totalMembers}</div>
-            <div className="text-sm text-blue-700">Total Members</div>
+            <div className="text-sm text-blue-700">Totalt ledamöter</div>
           </div>
           <div className="bg-green-50 p-3 rounded-lg text-center">
             <div className="text-2xl font-bold text-green-600">{progress.successfulFetches}</div>
-            <div className="text-sm text-green-700">Successful</div>
+            <div className="text-sm text-green-700">Lyckade</div>
           </div>
           <div className="bg-red-50 p-3 rounded-lg text-center">
             <div className="text-2xl font-bold text-red-600">{progress.failedFetches}</div>
-            <div className="text-sm text-red-700">Failed</div>
+            <div className="text-sm text-red-700">Misslyckade</div>
           </div>
-          <div className="bg-gray-50 p-3 rounded-lg text-center">
-            <div className="text-2xl font-bold text-gray-600">{progress.processedMembers}</div>
-            <div className="text-sm text-gray-700">Processed</div>
+          <div className="bg-purple-50 p-3 rounded-lg text-center">
+            <div className="text-2xl font-bold text-purple-600">{progress.totalRssItems}</div>
+            <div className="text-sm text-purple-700">RSS-objekt</div>
           </div>
         </div>
 
@@ -259,16 +277,16 @@ const BatchNewsRunner = () => {
         {progress.startTime && (
           <div className="flex flex-wrap gap-4 text-sm text-gray-600">
             <div>
-              <span className="font-medium">Duration:</span> {formatDuration(progress.startTime)}
+              <span className="font-medium">Varaktighet:</span> {formatDuration(progress.startTime)}
             </div>
             {progress.estimatedCompletion && progress.status === 'running' && (
               <div>
-                <span className="font-medium">ETA:</span> {progress.estimatedCompletion}
+                <span className="font-medium">Beräknad slutförd:</span> {progress.estimatedCompletion}
               </div>
             )}
             {lastUpdate && (
               <div>
-                <span className="font-medium">Last Update:</span> {lastUpdate.toLocaleTimeString('sv-SE')}
+                <span className="font-medium">Senast uppdaterad:</span> {lastUpdate.toLocaleTimeString('sv-SE')}
               </div>
             )}
           </div>
@@ -279,8 +297,8 @@ const BatchNewsRunner = () => {
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Click "Start Batch" to begin fetching RSS feeds for all active parliament members. 
-              This process will run in batches of 5 members with 3-second delays between batches to respect rate limits.
+              Klicka "Starta" för att börja hämta RSS-feeds för alla aktiva riksdagsledamöter. 
+              Processen kör en ledamot i taget med 2-sekunders fördröjning mellan varje för att respektera hastighetsbegränsningar.
             </AlertDescription>
           </Alert>
         )}
@@ -289,8 +307,9 @@ const BatchNewsRunner = () => {
           <Alert className="border-green-200 bg-green-50">
             <CheckCircle className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-800">
-              Batch processing completed successfully! Processed {progress.totalMembers} members 
-              with {progress.successfulFetches} successful fetches and {progress.failedFetches} failures.
+              Batch-bearbetning slutförd! Bearbetade {progress.totalMembers} ledamöter 
+              med {progress.successfulFetches} lyckade hämtningar, {progress.failedFetches} misslyckanden 
+              och totalt {progress.totalRssItems} RSS-objekt hämtade.
             </AlertDescription>
           </Alert>
         )}
@@ -298,7 +317,7 @@ const BatchNewsRunner = () => {
         {/* Error Summary */}
         {progress.errors.length > 0 && (
           <div className="space-y-2">
-            <h4 className="font-medium text-red-600">Recent Errors ({progress.errors.length})</h4>
+            <h4 className="font-medium text-red-600">Senaste fel ({progress.errors.length})</h4>
             <div className="max-h-32 overflow-y-auto space-y-1">
               {progress.errors.slice(-5).map((error, index) => (
                 <div key={index} className="text-sm bg-red-50 p-2 rounded border border-red-200">
@@ -307,7 +326,7 @@ const BatchNewsRunner = () => {
               ))}
               {progress.errors.length > 5 && (
                 <div className="text-xs text-gray-500 text-center">
-                  ... and {progress.errors.length - 5} more errors
+                  ... och {progress.errors.length - 5} fler fel
                 </div>
               )}
             </div>
