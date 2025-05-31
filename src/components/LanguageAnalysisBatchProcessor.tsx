@@ -43,6 +43,7 @@ interface BatchProgress {
 const LanguageAnalysisBatchProcessor = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [shouldStop, setShouldStop] = useState(false);
   const [progress, setProgress] = useState<BatchProgress>({
     currentMember: '',
     currentMemberId: '',
@@ -77,14 +78,24 @@ const LanguageAnalysisBatchProcessor = () => {
     return `${Math.round(remaining / 3600)}h ${Math.round((remaining % 3600) / 60)}min`;
   };
 
+  const waitForUnpause = async () => {
+    while (isPaused && !shouldStop) {
+      console.log('Batch processor paused, waiting...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  };
+
   const startBatchAnalysis = async () => {
+    console.log('=== STARTING ENHANCED BATCH ANALYSIS ===');
     setIsRunning(true);
     setIsPaused(false);
+    setShouldStop(false);
     const batchStartTime = new Date();
     setStartTime(batchStartTime);
     
     try {
       // Steg 1: Hämta alla aktiva ledamöter
+      console.log('Step 1: Fetching all active members from Riksdag API');
       updateProgress({
         currentStep: 'Steg 1: Hämtar alla aktiva ledamöter från Riksdagen',
         currentSubStep: 'Ansluter till Riksdagens API...',
@@ -97,7 +108,11 @@ const LanguageAnalysisBatchProcessor = () => {
       });
 
       const allMembers = await fetchAllMembers();
-      console.log(`Hittade ${allMembers.length} aktiva ledamöter`);
+      console.log(`✓ Found ${allMembers.length} active members`);
+      
+      if (!allMembers || allMembers.length === 0) {
+        throw new Error('Inga aktiva ledamöter kunde hämtas från API:et');
+      }
       
       updateProgress({
         totalCount: allMembers.length,
@@ -111,21 +126,33 @@ const LanguageAnalysisBatchProcessor = () => {
       let skipped = 0;
       const errorMessages: string[] = [];
 
+      console.log(`=== STARTING MEMBER PROCESSING: ${allMembers.length} members ===`);
+
       // Bearbeta ledamöter en i taget
-      for (const member of allMembers) {
-        // Kontrollera om pausad
-        while (isPaused && isRunning) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+      for (let i = 0; i < allMembers.length; i++) {
+        // Check for pause or stop
+        if (shouldStop) {
+          console.log('❌ Batch processing stopped by user');
+          break;
         }
 
-        if (!isRunning) break; // Stoppad
+        // Wait if paused
+        await waitForUnpause();
+        
+        if (shouldStop) {
+          console.log('❌ Batch processing stopped during pause');
+          break;
+        }
 
+        const member = allMembers[i];
         const memberName = `${member.tilltalsnamn} ${member.efternamn}`;
+        
+        console.log(`\n--- Processing member ${i + 1}/${allMembers.length}: ${memberName} (${member.parti}) ---`);
         
         updateProgress({
           currentMember: memberName,
           currentMemberId: member.intressent_id,
-          currentStep: `Steg 2: Analyserar ledamot ${completed + 1}/${allMembers.length}`,
+          currentStep: `Steg 2: Analyserar ledamot ${i + 1}/${allMembers.length}`,
           currentSubStep: `Förbereder analys av ${memberName} (${member.parti})`,
           estimatedTimeLeft: calculateEstimatedTime(completed, allMembers.length, batchStartTime),
           speechesFound: 0,
@@ -135,6 +162,7 @@ const LanguageAnalysisBatchProcessor = () => {
 
         try {
           // Kontrollera om ledamot redan har ny analys
+          console.log(`Checking existing analyses for ${memberName}...`);
           updateProgress({
             currentSubStep: 'Kontrollerar befintliga analyser...'
           });
@@ -147,30 +175,44 @@ const LanguageAnalysisBatchProcessor = () => {
           });
 
           if (hasRecentAnalysis) {
-            console.log(`Hoppar över ${memberName} - ny analys finns redan`);
+            console.log(`⏭️ Skipping ${memberName} - recent analysis exists (within 7 days)`);
             skipped++;
             updateProgress({
               skippedCount: skipped,
               currentSubStep: `Hoppade över ${memberName} (analyserad inom senaste veckan)`
             });
           } else {
-            // Steg 3: Hämta anföranden och dokument
+            console.log(`📋 Processing ${memberName} - no recent analysis found`);
+            
+            // Steg 3: Hämta anföranden och dokument med timeout
             updateProgress({
               currentSubStep: 'Steg 3: Hämtar senaste anföranden och dokument...'
             });
 
-            // Använd den nya steg-för-steg metoden
-            const content = await documentTextFetcher.fetchMemberContentStepByStep(
+            console.log(`Fetching content for ${memberName}...`);
+            
+            // Add timeout to content fetching
+            const contentPromise = documentTextFetcher.fetchMemberContentStepByStep(
               member.intressent_id,
               memberName,
               (fetchProgress) => {
+                console.log(`Fetch progress for ${memberName}: ${fetchProgress.currentStep}`);
                 updateProgress({
                   currentSubStep: fetchProgress.currentStep,
-                  speechesFound: fetchProgress.completed > 30 ? 1 : 0, // Indikera framsteg
+                  speechesFound: fetchProgress.completed > 30 ? 1 : 0,
                   documentsFound: fetchProgress.completed > 50 ? 1 : 0
                 });
               }
             );
+
+            // Set timeout for content fetching (30 seconds)
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('Timeout: Content fetching took too long')), 30000)
+            );
+
+            const content = await Promise.race([contentPromise, timeoutPromise]);
+            
+            console.log(`✓ Content fetched for ${memberName}: ${content.speeches.length} speeches, ${content.documents.length} documents`);
 
             updateProgress({
               speechesFound: content.speeches.length,
@@ -182,31 +224,37 @@ const LanguageAnalysisBatchProcessor = () => {
             // Kontrollera att vi har tillräckligt med text för analys
             const totalTexts = content.speeches.length + content.documents.length;
             if (totalTexts === 0) {
-              throw new Error('Ingen analyseras text hittades för denna ledamot');
+              throw new Error('Ingen analyseras text hittades för denna ledamot från API:et');
             }
+
+            console.log(`Starting language analysis for ${memberName} with ${totalTexts} texts...`);
 
             // Steg 4: Utför språkanalys
             updateProgress({
               currentSubStep: 'Steg 4: Utför AI-språkanalys...'
             });
 
-            await LanguageAnalysisService.analyzeMemberLanguageWithAPI(
+            const analyzedCount = await LanguageAnalysisService.analyzeMemberLanguageWithAPI(
               member.intressent_id,
               memberName
             );
             
-            successful++;
-            console.log(`Lyckad analys av ${memberName}: ${totalTexts} texter analyserade`);
-            updateProgress({
-              successCount: successful,
-              currentSubStep: `Steg 5: Analys slutförd och sparad för ${memberName}`
-            });
+            if (analyzedCount > 0) {
+              successful++;
+              console.log(`✅ Successful analysis of ${memberName}: ${analyzedCount} documents analyzed`);
+              updateProgress({
+                successCount: successful,
+                currentSubStep: `Steg 5: Analys slutförd och sparad för ${memberName} (${analyzedCount} dokument)`
+              });
+            } else {
+              throw new Error(`Ingen text kunde analyseras trots att ${totalTexts} dokument hittades`);
+            }
           }
         } catch (error) {
           errors++;
           const errorMsg = `${memberName}: ${error instanceof Error ? error.message : 'Okänt fel'}`;
           errorMessages.push(errorMsg);
-          console.error(`Fel vid analys av ${memberName}:`, error);
+          console.error(`❌ Error analyzing ${memberName}:`, error);
           
           updateProgress({
             errorCount: errors,
@@ -215,37 +263,49 @@ const LanguageAnalysisBatchProcessor = () => {
           });
         }
 
+        // Update completion count AFTER processing (not before)
         completed++;
         updateProgress({
           completedCount: completed,
           estimatedTimeLeft: calculateEstimatedTime(completed, allMembers.length, batchStartTime)
         });
 
+        console.log(`Member ${i + 1}/${allMembers.length} processed. Stats: ${successful} successful, ${errors} errors, ${skipped} skipped`);
+
         // Kort paus mellan ledamöter för att undvika API-överbelastning
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
+      const finalMessage = shouldStop ? 
+        `Batch-analys stoppad av användare: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över` :
+        `Batch-analys slutförd: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över`;
+
+      console.log(`=== ${finalMessage.toUpperCase()} ===`);
+
       updateProgress({
-        currentStep: `Batch-analys slutförd: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över`,
-        currentSubStep: 'Alla ledamöter bearbetade',
+        currentStep: finalMessage,
+        currentSubStep: shouldStop ? 'Processen stoppades' : 'Alla ledamöter bearbetade',
         currentMember: '',
-        estimatedTimeLeft: 'Klar'
+        estimatedTimeLeft: shouldStop ? 'Stoppad' : 'Klar'
       });
 
     } catch (error) {
-      console.error('Kritiskt fel i batch-analys:', error);
+      console.error('❌ Critical error in batch analysis:', error);
       updateProgress({
         currentStep: `Kritiskt fel: ${error instanceof Error ? error.message : 'Okänt fel'}`,
         currentSubStep: 'Batch-processen avbröts',
         errors: [...progress.errors, `Kritiskt fel: ${error instanceof Error ? error.message : 'Okänt fel'}`]
       });
     } finally {
+      console.log('=== BATCH ANALYSIS FINISHED ===');
       setIsRunning(false);
       setIsPaused(false);
+      setShouldStop(false);
     }
   };
 
   const pauseAnalysis = () => {
+    console.log('⏸️ User requested pause');
     setIsPaused(true);
     updateProgress({
       currentSubStep: 'Analys pausad av användare'
@@ -253,6 +313,7 @@ const LanguageAnalysisBatchProcessor = () => {
   };
 
   const resumeAnalysis = () => {
+    console.log('▶️ User requested resume');
     setIsPaused(false);
     updateProgress({
       currentSubStep: 'Återupptar analys...'
@@ -260,15 +321,17 @@ const LanguageAnalysisBatchProcessor = () => {
   };
 
   const stopAnalysis = () => {
-    setIsRunning(false);
+    console.log('⏹️ User requested stop');
+    setShouldStop(true);
     setIsPaused(false);
     updateProgress({
-      currentStep: 'Analys stoppad av användare',
-      currentSubStep: 'Batch-processen avbröts'
+      currentStep: 'Stoppar analys...',
+      currentSubStep: 'Väntar på att nuvarande ledamot ska slutföras'
     });
   };
 
   const resetAnalysis = () => {
+    console.log('🔄 User requested reset');
     setProgress({
       currentMember: '',
       currentMemberId: '',
@@ -307,7 +370,7 @@ const LanguageAnalysisBatchProcessor = () => {
             <span>Enhanced Batch-språkanalys</span>
             <Badge className="bg-blue-100 text-blue-800">
               <Zap className="w-3 h-3 mr-1" />
-              v4.0
+              v4.1
             </Badge>
           </div>
           {progress.totalCount > 0 && (
@@ -327,13 +390,14 @@ const LanguageAnalysisBatchProcessor = () => {
           <Activity className="h-4 w-4" />
           <AlertDescription>
             <div className="space-y-2">
-              <span className="font-medium">Enhanced Batch-analys v4.0 med förbättrad textextraktion:</span>
+              <span className="font-medium">Enhanced Batch-analys v4.1 med robust felhantering:</span>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Steg-för-steg process enligt specifikation</li>
-                <li>Kraftigt förbättrad textextraktion med flera fallback-metoder</li>
-                <li>Detaljerad framstegsrapportering för varje steg</li>
+                <li>Förbättrad paus/stopp-funktionalitet med korrekt loop-logik</li>
+                <li>Detaljerad loggning för enklare felsökning</li>
                 <li>Robust felhantering som fortsätter vid problem</li>
-                <li>Realtidsvisning av hittade anföranden och dokument</li>
+                <li>Timeout-skydd för API-anrop (30 sekunder)</li>
+                <li>Korrekt framstegsrapportering efter faktiskt arbete</li>
+                <li>Förbättrad feedback när ingen text hittas</li>
               </ul>
             </div>
           </AlertDescription>
