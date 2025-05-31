@@ -13,7 +13,10 @@ import {
   TrendingUp,
   FileText,
   Calendar,
-  Award
+  Award,
+  Wifi,
+  Database,
+  AlertCircle
 } from 'lucide-react';
 import { LanguageAnalysisService, MemberLanguageSummary, LanguageAnalysisResult } from '../services/languageAnalysisService';
 
@@ -27,6 +30,8 @@ const MemberLanguageAnalysis = ({ memberId, memberName }: MemberLanguageAnalysis
   const [detailedAnalyses, setDetailedAnalyses] = useState<LanguageAnalysisResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisMethod, setAnalysisMethod] = useState<'hybrid' | 'api-only'>('hybrid');
+  const [analysisProgress, setAnalysisProgress] = useState<string>('');
 
   useEffect(() => {
     fetchLanguageData();
@@ -51,13 +56,26 @@ const MemberLanguageAnalysis = ({ memberId, memberName }: MemberLanguageAnalysis
 
   const startAnalysis = async () => {
     setAnalyzing(true);
+    setAnalysisProgress('Förbereder analys...');
+    
     try {
-      await LanguageAnalysisService.analyzeMemberLanguageEnhanced(memberId, memberName);
+      if (analysisMethod === 'hybrid') {
+        setAnalysisProgress('Försöker databas först, sedan Riksdagen API...');
+        await LanguageAnalysisService.analyzeMemberLanguageEnhanced(memberId, memberName);
+      } else {
+        setAnalysisProgress('Hämtar text direkt från Riksdagen API...');
+        await LanguageAnalysisService.analyzeMemberLanguageWithAPI(memberId, memberName);
+      }
+      
+      setAnalysisProgress('Uppdaterar resultat...');
       await fetchLanguageData();
+      setAnalysisProgress('Analys slutförd!');
     } catch (error) {
       console.error('Error starting analysis:', error);
+      setAnalysisProgress(`Fel: ${error instanceof Error ? error.message : 'Okänt fel'}`);
     } finally {
       setAnalyzing(false);
+      setTimeout(() => setAnalysisProgress(''), 3000);
     }
   };
 
@@ -112,6 +130,47 @@ const MemberLanguageAnalysis = ({ memberId, memberName }: MemberLanguageAnalysis
           <p className="text-gray-600 mb-4">
             Ingen språkanalys har utförts för denna ledamot ännu.
           </p>
+          
+          {/* Analysis method selection */}
+          <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-700 mb-3">Välj analysmetod:</p>
+            <div className="space-y-2">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="analysisMethod"
+                  value="hybrid"
+                  checked={analysisMethod === 'hybrid'}
+                  onChange={(e) => setAnalysisMethod(e.target.value as 'hybrid')}
+                  className="text-blue-600"
+                />
+                <Database className="w-4 h-4 text-gray-600" />
+                <span className="text-sm">Hybrid (databas + API)</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="analysisMethod"
+                  value="api-only"
+                  checked={analysisMethod === 'api-only'}
+                  onChange={(e) => setAnalysisMethod(e.target.value as 'api-only')}
+                  className="text-blue-600"
+                />
+                <Wifi className="w-4 h-4 text-green-600" />
+                <span className="text-sm">Direkthämtning från Riksdagen API</span>
+              </label>
+            </div>
+          </div>
+          
+          {analysisProgress && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center space-x-2 text-blue-700">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">{analysisProgress}</span>
+              </div>
+            </div>
+          )}
+          
           <Button 
             onClick={startAnalysis} 
             disabled={analyzing}
@@ -129,6 +188,11 @@ const MemberLanguageAnalysis = ({ memberId, memberName }: MemberLanguageAnalysis
               </>
             )}
           </Button>
+          
+          <div className="mt-4 text-xs text-gray-500">
+            <p>• Hybrid-metoden försöker hämta text från databasen först</p>
+            <p>• API-metoden hämtar alltid ny text från Riksdagen</p>
+          </div>
         </CardContent>
       </Card>
     );

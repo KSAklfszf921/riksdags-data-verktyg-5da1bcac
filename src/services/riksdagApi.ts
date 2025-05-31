@@ -313,6 +313,178 @@ const filterActiveAssignments = (rawAssignments: any[]): RiksdagMemberAssignment
     });
 };
 
+// NEW: Enhanced document text fetching
+export const fetchDocumentText = async (documentId: string, documentType?: string): Promise<string | null> => {
+  try {
+    console.log(`Fetching document text for: ${documentId}, type: ${documentType}`);
+    
+    // Try different API endpoints based on document type
+    let url = `${BASE_URL}/dokument/${documentId}.txt`;
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      // Try HTML endpoint if text fails
+      url = `${BASE_URL}/dokument/${documentId}.html`;
+      const htmlResponse = await fetch(url);
+      
+      if (!htmlResponse.ok) {
+        console.warn(`Failed to fetch document text for ${documentId}: ${response.status}`);
+        return null;
+      }
+      
+      const htmlText = await htmlResponse.text();
+      // Basic HTML stripping for analysis
+      const textContent = htmlText
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      console.log(`Fetched HTML document text for ${documentId}: ${textContent.length} characters`);
+      return textContent;
+    }
+    
+    const textContent = await response.text();
+    console.log(`Fetched document text for ${documentId}: ${textContent.length} characters`);
+    return textContent;
+    
+  } catch (error) {
+    console.error(`Error fetching document text for ${documentId}:`, error);
+    return null;
+  }
+};
+
+// NEW: Enhanced speech text fetching
+export const fetchSpeechText = async (speechId: string): Promise<string | null> => {
+  try {
+    console.log(`Fetching speech text for: ${speechId}`);
+    
+    const url = `${BASE_URL}/anforandelista/?utformat=json&anforande_id=${speechId}`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.warn(`Failed to fetch speech for ${speechId}: ${response.status}`);
+      return null;
+    }
+    
+    const data: RiksdagSpeechResponse = await response.json();
+    const speech = data.anforandelista?.anforande?.[0];
+    
+    if (!speech || !speech.anforandetext) {
+      console.warn(`No speech text found for ${speechId}`);
+      return null;
+    }
+    
+    console.log(`Fetched speech text for ${speechId}: ${speech.anforandetext.length} characters`);
+    return speech.anforandetext;
+    
+  } catch (error) {
+    console.error(`Error fetching speech text for ${speechId}:`, error);
+    return null;
+  }
+};
+
+// NEW: Batch document text fetching
+export const fetchDocumentTextBatch = async (
+  documents: { id: string; type?: string }[]
+): Promise<Map<string, string>> => {
+  const textMap = new Map<string, string>();
+  const batchSize = 3; // Conservative batch size to avoid rate limiting
+  
+  for (let i = 0; i < documents.length; i += batchSize) {
+    const batch = documents.slice(i, i + batchSize);
+    console.log(`Processing document batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(documents.length/batchSize)}`);
+    
+    const batchPromises = batch.map(async (doc) => {
+      const text = await fetchDocumentText(doc.id, doc.type);
+      if (text && text.length > 100) { // Only include documents with substantial text
+        textMap.set(doc.id, text);
+      }
+      return { id: doc.id, text };
+    });
+    
+    await Promise.allSettled(batchPromises);
+    
+    // Add delay between batches to be respectful to the API
+    if (i + batchSize < documents.length) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+  }
+  
+  console.log(`Batch fetching completed: ${textMap.size}/${documents.length} documents with text`);
+  return textMap;
+};
+
+// NEW: Enhanced member content fetching for language analysis
+export const fetchMemberContentForAnalysis = async (
+  memberId: string,
+  limit: number = 25
+): Promise<{
+  speeches: Array<{ id: string; text: string; title: string; date: string }>;
+  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
+}> => {
+  try {
+    console.log(`Fetching content for language analysis: member ${memberId}`);
+    
+    // Fetch recent speeches with better parameters
+    const { speeches } = await searchSpeeches({
+      intressentId: memberId,
+      pageSize: Math.min(limit, 50)
+    });
+    
+    // Fetch recent documents (written questions, motions, etc.)
+    const { documents } = await searchDocuments({
+      intressentId: memberId,
+      sz: Math.min(limit, 50),
+      sort: 'datum',
+      sortorder: 'desc'
+    });
+    
+    // Filter and fetch text for speeches
+    const speechResults: Array<{ id: string; text: string; title: string; date: string }> = [];
+    for (const speech of speeches.slice(0, Math.floor(limit * 0.6))) {
+      if (speech.anforandetext && speech.anforandetext.length > 200) {
+        speechResults.push({
+          id: speech.anforande_id,
+          text: speech.anforandetext,
+          title: speech.rel_dok_titel || 'Anförande',
+          date: speech.anforandedatum
+        });
+      }
+    }
+    
+    // Filter and fetch text for documents
+    const documentResults: Array<{ id: string; text: string; title: string; date: string; type: string }> = [];
+    const relevantDocs = documents
+      .filter(doc => ['fr', 'mot', 'ip'].includes(doc.typ?.toLowerCase() || ''))
+      .slice(0, Math.floor(limit * 0.4));
+    
+    for (const doc of relevantDocs) {
+      const text = await fetchDocumentText(doc.id, doc.typ);
+      if (text && text.length > 150) {
+        documentResults.push({
+          id: doc.id,
+          text,
+          title: doc.titel || 'Dokument',
+          date: doc.datum,
+          type: doc.typ || 'unknown'
+        });
+      }
+    }
+    
+    console.log(`Fetched content for ${memberId}: ${speechResults.length} speeches, ${documentResults.length} documents`);
+    
+    return {
+      speeches: speechResults,
+      documents: documentResults
+    };
+    
+  } catch (error) {
+    console.error(`Error fetching member content for analysis:`, error);
+    return { speeches: [], documents: [] };
+  }
+};
+
 export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
   if (query.length < 1) return [];
   

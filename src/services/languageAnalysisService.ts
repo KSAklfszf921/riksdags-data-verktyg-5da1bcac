@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { documentTextFetcher, FetchProgress } from './documentTextFetcher';
 
 export interface LanguageAnalysisResult {
   id: string;
@@ -485,17 +486,9 @@ export class LanguageAnalysisService {
     const errorDetails: string[] = [];
 
     try {
-      console.log('Starting enhanced batch language analysis...');
+      console.log('Starting enhanced batch language analysis with API fetching...');
       
-      // First validate data availability
-      const validation = await this.validateDataAvailability();
-      console.log('Data validation results:', validation);
-      
-      if (validation.membersWithValidContent < 10) {
-        throw new Error(`Otillräckligt med analysbar data: endast ${validation.membersWithValidContent} ledamöter har giltig text`);
-      }
-
-      // Get active members with priority for those with more content
+      // Get active members
       const { data: members, error: membersError } = await supabase
         .from('member_data')
         .select('member_id, first_name, last_name')
@@ -510,7 +503,7 @@ export class LanguageAnalysisService {
         throw new Error('Inga aktiva ledamöter hittades');
       }
 
-      console.log(`Startar analys för ${members.length} aktiva ledamöter`);
+      console.log(`Startar API-baserad analys för ${members.length} aktiva ledamöter`);
 
       for (let i = 0; i < members.length; i++) {
         const member = members[i];
@@ -538,31 +531,31 @@ export class LanguageAnalysisService {
         }
         
         try {
-          const analyzedCount = await this.analyzeMemberLanguageEnhanced(member.member_id, memberName);
+          const analyzedCount = await this.analyzeMemberLanguageWithAPI(member.member_id, memberName);
           if (analyzedCount > 0) {
             successCount++;
-            console.log(`✓ Slutförd analys för ${memberName}: ${analyzedCount} dokument (${i + 1}/${members.length})`);
+            console.log(`✓ API-baserad analys slutförd för ${memberName}: ${analyzedCount} dokument (${i + 1}/${members.length})`);
           } else {
             errorCount++;
-            errorDetails.push(`${memberName}: Ingen analysbar text hittades`);
-            console.warn(`⚠ Inga dokument analyserade för ${memberName}`);
+            errorDetails.push(`${memberName}: Ingen analysbar text hittades från API`);
+            console.warn(`⚠ Inga dokument analyserade för ${memberName} från API`);
           }
           
           // Adaptive pause based on system load
-          await new Promise(resolve => setTimeout(resolve, 150));
+          await new Promise(resolve => setTimeout(resolve, 200));
           
         } catch (memberError: any) {
           errorCount++;
           const errorMsg = `${memberName}: ${memberError.message}`;
           errorDetails.push(errorMsg);
-          console.error(`✗ Fel vid analys av ${memberName}:`, memberError);
+          console.error(`✗ Fel vid API-baserad analys av ${memberName}:`, memberError);
         }
       }
 
       // Final progress update
       if (onProgress) {
         onProgress({
-          currentMember: 'Analys slutförd',
+          currentMember: 'API-baserad analys slutförd',
           completedCount: members.length,
           totalCount: members.length,
           successCount,
@@ -572,7 +565,7 @@ export class LanguageAnalysisService {
         });
       }
 
-      console.log(`Enhanced batch-analys slutförd: ${successCount} lyckades, ${errorCount} fel`);
+      console.log(`API-baserad batch-analys slutförd: ${successCount} lyckades, ${errorCount} fel`);
       
       return {
         success: successCount,
@@ -581,7 +574,7 @@ export class LanguageAnalysisService {
       };
 
     } catch (error: any) {
-      console.error('Kritiskt fel i enhanced batch-analys:', error);
+      console.error('Kritiskt fel i API-baserad batch-analys:', error);
       errorDetails.push(`Kritiskt fel: ${error.message}`);
       
       if (onProgress) {
@@ -604,11 +597,11 @@ export class LanguageAnalysisService {
     }
   }
 
-  static async analyzeMemberLanguageEnhanced(memberId: string, memberName: string): Promise<number> {
+  static async analyzeMemberLanguageWithAPI(memberId: string, memberName: string): Promise<number> {
     let analyzedCount = 0;
     
     try {
-      console.log(`Enhanced språkanalys för ${memberName} (${memberId})`);
+      console.log(`API-baserad språkanalys för ${memberName} (${memberId})`);
 
       // Check for recent analyses
       const { data: existingAnalyses } = await supabase
@@ -623,6 +616,98 @@ export class LanguageAnalysisService {
         return 0;
       }
 
+      // Fetch content directly from API
+      const content = await documentTextFetcher.fetchMemberContentBatch(memberId);
+      
+      if (content.speeches.length === 0 && content.documents.length === 0) {
+        throw new Error('Ingen text hittades från Riksdagen API');
+      }
+
+      console.log(`Hämtade från API: ${content.speeches.length} anföranden, ${content.documents.length} dokument`);
+
+      // Process speeches
+      for (const speech of content.speeches.slice(0, 15)) {
+        try {
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            'speech',
+            speech.id,
+            speech.title,
+            speech.text
+          );
+          analyzedCount++;
+        } catch (error) {
+          console.error(`Fel vid analys av anförande för ${memberName}:`, error);
+        }
+      }
+
+      // Process documents
+      for (const doc of content.documents.slice(0, 10)) {
+        try {
+          const docType = doc.type === 'fr' ? 'written_question' : 
+                         doc.type === 'mot' ? 'motion' : 
+                         doc.type === 'ip' ? 'interpellation' : 'written_question';
+          
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            docType as 'written_question' | 'motion' | 'interpellation',
+            doc.id,
+            doc.title,
+            doc.text
+          );
+          analyzedCount++;
+        } catch (error) {
+          console.error(`Fel vid analys av dokument för ${memberName}:`, error);
+        }
+      }
+
+      if (analyzedCount === 0) {
+        throw new Error(`Ingen text kunde analyseras trots att ${content.speeches.length + content.documents.length} dokument hittades`);
+      }
+
+      console.log(`Slutförde API-baserad analys för ${memberName}: ${analyzedCount} dokument`);
+      return analyzedCount;
+      
+    } catch (error: any) {
+      console.error(`API-baserad analys misslyckades för ${memberName}:`, error);
+      throw new Error(`API-analys misslyckades: ${error.message}`);
+    }
+  }
+
+  static async analyzeMemberLanguageEnhanced(memberId: string, memberName: string): Promise<number> {
+    try {
+      console.log(`Förbättrad språkanalys för ${memberName} - försöker databas först, sedan API`);
+      
+      // First try the existing database approach
+      try {
+        const dbAnalyzedCount = await this.analyzeMemberLanguageFromDatabase(memberId, memberName);
+        if (dbAnalyzedCount > 0) {
+          console.log(`Lyckad databasanalys för ${memberName}: ${dbAnalyzedCount} dokument`);
+          return dbAnalyzedCount;
+        }
+      } catch (dbError) {
+        console.log(`Databasanalys misslyckades för ${memberName}, försöker API:`, dbError);
+      }
+      
+      // If database approach fails, try API approach
+      const apiAnalyzedCount = await this.analyzeMemberLanguageWithAPI(memberId, memberName);
+      console.log(`API-baserad analys för ${memberName}: ${apiAnalyzedCount} dokument`);
+      return apiAnalyzedCount;
+      
+    } catch (error: any) {
+      console.error(`Alla analysmetoder misslyckades för ${memberName}:`, error);
+      throw error;
+    }
+  }
+
+  static async analyzeMemberLanguageFromDatabase(memberId: string, memberName: string): Promise<number> {
+    let analyzedCount = 0;
+    
+    try {
+      console.log(`Databasbaserad språkanalys för ${memberName} (${memberId})`);
+
       // Enhanced speech fetching with better filtering
       const { data: speeches, error: speechError } = await supabase
         .from('speech_data')
@@ -631,7 +716,7 @@ export class LanguageAnalysisService {
         .not('anforandetext', 'is', null)
         .neq('anforandetext', '')
         .order('anforandedatum', { ascending: false })
-        .limit(20); // Increased limit for better selection
+        .limit(20);
 
       if (speechError) {
         console.error('Fel vid hämtning av anföranden:', speechError);
@@ -671,7 +756,7 @@ export class LanguageAnalysisService {
         .not('content_preview', 'is', null)
         .neq('content_preview', '')
         .order('datum', { ascending: false })
-        .limit(15); // Increased limit
+        .limit(15);
 
       if (questionError) {
         console.error('Fel vid hämtning av skriftliga frågor:', questionError);
@@ -703,15 +788,15 @@ export class LanguageAnalysisService {
       }
 
       if (analyzedCount === 0) {
-        throw new Error(`Ingen analysbar text hittades (kontrollerade ${validSpeeches.length} anföranden och ${validQuestions.length} frågor)`);
+        throw new Error(`Ingen analysbar text hittades i databasen (kontrollerade ${validSpeeches.length} anföranden och ${validQuestions.length} frågor)`);
       }
 
-      console.log(`Slutförde enhanced analys för ${memberName}: ${analyzedCount} dokument`);
+      console.log(`Slutförde databasanalys för ${memberName}: ${analyzedCount} dokument`);
       return analyzedCount;
       
     } catch (error: any) {
-      console.error(`Enhanced analys misslyckades för ${memberName}:`, error);
-      throw new Error(`Analys misslyckades: ${error.message}`);
+      console.error(`Databasanalys misslyckades för ${memberName}:`, error);
+      throw new Error(`Databasanalys misslyckades: ${error.message}`);
     }
   }
 
