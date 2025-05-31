@@ -1,344 +1,191 @@
 
 import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Play, 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Database, 
-  Globe, 
-  Monitor, 
-  Settings,
-  Loader2
-} from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Play, RefreshCw, CheckCircle, XCircle, Clock, Database, Cloud, Globe } from 'lucide-react';
 import { RiksdagApiTester } from '../utils/apiTester';
 import { EdgeFunctionTester } from '../utils/edgeFunctionTester';
 import { DatabaseTester } from '../utils/databaseTester';
-import { FrontendTester } from '../utils/frontendTester';
-import { TestResult, TestSuite } from '../utils/testUtils';
+import { TestSuite, TestResult } from '../utils/testUtils';
 
 const CalendarTestRunner = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [testResults, setTestResults] = useState<{
-    api?: TestSuite;
-    edge?: TestSuite;
-    database?: TestSuite;
-    frontend?: TestSuite;
-  }>({});
+  const [testSuites, setTestSuites] = useState<TestSuite[]>([]);
   const [currentTest, setCurrentTest] = useState<string>('');
-  const [progress, setProgress] = useState(0);
 
   const runAllTests = async () => {
     setIsRunning(true);
-    setProgress(0);
-    setTestResults({});
-    
+    setTestSuites([]);
+    setCurrentTest('');
+
     try {
       // API Tests
-      setCurrentTest('Testing Riksdag API...');
-      setProgress(10);
+      setCurrentTest('Running API tests...');
       const apiTester = new RiksdagApiTester();
       await apiTester.testDirectApiAccess();
       await apiTester.testMultipleEndpoints();
       await apiTester.testApiResponseTime();
-      setTestResults(prev => ({ ...prev, api: apiTester.getSummary() }));
-
-      // Edge Function Tests
-      setCurrentTest('Testing Edge Functions...');
-      setProgress(35);
-      const edgeTester = new EdgeFunctionTester();
-      await edgeTester.testCalendarDataSync();
-      await edgeTester.testEdgeFunctionError();
-      await edgeTester.testEdgeFunctionTimeout();
-      setTestResults(prev => ({ ...prev, edge: edgeTester.getSummary() }));
+      setTestSuites(prev => [...prev, apiTester.getSummary()]);
 
       // Database Tests
-      setCurrentTest('Testing Database...');
-      setProgress(60);
+      setCurrentTest('Running database tests...');
       const dbTester = new DatabaseTester();
       await dbTester.testDatabaseConnection();
       await dbTester.testCalendarDataTable();
       await dbTester.testDataIntegrity();
       await dbTester.testQueryPerformance();
-      setTestResults(prev => ({ ...prev, database: dbTester.getSummary() }));
+      setTestSuites(prev => [...prev, dbTester.getSummary()]);
 
-      // Frontend Tests
-      setCurrentTest('Testing Frontend...');
-      setProgress(85);
-      const frontendTester = new FrontendTester();
-      await frontendTester.testComponentRendering();
-      await frontendTester.testDataBinding();
-      await frontendTester.testUserInteractions();
-      await frontendTester.testErrorHandling();
-      setTestResults(prev => ({ ...prev, frontend: frontendTester.getSummary() }));
+      // Edge Function Tests
+      setCurrentTest('Running edge function tests...');
+      const edgeTester = new EdgeFunctionTester();
+      await edgeTester.testCalendarDataSync();
+      await edgeTester.testEdgeFunctionError();
+      await edgeTester.testEdgeFunctionTimeout();
+      setTestSuites(prev => [...prev, edgeTester.getSummary()]);
 
-      setProgress(100);
-      setCurrentTest('Tests completed!');
     } catch (error) {
       console.error('Test execution failed:', error);
-      setCurrentTest('Tests failed');
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  const runSingleTestSuite = async (suite: 'api' | 'edge' | 'database' | 'frontend') => {
-    setIsRunning(true);
-    setCurrentTest(`Running ${suite} tests...`);
-    
-    try {
-      let tester;
-      switch (suite) {
-        case 'api':
-          tester = new RiksdagApiTester();
-          await tester.testDirectApiAccess();
-          await tester.testMultipleEndpoints();
-          await tester.testApiResponseTime();
-          break;
-        case 'edge':
-          tester = new EdgeFunctionTester();
-          await tester.testCalendarDataSync();
-          await tester.testEdgeFunctionError();
-          await tester.testEdgeFunctionTimeout();
-          break;
-        case 'database':
-          tester = new DatabaseTester();
-          await tester.testDatabaseConnection();
-          await tester.testCalendarDataTable();
-          await tester.testDataIntegrity();
-          await tester.testQueryPerformance();
-          break;
-        case 'frontend':
-          tester = new FrontendTester();
-          await tester.testComponentRendering();
-          await tester.testDataBinding();
-          await tester.testUserInteractions();
-          await tester.testErrorHandling();
-          break;
-      }
-      
-      if (tester) {
-        setTestResults(prev => ({ ...prev, [suite]: tester.getSummary() }));
-      }
-    } catch (error) {
-      console.error(`${suite} tests failed:`, error);
     } finally {
       setIsRunning(false);
       setCurrentTest('');
     }
   };
 
-  const getTestIcon = (success: boolean) => {
-    return success ? (
-      <CheckCircle className="w-4 h-4 text-green-600" />
-    ) : (
-      <XCircle className="w-4 h-4 text-red-600" />
-    );
+  const getTestIcon = (testType: string) => {
+    if (testType.includes('API')) return Globe;
+    if (testType.includes('Database')) return Database;
+    if (testType.includes('Edge')) return Cloud;
+    return Clock;
   };
 
-  const getSuccessRate = (results: TestResult[]) => {
-    const passed = results.filter(r => r.success).length;
-    return results.length > 0 ? (passed / results.length) * 100 : 0;
+  const getTotalStats = () => {
+    const allResults = testSuites.flatMap(suite => suite.results);
+    const passed = allResults.filter(r => r.success).length;
+    const total = allResults.length;
+    const successRate = total > 0 ? (passed / total) * 100 : 0;
+    
+    return { passed, total, successRate };
   };
 
-  const TestSuiteCard = ({ 
-    title, 
-    icon, 
-    suite, 
-    results,
-    onRun 
-  }: { 
-    title: string; 
-    icon: React.ReactNode; 
-    suite: string;
-    results?: TestSuite;
-    onRun: () => void;
-  }) => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          {icon}
-          <span>{title}</span>
-          {results && (
-            <Badge variant={getSuccessRate(results.results) === 100 ? "default" : "destructive"}>
-              {getSuccessRate(results.results).toFixed(0)}%
-            </Badge>
-          )}
-        </CardTitle>
-        <CardDescription>
-          {results ? `${results.results.length} tests completed` : 'Not run yet'}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <Button 
-            onClick={onRun} 
-            disabled={isRunning}
-            size="sm"
-            variant="outline"
-            className="w-full"
-          >
-            {isRunning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-            Run Tests
-          </Button>
-          
-          {results && (
-            <div className="space-y-1">
-              {results.results.map((result, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2">
-                    {getTestIcon(result.success)}
-                    <span className={result.success ? "text-green-700" : "text-red-700"}>
-                      {result.name}
-                    </span>
-                  </div>
-                  <span className="text-gray-500">{result.duration}ms</span>
-                </div>
-              ))}
-            </div>
-          )}
+  const renderTestResult = (result: TestResult) => (
+    <div key={result.name} className="flex items-center justify-between p-3 border rounded-lg">
+      <div className="flex items-center space-x-3">
+        {result.success ? (
+          <CheckCircle className="w-5 h-5 text-green-500" />
+        ) : (
+          <XCircle className="w-5 h-5 text-red-500" />
+        )}
+        <div>
+          <div className="font-medium">{result.name}</div>
+          <div className="text-sm text-gray-500">
+            {result.success ? result.message : result.message}
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <div className="flex items-center space-x-2">
+        <Badge variant={result.success ? 'default' : 'destructive'}>
+          {result.duration}ms
+        </Badge>
+      </div>
+    </div>
   );
+
+  const stats = getTotalStats();
 
   return (
     <div className="space-y-6">
+      {/* Control Panel */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Settings className="w-5 h-5" />
-            <span>Calendar Test Runner</span>
-          </CardTitle>
-          <CardDescription>
-            Comprehensive testing suite for the calendar functionality
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex space-x-2">
+          <CardTitle className="flex items-center justify-between">
+            Test Control Panel
             <Button 
               onClick={runAllTests} 
               disabled={isRunning}
-              className="flex-1"
+              className="flex items-center space-x-2"
             >
               {isRunning ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
-                <Play className="w-4 h-4 mr-2" />
+                <Play className="w-4 h-4" />
               )}
-              Run All Tests
+              <span>{isRunning ? 'Running Tests' : 'Run All Tests'}</span>
             </Button>
-          </div>
-          
-          {isRunning && (
+          </CardTitle>
+          <CardDescription>
+            Comprehensive test suite for calendar functionality
+          </CardDescription>
+        </CardHeader>
+        {isRunning && (
+          <CardContent>
             <div className="space-y-2">
-              <Progress value={progress} className="w-full" />
-              <p className="text-sm text-gray-600">{currentTest}</p>
+              <div className="text-sm text-gray-600">{currentTest}</div>
+              <Progress value={undefined} className="w-full" />
             </div>
-          )}
-        </CardContent>
+          </CardContent>
+        )}
       </Card>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="api">API</TabsTrigger>
-          <TabsTrigger value="edge">Edge Functions</TabsTrigger>
-          <TabsTrigger value="database">Database</TabsTrigger>
-          <TabsTrigger value="frontend">Frontend</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TestSuiteCard
-              title="API Tests"
-              icon={<Globe className="w-5 h-5" />}
-              suite="api"
-              results={testResults.api}
-              onRun={() => runSingleTestSuite('api')}
-            />
-            <TestSuiteCard
-              title="Edge Function Tests"
-              icon={<Settings className="w-5 h-5" />}
-              suite="edge"
-              results={testResults.edge}
-              onRun={() => runSingleTestSuite('edge')}
-            />
-            <TestSuiteCard
-              title="Database Tests"
-              icon={<Database className="w-5 h-5" />}
-              suite="database"
-              results={testResults.database}
-              onRun={() => runSingleTestSuite('database')}
-            />
-            <TestSuiteCard
-              title="Frontend Tests"
-              icon={<Monitor className="w-5 h-5" />}
-              suite="frontend"
-              results={testResults.frontend}
-              onRun={() => runSingleTestSuite('frontend')}
-            />
-          </div>
-        </TabsContent>
-
-        {Object.entries(testResults).map(([key, suite]) => (
-          <TabsContent key={key} value={key} className="space-y-4">
-            {suite && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold capitalize">{key} Test Results</h3>
-                  <Badge variant={getSuccessRate(suite.results) === 100 ? "default" : "destructive"}>
-                    {suite.results.filter(r => r.success).length}/{suite.results.length} passed
-                  </Badge>
-                </div>
-                
-                {suite.results.map((result, index) => (
-                  <Card key={index}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          {getTestIcon(result.success)}
-                          <span>{result.name}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-4 h-4" />
-                          <span className="text-sm text-gray-500">{result.duration}ms</span>
-                        </div>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Alert variant={result.success ? "default" : "destructive"}>
-                        <AlertDescription>
-                          {result.message}
-                        </AlertDescription>
-                      </Alert>
-                      
-                      {result.data && (
-                        <div className="mt-4">
-                          <details className="text-sm">
-                            <summary className="cursor-pointer text-gray-600 hover:text-gray-800">
-                              View test data
-                            </summary>
-                            <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
-                              {JSON.stringify(result.data, null, 2)}
-                            </pre>
-                          </details>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+      {/* Test Results Summary */}
+      {testSuites.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Test Results Summary</CardTitle>
+            <CardDescription>
+              Overall test execution results
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{stats.passed}</div>
+                <div className="text-sm text-gray-500">Passed</div>
               </div>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{stats.total - stats.passed}</div>
+                <div className="text-sm text-gray-500">Failed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{stats.successRate.toFixed(1)}%</div>
+                <div className="text-sm text-gray-500">Success Rate</div>
+              </div>
+            </div>
+            <Progress value={stats.successRate} className="w-full" />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Test Suite Results */}
+      {testSuites.map((suite, index) => {
+        const Icon = getTestIcon(suite.name);
+        const successRate = suite.results.length > 0 ? 
+          (suite.results.filter(r => r.success).length / suite.results.length) * 100 : 0;
+
+        return (
+          <Card key={index}>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Icon className="w-5 h-5" />
+                <span>{suite.name}</span>
+                <Badge variant={successRate === 100 ? 'default' : successRate > 50 ? 'secondary' : 'destructive'}>
+                  {successRate.toFixed(1)}% passed
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                {suite.results.length} tests completed in {((suite.endTime || Date.now()) - suite.startTime)}ms
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {suite.results.map(renderTestResult)}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

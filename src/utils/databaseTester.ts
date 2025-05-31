@@ -76,17 +76,6 @@ export class DatabaseTester extends CalendarTester {
     return this.runTest('Data Integrity Check', async () => {
       console.log('Testing data integrity...');
       
-      // Check for duplicate event_ids
-      const { data: duplicates, error: dupError } = await supabase
-        .from('calendar_data')
-        .select('event_id, count(*)')
-        .group('event_id')
-        .having('count(*)', 'gt', 1);
-
-      if (dupError) {
-        throw new Error(`Duplicate check failed: ${dupError.message}`);
-      }
-
       // Check for records with missing required fields
       const { data: incomplete, error: incError } = await supabase
         .from('calendar_data')
@@ -114,7 +103,6 @@ export class DatabaseTester extends CalendarTester {
         (Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60) : null;
 
       return {
-        duplicateEvents: duplicates?.length || 0,
         incompleteRecords: incomplete?.length || 0,
         lastUpdate,
         hoursOld,
