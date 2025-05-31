@@ -1,12 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Newspaper, Download, Database, RefreshCw, Loader2, CheckCircle, AlertCircle, Search, Users } from 'lucide-react';
+import { Progress } from './ui/progress';
+import { Newspaper, Download, Database, RefreshCw, Loader2, CheckCircle, AlertCircle, Search, Users, Play, Pause, Square, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useToast } from './ui/use-toast';
+import { continuousBatchProcessor, type BatchProgress } from '../services/continuousBatchProcessor';
+import { enhancedRssFetcher } from '../services/enhancedRssFetcher';
 
 interface NewsStats {
   total: number;
@@ -14,21 +17,16 @@ interface NewsStats {
   lastUpdate: string | null;
 }
 
-interface BatchResult {
-  name: string;
-  stored: number;
-  items: number;
-  error?: string;
-}
-
 const NewsManagementTool = () => {
   const [loading, setLoading] = useState(false);
   const [memberName, setMemberName] = useState('');
   const [stats, setStats] = useState<NewsStats>({ total: 0, recent: 0, lastUpdate: null });
   const [results, setResults] = useState<any[]>([]);
-  const [batchResults, setBatchResults] = useState<BatchResult[]>([]);
   const [testMode, setTestMode] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [maxMembers, setMaxMembers] = useState(50);
   const { toast } = useToast();
+  const progressRef = useRef<BatchProgress | null>(null);
 
   // Fetch current news statistics
   const fetchStats = async () => {
@@ -57,7 +55,7 @@ const NewsManagementTool = () => {
     }
   };
 
-  // Test search with a single member
+  // Test search with a single member using enhanced fetcher
   const testMemberSearch = async () => {
     if (!memberName.trim()) {
       toast({
@@ -72,7 +70,7 @@ const NewsManagementTool = () => {
     setTestMode(true);
     
     try {
-      console.log('Testing search for:', memberName);
+      console.log('Testing enhanced search for:', memberName);
       
       // First, find the member in the database
       const { data: members, error: memberError } = await supabase
@@ -97,25 +95,55 @@ const NewsManagementTool = () => {
 
       console.log('Found member:', fullName, 'Party:', member.party);
 
-      // Test the enhanced search function
-      const { data, error } = await supabase.functions.invoke('fetch-member-news', {
-        body: { 
-          memberName: fullName, 
-          memberId: member.member_id, 
-          manualFetch: true 
+      // Use the enhanced RSS fetcher
+      const result = await enhancedRssFetcher.fetchNewsForMember(fullName);
+
+      if (result.success && result.items.length > 0) {
+        setResults(result.items || []);
+        
+        // Store new items
+        let storedCount = 0;
+        for (const item of result.items) {
+          try {
+            const { data: existing } = await supabase
+              .from('member_news')
+              .select('id')
+              .eq('member_id', member.member_id)
+              .eq('link', item.link)
+              .single();
+
+            if (!existing) {
+              const { error: insertError } = await supabase
+                .from('member_news')
+                .insert({
+                  member_id: member.member_id,
+                  title: item.title,
+                  link: item.link,
+                  pub_date: item.pubDate,
+                  description: item.description,
+                  image_url: item.imageUrl
+                });
+              
+              if (!insertError) {
+                storedCount++;
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to store item:', error);
+          }
         }
-      });
-
-      if (error) throw error;
-
-      console.log('Test results:', data);
-
-      setResults(data.newsItems || []);
-      
-      toast({
-        title: "Test slutförd",
-        description: `Hittade ${data.newsItems?.length || 0} artiklar för ${fullName}. ${data.stored || 0} nya sparades.`,
-      });
+        
+        toast({
+          title: "Test slutförd",
+          description: `Hittade ${result.items.length} artiklar för ${fullName}. ${storedCount} nya sparades. Strategi: ${result.strategy}, Proxy: ${result.proxy}`,
+        });
+      } else {
+        toast({
+          title: "Inga artiklar hittades",
+          description: result.error || "Kunde inte hitta några relevanta nyhetsartiklar",
+          variant: "destructive",
+        });
+      }
 
       // Refresh stats
       await fetchStats();
@@ -133,96 +161,46 @@ const NewsManagementTool = () => {
     }
   };
 
-  // Enhanced batch fetch with better error handling and progress tracking
-  const enhancedBatchFetch = async () => {
+  // Start continuous batch processing
+  const startContinuousBatch = async () => {
+    if (continuousBatchProcessor.getStatus().isRunning) {
+      toast({
+        title: "Batch-bearbetning pågår redan",
+        description: "Vänta tills den nuvarande bearbetningen är klar",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
-    setBatchResults([]);
+    setBatchProgress(null);
     
     try {
-      // Get active members from different parties for testing
-      const { data: members, error: memberError } = await supabase
-        .from('member_data')
-        .select('member_id, first_name, last_name, party')
-        .eq('is_active', true)
-        .order('party')
-        .limit(15); // Increased limit for better coverage
-
-      if (memberError) throw memberError;
-
-      if (!members || members.length === 0) {
-        toast({
-          title: "Inga medlemmar",
-          description: "Kunde inte hitta några aktiva medlemmar",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log(`Starting enhanced batch fetch for ${members.length} members`);
-
-      let totalStored = 0;
-      let totalProcessed = 0;
-      const results: BatchResult[] = [];
-
-      for (const member of members) {
-        try {
-          const fullName = `${member.first_name} ${member.last_name}`;
-          console.log(`Processing ${totalProcessed + 1}/${members.length}: ${fullName} (${member.party})`);
+      await continuousBatchProcessor.startBatchProcessing({
+        maxMembers,
+        delayBetweenMembers: 3000,
+        onProgress: (progress) => {
+          setBatchProgress(progress);
+          progressRef.current = progress;
           
-          const { data, error } = await supabase.functions.invoke('fetch-member-news', {
-            body: { 
-              memberName: fullName, 
-              memberId: member.member_id, 
-              manualFetch: true 
-            }
-          });
-
-          const result: BatchResult = {
-            name: `${fullName} (${member.party})`,
-            stored: data?.stored || 0,
-            items: data?.newsItems?.length || 0,
-          };
-
-          if (error) {
-            result.error = error.message;
-            console.error(`Error for ${fullName}:`, error);
-          } else {
-            totalStored += data?.stored || 0;
-            console.log(`✓ ${fullName}: ${data?.stored || 0} stored, ${data?.newsItems?.length || 0} found`);
+          // Update stats periodically during processing
+          if (progress.processed % 5 === 0) {
+            fetchStats();
           }
-
-          results.push(result);
-          setBatchResults([...results]); // Update UI progressively
-          totalProcessed++;
-
-          // Longer delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-        } catch (error) {
-          console.error(`Error processing ${member.first_name} ${member.last_name}:`, error);
-          results.push({
-            name: `${member.first_name} ${member.last_name} (${member.party})`,
-            stored: 0,
-            items: 0,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
         }
-      }
-
-      setBatchResults(results);
+      });
       
       toast({
-        title: "Batch-hämtning slutförd",
-        description: `${totalStored} nya artiklar sparades från ${totalProcessed} medlemmar`,
+        title: "Kontinuerlig batch-bearbetning slutförd",
+        description: `${progressRef.current?.successful || 0} medlemmar bearbetade framgångsrikt`,
       });
-
-      // Refresh stats
+      
       await fetchStats();
-
+      
     } catch (error) {
-      console.error('Error in enhanced batch fetch:', error);
+      console.error('Error in continuous batch:', error);
       toast({
-        title: "Fel vid batch-hämtning",
+        title: "Fel vid batch-bearbetning",
         description: error instanceof Error ? error.message : "Okänt fel uppstod",
         variant: "destructive",
       });
@@ -231,10 +209,47 @@ const NewsManagementTool = () => {
     }
   };
 
+  // Control batch processing
+  const pauseBatch = () => {
+    continuousBatchProcessor.pauseProcessing();
+    toast({
+      title: "Batch-bearbetning pausad",
+      description: "Du kan återuppta bearbetningen när som helst",
+    });
+  };
+
+  const resumeBatch = () => {
+    continuousBatchProcessor.resumeProcessing();
+    toast({
+      title: "Batch-bearbetning återupptagen",
+      description: "Bearbetningen fortsätter från där den pausades",
+    });
+  };
+
+  const stopBatch = () => {
+    continuousBatchProcessor.stopProcessing();
+    setBatchProgress(null);
+    setLoading(false);
+    toast({
+      title: "Batch-bearbetning stoppad",
+      description: "Bearbetningen har avbrutits",
+    });
+  };
+
+  // Format time remaining
+  const formatTimeRemaining = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds}s`;
+  };
+
   // Load stats on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     fetchStats();
   }, []);
+
+  const batchStatus = continuousBatchProcessor.getStatus();
 
   return (
     <div className="space-y-6">
@@ -242,7 +257,7 @@ const NewsManagementTool = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Newspaper className="w-5 h-5" />
-            <span>Förbättrad Nyhetshantering</span>
+            <span>Förbättrad kontinuerlig nyhetshantering</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -273,7 +288,7 @@ const NewsManagementTool = () => {
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <Search className="w-5 h-5 mr-2" />
-              Testa sökning för enskild medlem
+              Testa förbättrad sökning för enskild medlem
             </h3>
             <div className="flex space-x-2">
               <Input
@@ -282,11 +297,11 @@ const NewsManagementTool = () => {
                 value={memberName}
                 onChange={(e) => setMemberName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && testMemberSearch()}
-                disabled={loading}
+                disabled={loading || batchStatus.isRunning}
               />
               <Button
                 onClick={testMemberSearch}
-                disabled={loading || !memberName.trim()}
+                disabled={loading || !memberName.trim() || batchStatus.isRunning}
                 className="flex items-center space-x-2"
               >
                 {loading && testMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -295,33 +310,152 @@ const NewsManagementTool = () => {
             </div>
           </div>
 
-          {/* Batch Operations */}
+          {/* Continuous Batch Operations */}
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <Users className="w-5 h-5 mr-2" />
-              Batch-operationer
+              Kontinuerlig batch-bearbetning
             </h3>
-            <div className="flex space-x-2">
-              <Button
-                onClick={enhancedBatchFetch}
-                disabled={loading}
-                variant="outline"
-                className="flex items-center space-x-2"
-              >
-                {loading && !testMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                <span>Förbättrad batch-hämtning (15 medlemmar)</span>
-              </Button>
-              <Button
-                onClick={fetchStats}
-                disabled={loading}
-                variant="ghost"
-                className="flex items-center space-x-2"
-              >
-                <Database className="w-4 h-4" />
-                <span>Uppdatera statistik</span>
-              </Button>
+            
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <label htmlFor="maxMembers" className="text-sm font-medium">Max antal medlemmar:</label>
+                <Input
+                  id="maxMembers"
+                  type="number"
+                  value={maxMembers}
+                  onChange={(e) => setMaxMembers(parseInt(e.target.value) || 50)}
+                  min="10"
+                  max="200"
+                  disabled={batchStatus.isRunning}
+                  className="w-20"
+                />
+              </div>
+              
+              <div className="flex space-x-2">
+                {!batchStatus.isRunning ? (
+                  <Button
+                    onClick={startContinuousBatch}
+                    disabled={loading}
+                    className="flex items-center space-x-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>Starta kontinuerlig bearbetning</span>
+                  </Button>
+                ) : (
+                  <>
+                    {!batchStatus.isPaused ? (
+                      <Button
+                        onClick={pauseBatch}
+                        variant="outline"
+                        className="flex items-center space-x-2"
+                      >
+                        <Pause className="w-4 h-4" />
+                        <span>Pausa</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={resumeBatch}
+                        className="flex items-center space-x-2"
+                      >
+                        <Play className="w-4 h-4" />
+                        <span>Återuppta</span>
+                      </Button>
+                    )}
+                    <Button
+                      onClick={stopBatch}
+                      variant="destructive"
+                      className="flex items-center space-x-2"
+                    >
+                      <Square className="w-4 h-4" />
+                      <span>Stoppa</span>
+                    </Button>
+                  </>
+                )}
+                
+                <Button
+                  onClick={fetchStats}
+                  disabled={loading}
+                  variant="ghost"
+                  className="flex items-center space-x-2"
+                >
+                  <Database className="w-4 h-4" />
+                  <span>Uppdatera statistik</span>
+                </Button>
+              </div>
             </div>
           </div>
+
+          {/* Batch Progress */}
+          {batchProgress && (
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center">
+                <TrendingUp className="w-5 h-5 mr-2" />
+                Batch-progress
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    Bearbetar: {batchProgress.currentMemberName}
+                  </span>
+                  <Badge variant={
+                    batchProgress.status === 'running' ? 'default' :
+                    batchProgress.status === 'paused' ? 'secondary' :
+                    batchProgress.status === 'completed' ? 'default' : 'destructive'
+                  }>
+                    {batchProgress.status === 'running' ? 'Pågår' :
+                     batchProgress.status === 'paused' ? 'Pausad' :
+                     batchProgress.status === 'completed' ? 'Slutförd' : 'Fel'}
+                  </Badge>
+                </div>
+                
+                <Progress 
+                  value={(batchProgress.processed / batchProgress.totalMembers) * 100} 
+                  className="w-full"
+                />
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="font-semibold text-blue-600">{batchProgress.processed}</div>
+                    <div className="text-gray-600">Bearbetade</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-green-600">{batchProgress.successful}</div>
+                    <div className="text-gray-600">Lyckade</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-orange-600">{batchProgress.newArticles}</div>
+                    <div className="text-gray-600">Nya artiklar</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-red-600">{batchProgress.failed}</div>
+                    <div className="text-gray-600">Misslyckade</div>
+                  </div>
+                </div>
+                
+                {batchProgress.estimatedTimeRemaining && batchProgress.estimatedTimeRemaining > 0 && (
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Clock className="w-4 h-4" />
+                    <span>Beräknad tid kvar: {formatTimeRemaining(batchProgress.estimatedTimeRemaining)}</span>
+                  </div>
+                )}
+                
+                {batchProgress.errors.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-sm font-semibold mb-2 text-red-600">Senaste fel:</h4>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {batchProgress.errors.slice(-5).map((error, index) => (
+                        <div key={index} className="text-xs bg-red-50 p-2 rounded">
+                          <span className="font-medium">{error.memberName}:</span> {error.error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Test Results */}
           {results.length > 0 && (
@@ -333,38 +467,6 @@ const NewsManagementTool = () => {
                     <span className="text-sm font-medium">{result.title}</span>
                     <div className="text-xs text-gray-500">
                       {new Date(result.pubDate).toLocaleDateString('sv-SE')}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Batch Results */}
-          {batchResults.length > 0 && (
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-semibold mb-3">Batch-resultat</h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {batchResults.map((result, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <span className="text-sm font-medium">{result.name}</span>
-                      {result.error && (
-                        <div className="text-xs text-red-600 mt-1">{result.error}</div>
-                      )}
-                    </div>
-                    <div className="flex space-x-2">
-                      <Badge variant={result.stored > 0 ? "default" : "secondary"}>
-                        {result.stored} sparade
-                      </Badge>
-                      <Badge variant="outline">
-                        {result.items} hittade
-                      </Badge>
-                      {result.error ? (
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
                     </div>
                   </div>
                 ))}

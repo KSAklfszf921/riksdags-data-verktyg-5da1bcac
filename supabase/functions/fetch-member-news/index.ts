@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -15,15 +14,288 @@ interface NewsItem {
   imageUrl?: string;
 }
 
-interface FormattedNewsItem {
-  member_name: string;
-  title: string;
-  headline: string;
-  body: string;
-  image_url: string | null;
-  link: string;
-  source: string;
-  pub_date: string;
+interface FetchResult {
+  success: boolean;
+  items: NewsItem[];
+  error?: string;
+  strategy?: string;
+  proxy?: string;
+}
+
+// Enhanced RSS fetcher with multiple strategies and proxies
+class EnhancedRssFetcher {
+  private proxies = [
+    '', // Direct
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/get?url=',
+    'https://proxy.cors.sh/',
+  ];
+
+  private searchStrategies = [
+    (name: string) => `"${name}" riksdag (site:svt.se OR site:dn.se OR site:aftonbladet.se OR site:expressen.se)`,
+    (name: string) => `"${name}" politik Sverige (site:svt.se OR site:dn.se)`,
+    (name: string) => {
+      const [firstName, ...lastNameParts] = name.split(' ');
+      const lastName = lastNameParts.join(' ');
+      return `"${lastName}" riksdag Sverige`;
+    },
+    (name: string) => `"${name}" politik`,
+    (name: string) => `"${name}" Sverige`,
+  ];
+
+  async fetchNewsForMember(memberName: string, maxRetries = 2): Promise<FetchResult> {
+    console.log(`🔍 Enhanced RSS fetch for ${memberName}`);
+    
+    for (let strategyIndex = 0; strategyIndex < this.searchStrategies.length; strategyIndex++) {
+      const strategy = this.searchStrategies[strategyIndex];
+      const query = strategy(memberName);
+      
+      console.log(`📋 Strategy ${strategyIndex + 1}: ${query}`);
+      
+      for (let proxyIndex = 0; proxyIndex < this.proxies.length; proxyIndex++) {
+        const proxy = this.proxies[proxyIndex];
+        
+        for (let retry = 0; retry < maxRetries; retry++) {
+          try {
+            const result = await this.tryFetchWithProxy(query, proxy, memberName, retry + 1);
+            
+            if (result.success && result.items.length > 0) {
+              console.log(`✅ Success with strategy ${strategyIndex + 1}, proxy ${proxyIndex + 1}: ${result.items.length} items`);
+              return {
+                ...result,
+                strategy: `${strategyIndex + 1}`,
+                proxy: proxy || 'direct'
+              };
+            }
+          } catch (error) {
+            console.log(`❌ Failed strategy ${strategyIndex + 1}, proxy ${proxyIndex + 1}, retry ${retry + 1}:`, error.message);
+            
+            // Add delay between retries
+            if (retry < maxRetries - 1) {
+              await this.delay(1000 * (retry + 1));
+            }
+          }
+        }
+        
+        // Add delay between proxies
+        await this.delay(500);
+      }
+    }
+    
+    return {
+      success: false,
+      items: [],
+      error: 'All strategies and proxies failed'
+    };
+  }
+
+  private async tryFetchWithProxy(query: string, proxy: string, memberName: string, attempt: number): Promise<FetchResult> {
+    const searchQuery = encodeURIComponent(query);
+    let rssUrl = `https://news.google.com/rss/search?q=${searchQuery}&hl=sv&gl=SE&ceid=SE:sv`;
+    
+    if (proxy) {
+      rssUrl = proxy + encodeURIComponent(rssUrl);
+    }
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    try {
+      const response = await fetch(rssUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
+          'Accept': 'application/rss+xml, application/xml, text/xml',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      let xmlText: string;
+      
+      if (proxy === 'https://api.allorigins.win/get?url=') {
+        const data = await response.json();
+        xmlText = data.contents;
+      } else {
+        xmlText = await response.text();
+      }
+      
+      const items = this.parseRssXml(xmlText, memberName);
+      
+      return {
+        success: true,
+        items: items
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private parseRssXml(xmlText: string, memberName: string): NewsItem[] {
+    const items: NewsItem[] = [];
+    
+    // Try different item patterns
+    const itemPatterns = [
+      /<item>(.*?)<\/item>/gs,
+      /<entry>(.*?)<\/entry>/gs,
+    ];
+    
+    let matches: RegExpMatchArray[] = [];
+    for (const pattern of itemPatterns) {
+      matches = Array.from(xmlText.matchAll(pattern));
+      if (matches.length > 0) break;
+    }
+
+    if (matches.length === 0) {
+      console.log('No RSS items found in XML');
+      return items;
+    }
+
+    for (const match of matches) {
+      const itemContent = match[1];
+      const item = this.parseRssItem(itemContent, memberName);
+      
+      if (item && this.isRelevantToMember(item, memberName)) {
+        items.push(item);
+      }
+    }
+
+    return items;
+  }
+
+  private parseRssItem(itemContent: string, memberName: string): NewsItem | null {
+    // Enhanced title extraction
+    let title = '';
+    const titlePatterns = [
+      /<title><!\[CDATA\[(.*?)\]\]><\/title>/,
+      /<title>(.*?)<\/title>/,
+    ];
+    
+    for (const pattern of titlePatterns) {
+      const match = itemContent.match(pattern);
+      if (match) {
+        title = this.cleanText(match[1]);
+        break;
+      }
+    }
+    
+    // Enhanced link extraction
+    let link = '';
+    const linkPatterns = [
+      /<link>(.*?)<\/link>/,
+      /<link[^>]*href="([^"]*)"[^>]*>/,
+      /<guid[^>]*>(.*?)<\/guid>/,
+    ];
+    
+    for (const pattern of linkPatterns) {
+      const match = itemContent.match(pattern);
+      if (match) {
+        link = match[1];
+        break;
+      }
+    }
+    
+    // Enhanced date extraction
+    let pubDate = '';
+    const datePatterns = [
+      /<pubDate>(.*?)<\/pubDate>/,
+      /<published>(.*?)<\/published>/,
+      /<updated>(.*?)<\/updated>/,
+    ];
+    
+    for (const pattern of datePatterns) {
+      const match = itemContent.match(pattern);
+      if (match) {
+        pubDate = match[1];
+        break;
+      }
+    }
+    
+    // Enhanced description extraction
+    let description = '';
+    const descPatterns = [
+      /<description><!\[CDATA\[(.*?)\]\]><\/description>/,
+      /<description>(.*?)<\/description>/,
+      /<summary><!\[CDATA\[(.*?)\]\]><\/summary>/,
+      /<summary>(.*?)<\/summary>/,
+    ];
+    
+    for (const pattern of descPatterns) {
+      const match = itemContent.match(pattern);
+      if (match) {
+        description = this.cleanText(match[1]);
+        break;
+      }
+    }
+    
+    // Enhanced image extraction
+    const mediaContentMatch = itemContent.match(/<media:content[^>]*url="([^"]*)"[^>]*>/);
+    const enclosureMatch = itemContent.match(/<enclosure[^>]*url="([^"]*)"[^>]*type="image[^"]*"/);
+    const imgMatch = itemContent.match(/<img[^>]*src="([^"]*)"[^>]*>/);
+    
+    const imageUrl = mediaContentMatch?.[1] || enclosureMatch?.[1] || imgMatch?.[1];
+    
+    if (!title || !link || !pubDate) {
+      return null;
+    }
+    
+    return {
+      title,
+      link,
+      pubDate,
+      description,
+      imageUrl
+    };
+  }
+
+  private isRelevantToMember(item: NewsItem, memberName: string): boolean {
+    const titleLower = item.title.toLowerCase();
+    const descLower = (item.description || '').toLowerCase();
+    const memberLower = memberName.toLowerCase();
+    
+    // Split name into parts for better matching
+    const nameParts = memberName.toLowerCase().split(' ');
+    const lastName = nameParts[nameParts.length - 1];
+    const firstName = nameParts[0];
+    
+    // Check for exact name match
+    if (titleLower.includes(memberLower) || descLower.includes(memberLower)) {
+      return true;
+    }
+    
+    // Check for last name match (common in news)
+    if (lastName.length > 2 && (titleLower.includes(lastName) || descLower.includes(lastName))) {
+      return true;
+    }
+    
+    // Check for first + last name combinations
+    if (firstName.length > 2 && lastName.length > 2) {
+      const hasFirstName = titleLower.includes(firstName) || descLower.includes(firstName);
+      const hasLastName = titleLower.includes(lastName) || descLower.includes(lastName);
+      
+      if (hasFirstName && hasLastName) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private cleanText(text: string): string {
+    return text
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&[^;]+;/g, ' ') // Remove HTML entities
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 }
 
 // Function to format RSS items for display
@@ -313,7 +585,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log(`\n🔍 Starting news fetch for ${memberName} (${memberId})`)
+    console.log(`\n🔍 Starting enhanced news fetch for ${memberName} (${memberId})`)
     console.log(`Manual fetch: ${manualFetch}`)
 
     // Check if we have recent news in database (within last 4 hours) unless manual fetch
@@ -326,20 +598,11 @@ serve(async (req) => {
         .eq('member_id', memberId)
         .gte('created_at', fourHoursAgo)
         .order('created_at', { ascending: false })
-        .limit(5)
+        .limit(10)
 
       if (existingNews && existingNews.length > 0) {
         console.log(`✓ Found ${existingNews.length} recent news items in cache`)
         
-        // Format existing news items
-        const formattedItems = existingNews.map(item => formatNewsItem({
-          title: item.title,
-          link: item.link,
-          pubDate: item.pub_date,
-          description: item.description,
-          imageUrl: item.image_url
-        }, memberName));
-
         return new Response(
           JSON.stringify({
             newsItems: existingNews.map(item => ({
@@ -349,7 +612,6 @@ serve(async (req) => {
               description: item.description,
               imageUrl: item.image_url
             })),
-            formattedItems,
             source: 'cache',
             stored: 0
           }),
@@ -358,19 +620,18 @@ serve(async (req) => {
       }
     }
 
-    // Fetch fresh news from Google News RSS
-    let newsItems: NewsItem[] = [];
+    // Use enhanced RSS fetcher
+    const enhancedFetcher = new EnhancedRssFetcher();
+    let result: FetchResult;
     
     try {
-      newsItems = await fetchGoogleNewsRss(memberName);
+      result = await enhancedFetcher.fetchNewsForMember(memberName);
     } catch (error) {
-      console.error('=== Error in fetch-member-news ===', error);
+      console.error('=== Error in enhanced fetch-member-news ===', error);
       
-      // Return empty result instead of throwing
       return new Response(
         JSON.stringify({
           newsItems: [],
-          formattedItems: [],
           source: 'error',
           stored: 0,
           error: error.message
@@ -379,14 +640,14 @@ serve(async (req) => {
       )
     }
 
-    if (newsItems.length === 0) {
-      console.log(`⚠️ No news items found for ${memberName}`);
+    if (!result.success || result.items.length === 0) {
+      console.log(`⚠️ No news items found for ${memberName}: ${result.error}`);
       return new Response(
         JSON.stringify({
           newsItems: [],
-          formattedItems: [],
           source: 'live',
-          stored: 0
+          stored: 0,
+          error: result.error
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -394,9 +655,9 @@ serve(async (req) => {
 
     // Store new items in database
     let storedCount = 0
-    console.log(`💾 Attempting to store ${newsItems.length} items...`);
+    console.log(`💾 Attempting to store ${result.items.length} items...`);
     
-    for (const item of newsItems) {
+    for (const item of result.items) {
       try {
         // Check if this item already exists
         const { data: existing } = await supabase
@@ -432,29 +693,26 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✓ Successfully stored ${storedCount}/${newsItems.length} new items for ${memberName}`);
-
-    // Format items for display
-    const formattedItems = newsItems.slice(0, 5).map(item => formatNewsItem(item, memberName));
+    console.log(`✓ Successfully stored ${storedCount}/${result.items.length} new items for ${memberName}`);
 
     return new Response(
       JSON.stringify({
-        newsItems: newsItems.slice(0, 5),
-        formattedItems,
+        newsItems: result.items.slice(0, 10),
         source: 'live',
-        stored: storedCount
+        stored: storedCount,
+        strategy: result.strategy,
+        proxy: result.proxy
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error in fetch-member-news:', error)
+    console.error('Error in enhanced fetch-member-news:', error)
     
     return new Response(
       JSON.stringify({ 
         error: error.message,
         newsItems: [],
-        formattedItems: [],
         source: 'error',
         stored: 0
       }),
