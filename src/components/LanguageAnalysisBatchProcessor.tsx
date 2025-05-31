@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -22,6 +21,12 @@ import {
 import { fetchAllMembers } from '../services/riksdagApi';
 import { LanguageAnalysisService } from '../services/languageAnalysisService';
 import { documentTextFetcher } from '../services/documentTextFetcher';
+
+// Add interface for the content returned by fetchMemberContentStepByStep
+interface MemberContent {
+  speeches: Array<{ id: string; text: string; title: string; date: string }>;
+  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
+}
 
 interface BatchProgress {
   currentMember: string;
@@ -191,7 +196,7 @@ const LanguageAnalysisBatchProcessor = () => {
 
             console.log(`Fetching content for ${memberName}...`);
             
-            // Add timeout to content fetching
+            // Fix: Properly type the content variable
             const contentPromise = documentTextFetcher.fetchMemberContentStepByStep(
               member.intressent_id,
               memberName,
@@ -206,11 +211,11 @@ const LanguageAnalysisBatchProcessor = () => {
             );
 
             // Set timeout for content fetching (30 seconds)
-            const timeoutPromise = new Promise((_, reject) =>
+            const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('Timeout: Content fetching took too long')), 30000)
             );
 
-            const content = await Promise.race([contentPromise, timeoutPromise]);
+            const content: MemberContent = await Promise.race([contentPromise, timeoutPromise]);
             
             console.log(`✓ Content fetched for ${memberName}: ${content.speeches.length} speeches, ${content.documents.length} documents`);
 
