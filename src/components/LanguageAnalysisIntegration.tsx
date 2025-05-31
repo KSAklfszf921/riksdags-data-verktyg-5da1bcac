@@ -11,7 +11,7 @@ import { Loader2, Brain, TrendingUp } from 'lucide-react';
 
 interface LanguageAnalysisIntegrationProps {
   memberId?: string;
-  documentType?: 'speech' | 'written_question' | 'motion' | 'interpellation';
+  documentType?: 'speech' | 'document';
   limit?: number;
 }
 
@@ -56,12 +56,12 @@ const LanguageAnalysisIntegration = ({
     }
   });
 
-  // Mutation for bulk analysis
+  // Mutation for analysis
   const analyzeDocumentsMutation = useMutation({
     mutationFn: async (documents: any[]) => {
       const results = [];
       
-      for (const doc of documents) {
+      for (const doc of documents.slice(0, 5)) { // Limit to 5 at a time
         if (!doc.anforandetext || doc.anforandetext.trim().length < 50) continue;
         
         const result = await LanguageAnalysisService.saveAnalysis(
@@ -78,7 +78,7 @@ const LanguageAnalysisIntegration = ({
         }
         
         // Add small delay to avoid overwhelming the database
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
       
       return results;
@@ -110,7 +110,7 @@ const LanguageAnalysisIntegration = ({
 
   const handleAnalyzeDocuments = () => {
     if (unanalyzedData && unanalyzedData.length > 0) {
-      analyzeDocumentsMutation.mutate(unanalyzedData.slice(0, 10)); // Analyze 10 at a time
+      analyzeDocumentsMutation.mutate(unanalyzedData);
     }
   };
 
@@ -179,9 +179,9 @@ const LanguageAnalysisIntegration = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {memberAnalysis.slice(0, 4).map((analysis) => (
-                <div key={analysis.id} className="space-y-2">
+                <div key={analysis.id} className="space-y-2 p-3 border rounded-lg">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium text-sm truncate">{analysis.document_title}</h4>
                     <Badge variant={analysis.overall_score >= 70 ? 'default' : 'secondary'}>

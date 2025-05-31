@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { enhancedDocumentTextFetcher } from './enhancedDocumentTextFetcher';
 
 export interface LanguageAnalysisResult {
   id: string;
@@ -30,16 +29,32 @@ export interface LanguageAnalysisResult {
   full_text?: string;
 }
 
-export interface AnalysisStatistics {
-  totalAnalyses: number;
-  totalMembers: number;
-  averageScore: number;
-  lastWeekAnalyses: number;
+export interface MemberLanguageSummary {
+  member_id: string;
+  member_name: string;
+  total_analyses: number;
+  speech_count: number;
+  document_count: number;
+  overall_average: number;
+  complexity_average: number;
+  vocabulary_average: number;
+  rhetorical_average: number;
+  clarity_average: number;
+  total_words: number;
+  last_analysis: string;
+}
+
+export interface DataValidationResult {
+  member_id: string;
+  member_name: string;
+  speeches_available: number;
+  documents_available: number;
+  speeches_with_text: number;
+  documents_with_text: number;
+  total_analyzable: number;
 }
 
 export class LanguageAnalysisService {
-  private static readonly OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
-
   // Language level mapping
   static getLanguageLevel(score: number): { level: string; description: string; color: string } {
     if (score >= 90) return { level: 'Exceptional', description: 'Enastående språklig skicklighet', color: 'bg-purple-100 text-purple-800' };
@@ -49,142 +64,149 @@ export class LanguageAnalysisService {
     return { level: 'Grundläggande', description: 'Grundläggande språklig nivå', color: 'bg-red-100 text-red-800' };
   }
 
-  // Enhanced member content analysis using the proper enhanced fetcher
-  static async analyzeMemberLanguageWithAPI(memberId: string, memberName: string): Promise<number> {
-    console.log(`=== STARTING ENHANCED LANGUAGE ANALYSIS FOR ${memberName} ===`);
+  // Validate data availability for a member
+  static async validateDataAvailability(memberId: string, memberName: string): Promise<DataValidationResult> {
+    console.log(`=== VALIDATING DATA FOR ${memberName} (${memberId}) ===`);
     
     try {
-      // Use the enhanced document text fetcher to get member content
-      console.log(`Fetching content for ${memberName} using enhanced fetcher...`);
-      const memberContent = await enhancedDocumentTextFetcher.fetchMemberContentWithDetails(
-        memberId,
-        memberName,
-        (progress) => {
-          console.log(`Enhanced fetch progress: ${progress.currentStep}`);
-        }
-      );
+      // Check speeches in database
+      const { data: speeches, error: speechError } = await supabase
+        .from('speech_data')
+        .select('speech_id, anforandetext, rel_dok_titel')
+        .eq('intressent_id', memberId)
+        .not('anforandetext', 'is', null)
+        .neq('anforandetext', '');
 
-      console.log(`Enhanced content fetched for ${memberName}:`, {
-        speeches: memberContent.speeches.length,
-        documents: memberContent.documents.length,
-        extractionDetails: memberContent.extractionDetails
-      });
+      if (speechError) {
+        console.error('Error fetching speeches:', speechError);
+      }
 
-      const allTexts = [
-        ...memberContent.speeches.map(speech => ({
-          id: speech.id,
-          text: speech.text,
-          title: speech.title,
-          date: speech.date,
-          type: 'speech' as const
-        })),
-        ...memberContent.documents.map(doc => ({
-          id: doc.id,
-          text: doc.text,
-          title: doc.title,
-          date: doc.date,
-          type: 'document' as const
-        }))
-      ];
+      // Check documents in database
+      const { data: documents, error: docError } = await supabase
+        .from('document_data')
+        .select('document_id, titel, content_preview')
+        .eq('intressent_id', memberId);
 
-      if (allTexts.length === 0) {
-        console.warn(`No texts available for analysis for ${memberName}`);
+      if (docError) {
+        console.error('Error fetching documents:', docError);
+      }
+
+      const speechesAvailable = speeches?.length || 0;
+      const documentsAvailable = documents?.length || 0;
+      
+      // Count texts that have actual content
+      const speechesWithText = speeches?.filter(s => 
+        s.anforandetext && s.anforandetext.trim().length > 100
+      ).length || 0;
+      
+      const documentsWithText = documents?.filter(d => 
+        d.content_preview && d.content_preview.trim().length > 100
+      ).length || 0;
+
+      const result = {
+        member_id: memberId,
+        member_name: memberName,
+        speeches_available: speechesAvailable,
+        documents_available: documentsAvailable,
+        speeches_with_text: speechesWithText,
+        documents_with_text: documentsWithText,
+        total_analyzable: speechesWithText + documentsWithText
+      };
+
+      console.log('Data validation result:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in data validation:', error);
+      return {
+        member_id: memberId,
+        member_name: memberName,
+        speeches_available: 0,
+        documents_available: 0,
+        speeches_with_text: 0,
+        documents_with_text: 0,
+        total_analyzable: 0
+      };
+    }
+  }
+
+  // Simplified member language analysis
+  static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<number> {
+    console.log(`=== STARTING SIMPLE LANGUAGE ANALYSIS FOR ${memberName} ===`);
+    
+    try {
+      // First validate what data is available
+      const validation = await this.validateDataAvailability(memberId, memberName);
+      
+      if (validation.total_analyzable === 0) {
+        console.warn(`No analyzable content found for ${memberName}`);
         return 0;
       }
 
-      console.log(`Analyzing ${allTexts.length} texts for ${memberName}...`);
       let analyzedCount = 0;
 
-      // Analyze each text individually
-      for (const textItem of allTexts) {
-        try {
-          console.log(`Analyzing ${textItem.type}: ${textItem.title.substring(0, 50)}...`);
-          
-          // Check if already analyzed recently (within 24 hours)
-          const { data: existingAnalysis } = await supabase
-            .from('language_analysis')
-            .select('id, analysis_date')
-            .eq('member_id', memberId)
-            .eq('document_id', textItem.id)
-            .order('analysis_date', { ascending: false })
-            .limit(1);
+      // Analyze speeches
+      if (validation.speeches_with_text > 0) {
+        const { data: speeches } = await supabase
+          .from('speech_data')
+          .select('speech_id, anforandetext, rel_dok_titel, anforandedatum')
+          .eq('intressent_id', memberId)
+          .not('anforandetext', 'is', null)
+          .neq('anforandetext', '')
+          .limit(5);
 
-          if (existingAnalysis && existingAnalysis.length > 0) {
-            const lastAnalysis = new Date(existingAnalysis[0].analysis_date);
-            const hoursSinceAnalysis = (Date.now() - lastAnalysis.getTime()) / (1000 * 60 * 60);
-            
-            if (hoursSinceAnalysis < 24) {
-              console.log(`Skipping ${textItem.id} - analyzed ${Math.round(hoursSinceAnalysis)} hours ago`);
-              continue;
+        if (speeches) {
+          for (const speech of speeches) {
+            if (speech.anforandetext && speech.anforandetext.trim().length > 100) {
+              const analysis = await this.performLanguageAnalysis(speech.anforandetext);
+              
+              const { error } = await supabase
+                .from('language_analysis')
+                .insert({
+                  member_id: memberId,
+                  member_name: memberName,
+                  document_id: speech.speech_id,
+                  document_title: speech.rel_dok_titel || 'Anförande',
+                  document_type: 'speech',
+                  overall_score: analysis.overall_score,
+                  language_complexity_score: analysis.language_complexity_score,
+                  vocabulary_richness_score: analysis.vocabulary_richness_score,
+                  rhetorical_elements_score: analysis.rhetorical_elements_score,
+                  structural_clarity_score: analysis.structural_clarity_score,
+                  word_count: analysis.word_count,
+                  sentence_count: analysis.sentence_count,
+                  paragraph_count: analysis.paragraph_count,
+                  avg_sentence_length: analysis.avg_sentence_length,
+                  avg_word_length: analysis.avg_word_length,
+                  unique_words_ratio: analysis.unique_words_ratio,
+                  complex_words_ratio: analysis.complex_words_ratio,
+                  passive_voice_ratio: analysis.passive_voice_ratio,
+                  question_count: analysis.question_count,
+                  exclamation_count: analysis.exclamation_count,
+                  formal_language_indicators: analysis.formal_language_indicators,
+                  technical_terms_count: analysis.technical_terms_count,
+                  full_text: speech.anforandetext.substring(0, 5000)
+                });
+
+              if (!error) {
+                analyzedCount++;
+                console.log(`✅ Analyzed speech: ${speech.speech_id}`);
+              }
             }
           }
-
-          // Perform AI analysis
-          const analysisResult = await this.performAILanguageAnalysis(textItem.text);
-          
-          if (analysisResult) {
-            // Save to database with service role (bypass RLS)
-            const { error: insertError } = await supabase
-              .from('language_analysis')
-              .insert({
-                member_id: memberId,
-                member_name: memberName,
-                document_id: textItem.id,
-                document_title: textItem.title,
-                document_type: textItem.type,
-                overall_score: analysisResult.overall_score,
-                language_complexity_score: analysisResult.language_complexity_score,
-                vocabulary_richness_score: analysisResult.vocabulary_richness_score,
-                rhetorical_elements_score: analysisResult.rhetorical_elements_score,
-                structural_clarity_score: analysisResult.structural_clarity_score,
-                word_count: analysisResult.word_count,
-                sentence_count: analysisResult.sentence_count,
-                paragraph_count: analysisResult.paragraph_count,
-                avg_sentence_length: analysisResult.avg_sentence_length,
-                avg_word_length: analysisResult.avg_word_length,
-                unique_words_ratio: analysisResult.unique_words_ratio,
-                complex_words_ratio: analysisResult.complex_words_ratio,
-                passive_voice_ratio: analysisResult.passive_voice_ratio,
-                question_count: analysisResult.question_count,
-                exclamation_count: analysisResult.exclamation_count,
-                formal_language_indicators: analysisResult.formal_language_indicators,
-                technical_terms_count: analysisResult.technical_terms_count,
-                full_text: textItem.text.substring(0, 10000) // Limit text length
-              });
-
-            if (insertError) {
-              console.error(`Database error for ${textItem.id}:`, insertError);
-              // Continue with other texts even if one fails
-            } else {
-              analyzedCount++;
-              console.log(`✅ Successfully analyzed and saved: ${textItem.title.substring(0, 50)}...`);
-            }
-          }
-
-          // Short delay between analyses
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-        } catch (error) {
-          console.error(`Error analyzing individual text ${textItem.id}:`, error);
-          // Continue with other texts
         }
       }
 
-      console.log(`=== COMPLETED ANALYSIS FOR ${memberName}: ${analyzedCount}/${allTexts.length} texts analyzed ===`);
+      console.log(`=== COMPLETED ANALYSIS FOR ${memberName}: ${analyzedCount} texts analyzed ===`);
       return analyzedCount;
 
     } catch (error) {
-      console.error(`Critical error in enhanced language analysis for ${memberName}:`, error);
+      console.error(`Error in language analysis for ${memberName}:`, error);
       return 0;
     }
   }
 
-  // AI analysis method
-  private static async performAILanguageAnalysis(text: string): Promise<any> {
-    // Mock implementation for now - replace with actual OpenAI API call
-    console.log('Performing AI language analysis...');
-    
-    // Simulate AI analysis with realistic metrics
+  // Simple language analysis implementation
+  private static async performLanguageAnalysis(text: string): Promise<any> {
     const words = text.split(/\s+/).filter(word => word.length > 0);
     const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
     const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
@@ -263,6 +285,106 @@ export class LanguageAnalysisService {
     };
   }
 
+  // Save analysis result
+  static async saveAnalysis(
+    memberId: string,
+    memberName: string,
+    documentType: 'speech' | 'document',
+    documentId: string,
+    documentTitle: string,
+    text: string
+  ): Promise<LanguageAnalysisResult | null> {
+    try {
+      const analysis = await this.performLanguageAnalysis(text);
+      
+      const { data, error } = await supabase
+        .from('language_analysis')
+        .insert({
+          member_id: memberId,
+          member_name: memberName,
+          document_id: documentId,
+          document_title: documentTitle,
+          document_type: documentType,
+          overall_score: analysis.overall_score,
+          language_complexity_score: analysis.language_complexity_score,
+          vocabulary_richness_score: analysis.vocabulary_richness_score,
+          rhetorical_elements_score: analysis.rhetorical_elements_score,
+          structural_clarity_score: analysis.structural_clarity_score,
+          word_count: analysis.word_count,
+          sentence_count: analysis.sentence_count,
+          paragraph_count: analysis.paragraph_count,
+          avg_sentence_length: analysis.avg_sentence_length,
+          avg_word_length: analysis.avg_word_length,
+          unique_words_ratio: analysis.unique_words_ratio,
+          complex_words_ratio: analysis.complex_words_ratio,
+          passive_voice_ratio: analysis.passive_voice_ratio,
+          question_count: analysis.question_count,
+          exclamation_count: analysis.exclamation_count,
+          formal_language_indicators: analysis.formal_language_indicators,
+          technical_terms_count: analysis.technical_terms_count,
+          full_text: text.substring(0, 5000)
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error saving analysis:', error);
+        return null;
+      }
+
+      return data as LanguageAnalysisResult;
+    } catch (error) {
+      console.error('Error in saveAnalysis:', error);
+      return null;
+    }
+  }
+
+  // Get member language summary
+  static async getMemberLanguageSummary(memberId: string): Promise<MemberLanguageSummary | null> {
+    try {
+      const { data: analyses, error } = await supabase
+        .from('language_analysis')
+        .select('*')
+        .eq('member_id', memberId);
+
+      if (error || !analyses || analyses.length === 0) {
+        return null;
+      }
+
+      const speechCount = analyses.filter(a => a.document_type === 'speech').length;
+      const documentCount = analyses.filter(a => a.document_type === 'document').length;
+      
+      const totalWords = analyses.reduce((sum, a) => sum + (a.word_count || 0), 0);
+      
+      const averageScore = (field: string) => {
+        const scores = analyses.map(a => a[field]).filter(s => typeof s === 'number');
+        return scores.length > 0 ? Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length) : 0;
+      };
+
+      const latestAnalysis = analyses.sort((a, b) => 
+        new Date(b.analysis_date).getTime() - new Date(a.analysis_date).getTime()
+      )[0];
+
+      return {
+        member_id: memberId,
+        member_name: analyses[0].member_name,
+        total_analyses: analyses.length,
+        speech_count: speechCount,
+        document_count: documentCount,
+        overall_average: averageScore('overall_score'),
+        complexity_average: averageScore('language_complexity_score'),
+        vocabulary_average: averageScore('vocabulary_richness_score'),
+        rhetorical_average: averageScore('rhetorical_elements_score'),
+        clarity_average: averageScore('structural_clarity_score'),
+        total_words: totalWords,
+        last_analysis: latestAnalysis.analysis_date
+      };
+    } catch (error) {
+      console.error('Error getting member summary:', error);
+      return null;
+    }
+  }
+
   // Database query methods
   static async getTopPerformers(category: string = 'overall_score', limit: number = 10): Promise<LanguageAnalysisResult[]> {
     try {
@@ -277,7 +399,7 @@ export class LanguageAnalysisService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as LanguageAnalysisResult[];
     } catch (error) {
       console.error('Error in getTopPerformers:', error);
       return [];
@@ -297,48 +419,10 @@ export class LanguageAnalysisService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as LanguageAnalysisResult[];
     } catch (error) {
       console.error('Error in getAnalysisByMember:', error);
       return [];
-    }
-  }
-
-  static async getAnalysisStatistics(): Promise<AnalysisStatistics> {
-    try {
-      const { data: allAnalyses, error: allError } = await supabase
-        .from('language_analysis')
-        .select('member_id, overall_score, analysis_date');
-
-      if (allError) {
-        console.error('Error fetching analysis statistics:', error);
-        return { totalAnalyses: 0, totalMembers: 0, averageScore: 0, lastWeekAnalyses: 0 };
-      }
-
-      const totalAnalyses = allAnalyses?.length || 0;
-      const uniqueMembers = new Set(allAnalyses?.map(a => a.member_id) || []);
-      const totalMembers = uniqueMembers.size;
-      
-      const averageScore = totalAnalyses > 0
-        ? Math.round((allAnalyses?.reduce((sum, a) => sum + a.overall_score, 0) || 0) / totalAnalyses)
-        : 0;
-
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      
-      const lastWeekAnalyses = allAnalyses?.filter(a => 
-        new Date(a.analysis_date) > oneWeekAgo
-      ).length || 0;
-
-      return {
-        totalAnalyses,
-        totalMembers,
-        averageScore,
-        lastWeekAnalyses
-      };
-    } catch (error) {
-      console.error('Error calculating statistics:', error);
-      return { totalAnalyses: 0, totalMembers: 0, averageScore: 0, lastWeekAnalyses: 0 };
     }
   }
 }

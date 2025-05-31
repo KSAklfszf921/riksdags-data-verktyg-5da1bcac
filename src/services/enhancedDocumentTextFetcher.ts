@@ -91,10 +91,16 @@ class EnhancedDocumentTextFetcher {
       attempts.push('direct-text-api');
       console.log(`Attempting direct text API for ${documentId}...`);
       
+      // Use AbortController for timeout instead of timeout option
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
       const response = await fetch(`https://data.riksdagen.se/dokument/${documentId}.txt`, {
         headers: { 'Accept': 'text/plain; charset=utf-8' },
-        timeout: 15000
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const text = await response.text();
@@ -120,9 +126,14 @@ class EnhancedDocumentTextFetcher {
       attempts.push('enhanced-html-parsing');
       console.log(`Attempting enhanced HTML parsing for ${documentId}...`);
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
       const response = await fetch(`https://data.riksdagen.se/dokument/${documentId}.html`, {
-        timeout: 15000
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const html = await response.text();
