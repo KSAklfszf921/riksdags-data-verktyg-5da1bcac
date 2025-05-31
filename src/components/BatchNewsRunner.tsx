@@ -94,7 +94,7 @@ const BatchNewsRunner = () => {
       setProgress(prev => ({
         ...prev,
         status: 'error',
-        errors: [...prev.errors, { memberName: 'System', error: error instanceof Error ? error.message : 'Unknown error' }]
+        errors: [...(prev.errors || []), { memberName: 'System', error: error instanceof Error ? error.message : 'Unknown error' }]
       }));
     }
   };
@@ -173,6 +173,10 @@ const BatchNewsRunner = () => {
     const seconds = Math.floor((diff % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Safe access to errors array
+  const errors = progress.errors || [];
+  const hasErrors = errors.length > 0;
 
   return (
     <Card>
@@ -297,18 +301,18 @@ const BatchNewsRunner = () => {
         )}
 
         {/* Error Summary */}
-        {progress.errors.length > 0 && (
+        {hasErrors && (
           <div className="space-y-2">
-            <h4 className="font-medium text-red-600">Recent Errors ({progress.errors.length})</h4>
+            <h4 className="font-medium text-red-600">Recent Errors ({errors.length})</h4>
             <div className="max-h-32 overflow-y-auto space-y-1">
-              {progress.errors.slice(-5).map((error, index) => (
+              {errors.slice(-5).map((error, index) => (
                 <div key={index} className="text-sm bg-red-50 p-2 rounded border border-red-200">
                   <span className="font-medium">{error.memberName}:</span> {error.error}
                 </div>
               ))}
-              {progress.errors.length > 5 && (
+              {errors.length > 5 && (
                 <div className="text-xs text-gray-500 text-center">
-                  ... and {progress.errors.length - 5} more errors
+                  ... and {errors.length - 5} more errors
                 </div>
               )}
             </div>
