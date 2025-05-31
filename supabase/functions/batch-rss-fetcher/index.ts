@@ -25,6 +25,60 @@ interface RssItem {
   content?: string
 }
 
+// Simple XML parser for Deno environment
+function parseXML(xmlString: string): RssItem[] {
+  const items: RssItem[] = []
+  
+  try {
+    // Find all <item> tags using regex
+    const itemMatches = xmlString.match(/<item[^>]*>[\s\S]*?<\/item>/gi)
+    
+    if (!itemMatches) return items
+    
+    for (const itemXml of itemMatches) {
+      const item: RssItem = {
+        title: extractTextFromTag(itemXml, 'title') || '',
+        link: extractTextFromTag(itemXml, 'link') || '',
+        description: extractTextFromTag(itemXml, 'description'),
+        pubDate: extractTextFromTag(itemXml, 'pubDate'),
+        guid: extractTextFromTag(itemXml, 'guid'),
+        author: extractTextFromTag(itemXml, 'author'),
+        content: extractTextFromTag(itemXml, 'content:encoded') || extractTextFromTag(itemXml, 'content')
+      }
+      
+      // Extract categories
+      const categoryMatches = itemXml.match(/<category[^>]*>([^<]*)<\/category>/gi)
+      if (categoryMatches) {
+        item.categories = categoryMatches.map(match => {
+          const textMatch = match.match(/>([^<]*)</)
+          return textMatch ? textMatch[1].trim() : ''
+        }).filter(Boolean)
+      }
+      
+      if (item.title && item.link) {
+        items.push(item)
+      }
+    }
+  } catch (error) {
+    console.error('Error parsing XML:', error)
+  }
+  
+  return items
+}
+
+function extractTextFromTag(xml: string, tagName: string): string | undefined {
+  const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, 'i')
+  const match = xml.match(regex)
+  if (match && match[1]) {
+    // Clean up CDATA and HTML entities
+    let text = match[1].trim()
+    text = text.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    return text
+  }
+  return undefined
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -175,28 +229,31 @@ async function processRssSources(supabase: any, jobId: string, sources: RssSourc
 }
 
 async function updateJobProgress(supabase: any, jobId: string, processed: number, successful: number, failed: number) {
-  const { error } = await supabase
-    .from('feed_batch_jobs')
-    .update({
-      processed_items: processed,
-      successful_items: supabase.rpc('increment_field', { 
-        table_name: 'feed_batch_jobs',
-        field_name: 'successful_items',
-        increment_by: successful,
-        condition: `id = '${jobId}'`
-      }),
-      failed_items: supabase.rpc('increment_field', {
-        table_name: 'feed_batch_jobs', 
-        field_name: 'failed_items',
-        increment_by: failed,
-        condition: `id = '${jobId}'`
-      }),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', jobId)
+  try {
+    // Get current values first
+    const { data: currentJob } = await supabase
+      .from('feed_batch_jobs')
+      .select('successful_items, failed_items')
+      .eq('id', jobId)
+      .single()
 
-  if (error) {
-    console.error('Error updating job progress:', error)
+    if (currentJob) {
+      const { error } = await supabase
+        .from('feed_batch_jobs')
+        .update({
+          processed_items: processed,
+          successful_items: currentJob.successful_items + successful,
+          failed_items: currentJob.failed_items + failed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId)
+
+      if (error) {
+        console.error('Error updating job progress:', error)
+      }
+    }
+  } catch (error) {
+    console.error('Error in updateJobProgress:', error)
   }
 }
 
@@ -205,8 +262,12 @@ async function fetchRssFeed(url: string): Promise<RssItem[]> {
 
   const proxies = [
     `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://cors-anywhere.herokuapp.com/${url}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
   ]
+
+  let lastError: Error | null = null
 
   for (const proxyUrl of proxies) {
     try {
@@ -214,8 +275,10 @@ async function fetchRssFeed(url: string): Promise<RssItem[]> {
       
       const response = await fetch(proxyUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; RiksdagskollenBot/1.0)'
-        }
+          'User-Agent': 'Mozilla/5.0 (compatible; RiksdagskollenBot/1.0)',
+          'Accept': 'application/rss+xml, application/xml, text/xml'
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       })
 
       if (!response.ok) {
@@ -226,48 +289,37 @@ async function fetchRssFeed(url: string): Promise<RssItem[]> {
 
       if (proxyUrl.includes('allorigins.win')) {
         const data = await response.json()
+        if (data.status?.http_code && data.status.http_code !== 200) {
+          throw new Error(`Proxy returned HTTP ${data.status.http_code}`)
+        }
         xmlContent = data.contents
+      } else if (proxyUrl.includes('codetabs.com')) {
+        const data = await response.json()
+        xmlContent = data.data || data.content || JSON.stringify(data)
       } else {
         xmlContent = await response.text()
       }
 
+      if (!xmlContent || xmlContent.length < 100) {
+        throw new Error('Received empty or too short response')
+      }
+
       console.log(`Received ${xmlContent.length} characters from ${proxyUrl}`)
 
-      // Parse XML
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(xmlContent, 'application/xml')
-
-      const items: RssItem[] = []
-      const itemElements = doc.querySelectorAll('item')
-
-      itemElements.forEach(item => {
-        const title = item.querySelector('title')?.textContent?.trim()
-        const link = item.querySelector('link')?.textContent?.trim()
-        
-        if (title && link) {
-          items.push({
-            title,
-            link,
-            description: item.querySelector('description')?.textContent?.trim(),
-            pubDate: item.querySelector('pubDate')?.textContent?.trim(),
-            guid: item.querySelector('guid')?.textContent?.trim(),
-            author: item.querySelector('author')?.textContent?.trim(),
-            categories: Array.from(item.querySelectorAll('category')).map(cat => cat.textContent?.trim()).filter(Boolean) as string[],
-            content: item.querySelector('content\\:encoded, content')?.textContent?.trim()
-          })
-        }
-      })
+      // Parse XML using our custom parser
+      const items = parseXML(xmlContent)
 
       console.log(`Successfully parsed ${items.length} items from XML`)
       return items
 
     } catch (error) {
       console.error(`Failed with proxy ${proxyUrl}:`, error)
+      lastError = error as Error
       continue
     }
   }
 
-  throw new Error(`Failed to fetch RSS feed from ${url} using all available proxies`)
+  throw new Error(`Failed to fetch RSS feed from ${url} using all available proxies. Last error: ${lastError?.message}`)
 }
 
 async function cancelJob(supabase: any, jobId: string) {
