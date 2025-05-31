@@ -38,31 +38,31 @@ class EnhancedDocumentTextFetcher {
     return (now.getTime() - cached.fetchedAt.getTime()) < this.cacheExpiry;
   }
 
-  // Simplified text cleaning optimized for batch processing
+  // Optimized text cleaning for Swedish parliamentary content
   private cleanText(text: string): string {
     if (!text) return '';
     
     return text
-      // Remove HTML/XML tags
+      // Remove HTML/XML tags and entities
       .replace(/<[^>]*>/g, ' ')
       .replace(/&[a-zA-Z0-9#]+;/g, ' ')
       .replace(/&nbsp;/g, ' ')
-      // Remove URLs
+      // Remove URLs and references
       .replace(/https?:\/\/[^\s]+/g, ' ')
       .replace(/www\.[^\s]+/g, ' ')
       // Normalize whitespace
       .replace(/\s+/g, ' ')
       .replace(/\t/g, ' ')
       .replace(/\n+/g, ' ')
-      // Keep Swedish characters and basic punctuation
-      .replace(/[^\w\såäöÅÄÖ.,!?;:()\-]/g, ' ')
+      // Keep Swedish characters and punctuation
+      .replace(/[^\w\såäöÅÄÖ.,!?;:()\-"']/g, ' ')
       // Clean up multiple spaces
       .replace(/\s{2,}/g, ' ')
       .trim();
   }
 
-  // Simplified text validation for batch processing
-  private isValidText(text: string, minLength: number = 50): boolean {
+  // Enhanced text validation for Swedish content
+  private isValidText(text: string, minLength: number = 100): boolean {
     if (!text || typeof text !== 'string') {
       return false;
     }
@@ -72,64 +72,98 @@ class EnhancedDocumentTextFetcher {
       return false;
     }
     
-    // Simple word count check - must have at least 8 meaningful words
+    // Check for meaningful Swedish content
     const words = cleaned.split(/\s+/).filter(word => 
       word.length > 2 && /[a-zA-ZåäöÅÄÖ]/.test(word)
     );
     
-    return words.length >= 8;
+    // Must have at least 15 meaningful words for documents, 10 for speeches
+    const minWords = minLength > 50 ? 15 : 10;
+    return words.length >= minWords;
   }
 
-  // Simplified text extraction with 2 robust methods
-  private async extractTextWithSimplifiedFallback(documentId: string): Promise<{ text: string | null; method: string; attempts: string[] }> {
+  // Robust text extraction with enhanced error handling
+  private async extractTextWithRobustFallback(documentId: string): Promise<{ text: string | null; method: string; attempts: string[] }> {
     const attempts: string[] = [];
     
-    // Method 1: Direct text endpoint (most reliable)
+    // Method 1: Direct text API (most reliable for Swedish content)
     try {
       attempts.push('direct-text-api');
+      console.log(`Attempting direct text API for ${documentId}...`);
+      
       const response = await fetch(`https://data.riksdagen.se/dokument/${documentId}.txt`, {
-        headers: { 'Accept': 'text/plain' }
+        headers: { 'Accept': 'text/plain; charset=utf-8' },
+        timeout: 15000
       });
+      
       if (response.ok) {
         const text = await response.text();
-        if (text && this.isValidText(text)) {
+        if (text && this.isValidText(text, 100)) {
+          console.log(`✅ Direct text API success for ${documentId}`);
           return {
             text: this.cleanText(text),
             method: 'direct-text-api',
             attempts
           };
+        } else {
+          console.warn(`Direct text API returned invalid content for ${documentId}`);
         }
+      } else {
+        console.warn(`Direct text API HTTP error ${response.status} for ${documentId}`);
       }
     } catch (error) {
       console.warn(`Direct text API failed for ${documentId}:`, error instanceof Error ? error.message : error);
     }
 
-    // Method 2: HTML endpoint with simple parsing
+    // Method 2: Enhanced HTML parsing optimized for Riksdag content
     try {
-      attempts.push('html-simple-parsing');
-      const response = await fetch(`https://data.riksdagen.se/dokument/${documentId}.html`);
+      attempts.push('enhanced-html-parsing');
+      console.log(`Attempting enhanced HTML parsing for ${documentId}...`);
+      
+      const response = await fetch(`https://data.riksdagen.se/dokument/${documentId}.html`, {
+        timeout: 15000
+      });
+      
       if (response.ok) {
         const html = await response.text();
-        // Simple HTML to text conversion
-        const textContent = html
+        
+        // Enhanced HTML to text conversion for Swedish parliamentary documents
+        let textContent = html
+          // Remove scripts, styles, and navigation
           .replace(/<script[^>]*>.*?<\/script>/gis, '')
           .replace(/<style[^>]*>.*?<\/style>/gis, '')
+          .replace(/<nav[^>]*>.*?<\/nav>/gis, '')
+          .replace(/<header[^>]*>.*?<\/header>/gis, '')
+          .replace(/<footer[^>]*>.*?<\/footer>/gis, '')
+          // Extract main content areas common in Riksdag documents
+          .replace(/<div[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)<\/div>/gis, '$1')
+          .replace(/<div[^>]*class="[^"]*text[^"]*"[^>]*>(.*?)<\/div>/gis, '$1')
+          .replace(/<p[^>]*>(.*?)<\/p>/gis, '$1\n')
+          // Remove all remaining HTML tags
           .replace(/<[^>]*>/g, ' ')
+          // Clean up entities and normalize
+          .replace(/&[a-zA-Z0-9#]+;/g, ' ')
           .replace(/\s+/g, ' ')
           .trim();
         
-        if (textContent && this.isValidText(textContent)) {
+        if (textContent && this.isValidText(textContent, 100)) {
+          console.log(`✅ Enhanced HTML parsing success for ${documentId}`);
           return {
             text: this.cleanText(textContent),
-            method: 'html-simple-parsing',
+            method: 'enhanced-html-parsing',
             attempts
           };
+        } else {
+          console.warn(`Enhanced HTML parsing returned invalid content for ${documentId}`);
         }
+      } else {
+        console.warn(`Enhanced HTML parsing HTTP error ${response.status} for ${documentId}`);
       }
     } catch (error) {
-      console.warn(`HTML parsing failed for ${documentId}:`, error instanceof Error ? error.message : error);
+      console.warn(`Enhanced HTML parsing failed for ${documentId}:`, error instanceof Error ? error.message : error);
     }
 
+    console.error(`❌ All extraction methods failed for ${documentId}`);
     return {
       text: null,
       method: 'none',
@@ -152,7 +186,7 @@ class EnhancedDocumentTextFetcher {
       };
     }
     
-    const result = await this.extractTextWithSimplifiedFallback(documentId);
+    const result = await this.extractTextWithRobustFallback(documentId);
     
     if (result.text) {
       this.cache.set(cacheKey, {
@@ -180,9 +214,10 @@ class EnhancedDocumentTextFetcher {
     }
     
     try {
+      console.log(`Fetching speech text for ${speechId}...`);
       const text = await fetchSpeechText(speechId);
       
-      if (text && this.isValidText(text)) {
+      if (text && this.isValidText(text, 50)) { // Lower threshold for speeches
         const cleanedText = this.cleanText(text);
         this.cache.set(cacheKey, {
           id: speechId,
@@ -191,11 +226,14 @@ class EnhancedDocumentTextFetcher {
           type: 'speech',
           extractionMethod: 'riksdag-api'
         });
+        console.log(`✅ Speech text fetched successfully for ${speechId}`);
         return {
           text: cleanedText,
           method: 'riksdag-api',
           attempts: ['riksdag-api']
         };
+      } else {
+        console.warn(`Invalid speech text returned for ${speechId}`);
       }
     } catch (error) {
       console.error(`Speech text extraction failed for ${speechId}:`, error);
@@ -208,7 +246,7 @@ class EnhancedDocumentTextFetcher {
     };
   }
 
-  // Optimized member content fetching for batch processing
+  // Enhanced member content fetching with better error handling
   async fetchMemberContentWithDetails(
     memberId: string,
     memberName: string,
@@ -222,38 +260,45 @@ class EnhancedDocumentTextFetcher {
     };
 
     try {
+      console.log(`=== ENHANCED CONTENT FETCHING FOR ${memberName} ===`);
+      
       // Step 1: Fetch content from Riksdag API
       if (onProgress) {
         onProgress({
-          currentItem: `Hämtar innehåll för ${memberName}`,
+          currentItem: `Fetching content for ${memberName}`,
           speechesProcessed: 0,
           documentsProcessed: 0,
           errors: [],
-          currentStep: 'Hämtar innehåll från Riksdagen API',
-          details: ['Begär senaste anföranden och dokument'],
+          currentStep: 'Fetching content from enhanced Riksdag API',
+          details: ['Requesting latest speeches and documents'],
           extractionMethods: []
         });
       }
 
-      const content = await fetchMemberContentForAnalysis(memberId, 15); // Reduced from 25
+      const content = await fetchMemberContentForAnalysis(memberId, 20); // Increased from 15
       
+      console.log(`Raw content fetched for ${memberName}:`, {
+        speeches: content.speeches.length,
+        documents: content.documents.length
+      });
+
       if (onProgress) {
         onProgress({
-          currentItem: `${content.speeches.length} anföranden, ${content.documents.length} dokument`,
+          currentItem: `${content.speeches.length} speeches, ${content.documents.length} documents`,
           speechesProcessed: 0,
           documentsProcessed: 0,
           errors: [],
-          currentStep: 'Startar textvalidering och extraktion',
-          details: [`${content.speeches.length} anföranden hittade`, `${content.documents.length} dokument hittade`],
+          currentStep: 'Starting enhanced text validation and extraction',
+          details: [`${content.speeches.length} speeches found`, `${content.documents.length} documents found`],
           extractionMethods: []
         });
       }
 
-      // Step 2: Process speeches (already have text, just validate)
+      // Step 2: Process speeches (already have text, just validate and clean)
       const validSpeeches = content.speeches
         .filter(speech => {
           extractionDetails.speechesAttempted++;
-          const isValid = this.isValidText(speech.text, 50); // Lower threshold for speeches
+          const isValid = this.isValidText(speech.text, 50);
           if (!isValid) {
             extractionDetails.failedExtractions.push({
               id: speech.id,
@@ -266,23 +311,25 @@ class EnhancedDocumentTextFetcher {
           ...speech,
           text: this.cleanText(speech.text)
         }))
-        .slice(0, 8); // Reduced from 12
+        .slice(0, 10); // Increased from 8
+
+      console.log(`Processed speeches for ${memberName}: ${validSpeeches.length}/${extractionDetails.speechesAttempted} valid`);
 
       if (onProgress) {
         onProgress({
-          currentItem: `${validSpeeches.length} giltiga anföranden`,
+          currentItem: `${validSpeeches.length} valid speeches`,
           speechesProcessed: validSpeeches.length,
           documentsProcessed: 0,
           errors: [],
-          currentStep: 'Dokumenttextextraktion',
-          details: [`${validSpeeches.length}/${extractionDetails.speechesAttempted} anföranden godkända`],
+          currentStep: 'Enhanced document text extraction',
+          details: [`${validSpeeches.length}/${extractionDetails.speechesAttempted} speeches approved`],
           extractionMethods: extractionDetails.extractionMethods
         });
       }
 
-      // Step 3: Process documents with simplified extraction
+      // Step 3: Process documents with enhanced extraction
       const validDocuments = [];
-      const maxDocs = Math.min(content.documents.length, 8); // Reduced from 12
+      const maxDocs = Math.min(content.documents.length, 10); // Increased from 8
       
       for (let i = 0; i < maxDocs; i++) {
         const doc = content.documents[i];
@@ -290,17 +337,17 @@ class EnhancedDocumentTextFetcher {
         
         if (onProgress) {
           onProgress({
-            currentItem: `Extraherar: ${doc.title.substring(0, 40)}...`,
+            currentItem: `Extracting: ${doc.title.substring(0, 40)}...`,
             speechesProcessed: validSpeeches.length,
             documentsProcessed: validDocuments.length,
             errors: [],
-            currentStep: `Bearbetar dokument ${i + 1}/${maxDocs}`,
-            details: [`Testar textextraktion för ${doc.title.substring(0, 30)}...`],
+            currentStep: `Processing document ${i + 1}/${maxDocs}`,
+            details: [`Testing enhanced extraction for ${doc.title.substring(0, 30)}...`],
             extractionMethods: extractionDetails.extractionMethods
           });
         }
 
-        const extractionResult = await this.extractTextWithSimplifiedFallback(doc.id);
+        const extractionResult = await this.extractTextWithRobustFallback(doc.id);
         
         if (extractionResult.text && this.isValidText(extractionResult.text, 80)) {
           validDocuments.push({
@@ -313,34 +360,34 @@ class EnhancedDocumentTextFetcher {
             extractionDetails.extractionMethods.push(extractionResult.method);
           }
           
-          console.log(`✓ Extraction success for ${doc.id} using ${extractionResult.method}`);
+          console.log(`✅ Enhanced extraction success for ${doc.id} using ${extractionResult.method}`);
         } else {
           extractionDetails.failedExtractions.push({
             id: doc.id,
-            reason: `Extraction failed: attempted ${extractionResult.attempts.join(', ')}`
+            reason: `Enhanced extraction failed: attempted ${extractionResult.attempts.join(', ')}`
           });
-          console.warn(`✗ Extraction failed for ${doc.id}: attempted ${extractionResult.attempts.join(', ')}`);
+          console.warn(`✗ Enhanced extraction failed for ${doc.id}: attempted ${extractionResult.attempts.join(', ')}`);
         }
 
         // Progress update
         if (onProgress) {
           onProgress({
-            currentItem: `${validDocuments.length} dokument extraherade`,
+            currentItem: `${validDocuments.length} documents extracted`,
             speechesProcessed: validSpeeches.length,
             documentsProcessed: validDocuments.length,
             errors: [],
-            currentStep: `Dokument ${i + 1}/${maxDocs} slutfört`,
+            currentStep: `Document ${i + 1}/${maxDocs} completed`,
             details: [
-              `Lyckat: ${validDocuments.length}`,
-              `Misslyckad: ${extractionDetails.failedExtractions.length}`,
-              `Metoder: ${extractionDetails.extractionMethods.join(', ')}`
+              `Successful: ${validDocuments.length}`,
+              `Failed: ${extractionDetails.failedExtractions.length}`,
+              `Methods: ${extractionDetails.extractionMethods.join(', ')}`
             ],
             extractionMethods: extractionDetails.extractionMethods
           });
         }
 
-        // Shorter pause between extractions for batch processing
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Brief pause between extractions
+        await new Promise(resolve => setTimeout(resolve, 150));
       }
 
       // Step 4: Cache results
@@ -360,26 +407,29 @@ class EnhancedDocumentTextFetcher {
           text: doc.text,
           fetchedAt: new Date(),
           type: 'document',
-          extractionMethod: 'simplified-extraction'
+          extractionMethod: 'enhanced-extraction'
         });
       });
 
-      if (onProgress) {
-        const totalTexts = validSpeeches.length + validDocuments.length;
-        const successRate = extractionDetails.speechesAttempted + extractionDetails.documentsAttempted > 0 
-          ? Math.round((totalTexts / (extractionDetails.speechesAttempted + extractionDetails.documentsAttempted)) * 100)
-          : 0;
+      const totalTexts = validSpeeches.length + validDocuments.length;
+      const successRate = extractionDetails.speechesAttempted + extractionDetails.documentsAttempted > 0 
+        ? Math.round((totalTexts / (extractionDetails.speechesAttempted + extractionDetails.documentsAttempted)) * 100)
+        : 0;
 
+      console.log(`=== ENHANCED CONTENT FETCHING COMPLETED FOR ${memberName} ===`);
+      console.log(`Total texts extracted: ${totalTexts} (${successRate}% success rate)`);
+
+      if (onProgress) {
         onProgress({
-          currentItem: `Slutförd: ${totalTexts} texter`,
+          currentItem: `Completed: ${totalTexts} texts`,
           speechesProcessed: validSpeeches.length,
           documentsProcessed: validDocuments.length,
           errors: [],
-          currentStep: 'Textextraktion slutförd',
+          currentStep: 'Enhanced text extraction completed',
           details: [
-            `Totalt: ${totalTexts} texter`,
-            `Framgång: ${successRate}%`,
-            `Metoder: ${extractionDetails.extractionMethods.join(', ')}`
+            `Total: ${totalTexts} texts`,
+            `Success rate: ${successRate}%`,
+            `Methods: ${extractionDetails.extractionMethods.join(', ')}`
           ],
           extractionMethods: extractionDetails.extractionMethods
         });
@@ -391,16 +441,16 @@ class EnhancedDocumentTextFetcher {
         extractionDetails
       };
     } catch (error) {
-      console.error('Error in fetchMemberContentWithDetails:', error);
+      console.error('Critical error in enhanced member content fetching:', error);
       
       if (onProgress) {
         onProgress({
-          currentItem: `Fel vid bearbetning av ${memberName}`,
+          currentItem: `Error processing ${memberName}`,
           speechesProcessed: 0,
           documentsProcessed: 0,
-          errors: [error instanceof Error ? error.message : 'Okänt fel'],
-          currentStep: 'Fel uppstod',
-          details: [`Fel: ${error instanceof Error ? error.message : 'Okänt fel'}`],
+          errors: [error instanceof Error ? error.message : 'Unknown error'],
+          currentStep: 'Error occurred',
+          details: [`Error: ${error instanceof Error ? error.message : 'Unknown error'}`],
           extractionMethods: extractionDetails.extractionMethods
         });
       }

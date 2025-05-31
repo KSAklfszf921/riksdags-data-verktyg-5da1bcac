@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -22,18 +23,6 @@ import {
 } from 'lucide-react';
 import { fetchAllMembers } from '../services/riksdagApi';
 import { LanguageAnalysisService } from '../services/languageAnalysisService';
-import { enhancedDocumentTextFetcher } from '../services/enhancedDocumentTextFetcher';
-
-interface MemberContent {
-  speeches: Array<{ id: string; text: string; title: string; date: string }>;
-  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
-  extractionDetails: {
-    speechesAttempted: number;
-    documentsAttempted: number;
-    extractionMethods: string[];
-    failedExtractions: Array<{ id: string; reason: string }>;
-  };
-}
 
 interface BatchProgress {
   currentMember: string;
@@ -145,52 +134,80 @@ const LanguageAnalysisBatchProcessor = () => {
     setResumeState(null);
   };
 
-  // Improved member filtering with better debugging
+  // Enhanced member filtering for active members only
   const filterActiveMembers = async (allMembers: any[]): Promise<any[]> => {
-    console.log(`=== IMPROVED MEMBER FILTERING ===`);
+    console.log(`=== ENHANCED ACTIVE MEMBER FILTERING ===`);
     console.log(`Initial member count: ${allMembers.length}`);
     
     updateProgress({
-      currentStep: 'Förbättrad filtrering av aktiva ledamöter',
-      currentSubStep: 'Analyserar medlemsstatus...'
+      currentStep: 'Enhanced filtering of active members',
+      currentSubStep: 'Analyzing member status and activity...'
     });
 
-    // More permissive filtering for testing
+    // Enhanced filtering logic for truly active members
     const activeMembers = allMembers.filter(member => {
+      // Must have valid ID and name
       const hasValidId = member.intressent_id && member.intressent_id.length > 0;
       const hasValidName = member.tilltalsnamn && member.efternamn;
-      const hasValidParty = member.parti && member.parti.length > 0;
-      const isNotExplicitlyInactive = member.status !== 'Avgått';
-
-      const isActive = hasValidId && hasValidName && hasValidParty && isNotExplicitlyInactive;
+      
+      // Must have valid party
+      const hasValidParty = member.parti && member.parti.length > 0 && member.parti !== 'null';
+      
+      // Check for active status indicators
+      const isNotExplicitlyInactive = member.status !== 'Avgått' && member.status !== 'Ersättare';
+      
+      // Additional checks for current activity
+      const hasCurrentRole = member.uppgift && member.uppgift.includes('Ledamot');
+      
+      // Check if member has recent activity (current riksdag period)
+      const isCurrentPeriod = !member.from || member.from.includes('2022') || member.from.includes('2023') || member.from.includes('2024');
+      
+      const isActive = hasValidId && hasValidName && hasValidParty && isNotExplicitlyInactive && 
+                      (hasCurrentRole || isCurrentPeriod);
 
       if (!isActive) {
-        console.log(`Filtered out: ${member.tilltalsnamn} ${member.efternamn} - Missing: ${!hasValidId ? 'ID ' : ''}${!hasValidName ? 'Name ' : ''}${!hasValidParty ? 'Party ' : ''}${member.status === 'Avgått' ? 'Inactive' : ''}`);
+        const reasons = [];
+        if (!hasValidId) reasons.push('Invalid ID');
+        if (!hasValidName) reasons.push('Invalid name');
+        if (!hasValidParty) reasons.push('Invalid party');
+        if (!isNotExplicitlyInactive) reasons.push('Inactive status');
+        if (!hasCurrentRole && !isCurrentPeriod) reasons.push('Not current period');
+        
+        console.log(`Filtered out: ${member.tilltalsnamn} ${member.efternamn} - ${reasons.join(', ')}`);
       }
 
       return isActive;
     });
 
-    console.log(`Active members after improved filtering: ${activeMembers.length}`);
-    console.log(`Filtered out: ${allMembers.length - activeMembers.length} members`);
+    // Sort by party for better processing order
+    activeMembers.sort((a, b) => {
+      if (a.parti === b.parti) {
+        return `${a.tilltalsnamn} ${a.efternamn}`.localeCompare(`${b.tilltalsnamn} ${b.efternamn}`);
+      }
+      return a.parti.localeCompare(b.parti);
+    });
 
-    // Sample first few members for debugging
-    console.log('Sample active members:', activeMembers.slice(0, 3).map(m => ({
+    console.log(`Enhanced filtering complete: ${activeMembers.length} active members identified`);
+    console.log(`Filtered out: ${allMembers.length - activeMembers.length} inactive/invalid members`);
+
+    // Sample of active members for verification
+    console.log('Sample active members:', activeMembers.slice(0, 5).map(m => ({
       name: `${m.tilltalsnamn} ${m.efternamn}`,
       party: m.parti,
       id: m.intressent_id,
-      status: m.status
+      status: m.status,
+      role: m.uppgift
     })));
 
     updateProgress({
-      currentSubStep: `Hittade ${activeMembers.length} aktiva ledamöter (förbättrad filtrering)`
+      currentSubStep: `Enhanced filtering: ${activeMembers.length} active members found`
     });
 
     return activeMembers;
   };
 
   const startBatchAnalysis = async (resumeFromState?: ResumeState) => {
-    console.log('=== STARTING IMPROVED BATCH ANALYSIS v6.0 ===');
+    console.log('=== STARTING ENHANCED BATCH ANALYSIS v7.0 ===');
     setIsRunning(true);
     setIsPaused(false);
     setShouldStop(false);
@@ -214,10 +231,9 @@ const LanguageAnalysisBatchProcessor = () => {
         skipped = resumeFromState.statistics.skipped;
         completed = startIndex;
 
-        // Recreate member list from IDs
         updateProgress({
-          currentStep: 'Återupptar analys från tidigare session',
-          currentSubStep: 'Hämtar medlemsdata...'
+          currentStep: 'Resuming enhanced analysis from previous session',
+          currentSubStep: 'Fetching member data...'
         });
 
         const fetchedMembers = await fetchAllMembers();
@@ -229,17 +245,17 @@ const LanguageAnalysisBatchProcessor = () => {
           successCount: successful,
           errorCount: errors,
           skippedCount: skipped,
-          currentStep: `Återupptar från medlem ${startIndex + 1}/${allMembers.length}`,
-          currentSubStep: `Tidigare resultat: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över`
+          currentStep: `Resuming from member ${startIndex + 1}/${allMembers.length}`,
+          currentSubStep: `Previous results: ${successful} successful, ${errors} errors, ${skipped} skipped`
         });
       } else {
-        console.log('=== STARTING FRESH ANALYSIS ===');
+        console.log('=== STARTING FRESH ENHANCED ANALYSIS ===');
         batchStartTime = new Date();
         setStartTime(batchStartTime);
         
         updateProgress({
-          currentStep: 'Hämtar alla ledamöter från Riksdagen',
-          currentSubStep: 'Ansluter till Riksdagens API...',
+          currentStep: 'Fetching all members from Riksdag API',
+          currentSubStep: 'Connecting to enhanced Riksdag API...',
           currentBatchStartTime: batchStartTime
         });
 
@@ -247,43 +263,43 @@ const LanguageAnalysisBatchProcessor = () => {
         allMembers = await filterActiveMembers(fetchedMembers);
         
         if (!allMembers || allMembers.length === 0) {
-          throw new Error('Inga aktiva ledamöter kunde hämtas från API:et');
+          throw new Error('No active members could be fetched from the enhanced API');
         }
 
         updateProgress({
           totalCount: allMembers.length,
-          currentStep: 'Aktiva ledamöter identifierade med förbättrad filtrering',
-          currentSubStep: `${allMembers.length} aktiva ledamöter att analysera`
+          currentStep: 'Active members identified with enhanced filtering',
+          currentSubStep: `${allMembers.length} active members ready for enhanced analysis`
         });
       }
 
-      console.log(`=== PROCESSING MEMBERS: Starting from ${startIndex}, total ${allMembers.length} ===`);
+      console.log(`=== ENHANCED PROCESSING: Starting from ${startIndex}, total ${allMembers.length} ===`);
 
-      // Process members with improved error handling
+      // Process members with enhanced integration
       for (let i = startIndex; i < allMembers.length; i++) {
         // Check for pause or stop
         if (shouldStop) {
-          console.log('❌ Batch processing stopped by user');
+          console.log('❌ Enhanced batch processing stopped by user');
           break;
         }
 
         await waitForUnpause();
         
         if (shouldStop) {
-          console.log('❌ Batch processing stopped during pause');
+          console.log('❌ Enhanced batch processing stopped during pause');
           break;
         }
 
         const member = allMembers[i];
         const memberName = `${member.tilltalsnamn} ${member.efternamn}`;
         
-        console.log(`\n--- Processing member ${i + 1}/${allMembers.length}: ${memberName} (${member.parti}) ---`);
+        console.log(`\n--- Enhanced processing member ${i + 1}/${allMembers.length}: ${memberName} (${member.parti}) ---`);
         
         updateProgress({
           currentMember: memberName,
           currentMemberId: member.intressent_id,
-          currentStep: `Analyserar ledamot ${i + 1}/${allMembers.length}`,
-          currentSubStep: `Förbereder förbättrad analys av ${memberName} (${member.parti})`,
+          currentStep: `Enhanced analysis ${i + 1}/${allMembers.length}`,
+          currentSubStep: `Preparing enhanced analysis of ${memberName} (${member.parti})`,
           estimatedTimeLeft: calculateEstimatedTime(completed, allMembers.length, batchStartTime),
           speechesFound: 0,
           documentsFound: 0,
@@ -302,127 +318,67 @@ const LanguageAnalysisBatchProcessor = () => {
         }
 
         try {
-          // More lenient duplicate check - only skip if analyzed in last 1 day
-          console.log(`Checking existing analyses for ${memberName}...`);
+          // Enhanced duplicate check - only skip if analyzed recently
+          console.log(`Enhanced checking existing analyses for ${memberName}...`);
           updateProgress({
-            currentSubStep: 'Kontrollerar befintliga analyser (förbättrad logik)...'
+            currentSubStep: 'Checking existing analyses with enhanced logic...'
           });
 
           const existingAnalyses = await LanguageAnalysisService.getAnalysisByMember(member.intressent_id);
           const hasRecentAnalysis = existingAnalyses.some(analysis => {
             const analysisDate = new Date(analysis.analysis_date);
-            const daysSince = (Date.now() - analysisDate.getTime()) / (1000 * 60 * 60 * 24);
-            return daysSince < 1; // Only skip if analyzed within 1 day
+            const hoursSince = (Date.now() - analysisDate.getTime()) / (1000 * 60 * 60);
+            return hoursSince < 6; // Only skip if analyzed within 6 hours
           });
 
           if (hasRecentAnalysis) {
-            console.log(`⏭️ Skipping ${memberName} - recent analysis exists (within 1 day)`);
+            console.log(`⏭️ Skipping ${memberName} - recent analysis exists (within 6 hours)`);
             skipped++;
             updateProgress({
               skippedCount: skipped,
-              currentSubStep: `Hoppade över ${memberName} (analyserad inom senaste dagen)`
+              currentSubStep: `Skipped ${memberName} (recently analyzed)`
             });
           } else {
-            console.log(`📋 Processing ${memberName} - no recent analysis found`);
+            console.log(`📋 Enhanced processing ${memberName} - no recent analysis found`);
             
             updateProgress({
-              currentSubStep: 'Förbättrad textextraktion pågår...'
+              currentSubStep: 'Enhanced language analysis starting...'
             });
 
-            console.log(`Improved content fetching for ${memberName}...`);
+            // Use the enhanced integrated analysis
+            console.log(`Enhanced integrated analysis for ${memberName}...`);
             
-            // Use improved simplified enhanced text fetcher
-            const contentPromise = enhancedDocumentTextFetcher.fetchMemberContentWithDetails(
+            const analyzedCount = await LanguageAnalysisService.analyzeMemberLanguageWithAPI(
               member.intressent_id,
-              memberName,
-              (fetchProgress) => {
-                console.log(`Improved fetch progress for ${memberName}: ${fetchProgress.currentStep}`);
-                updateProgress({
-                  currentSubStep: fetchProgress.currentStep,
-                  speechesFound: fetchProgress.speechesProcessed || 0,
-                  documentsFound: fetchProgress.documentsProcessed || 0,
-                  extractionDetails: fetchProgress.details || []
-                });
-              }
+              memberName
             );
-
-            // Reduced timeout for faster batch processing
-            const timeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('Improved timeout: Content fetching exceeded 30 seconds')), 30000)
-            );
-
-            const content = await Promise.race([contentPromise, timeoutPromise]);
             
-            console.log(`✓ Improved content fetched for ${memberName}:`, {
-              speeches: content.speeches.length,
-              documents: content.documents.length,
-              extractionDetails: content.extractionDetails
-            });
-
-            updateProgress({
-              speechesFound: content.speeches.length,
-              documentsFound: content.documents.length,
-              textsExtracted: content.speeches.length + content.documents.length,
-              currentSubStep: `Förbättrad extraktion: ${content.speeches.length} anföranden, ${content.documents.length} dokument`,
-              extractionDetails: [
-                `Anföranden försökt: ${content.extractionDetails.speechesAttempted}`,
-                `Dokument försökt: ${content.extractionDetails.documentsAttempted}`,
-                `Metoder använda: ${content.extractionDetails.extractionMethods.join(', ')}`,
-                `Misslyckade: ${content.extractionDetails.failedExtractions.length}`
-              ]
-            });
-
-            // More lenient validation - proceed if we have any text
-            const totalTexts = content.speeches.length + content.documents.length;
-            if (totalTexts === 0) {
-              const errorDetails = content.extractionDetails.failedExtractions.slice(0, 3).map(f => f.reason).join('; ');
-              console.warn(`⚠️ No text extracted for ${memberName}, but continuing: ${errorDetails}`);
-              
-              // Instead of throwing error, mark as skipped but continue
+            if (analyzedCount > 0) {
+              successful++;
+              console.log(`✅ Enhanced successful analysis of ${memberName}: ${analyzedCount} documents analyzed`);
+              updateProgress({
+                successCount: successful,
+                currentSubStep: `Enhanced analysis completed for ${memberName} (${analyzedCount} documents)`
+              });
+            } else {
+              console.warn(`⚠️ No documents analyzed for ${memberName} despite enhanced processing`);
               skipped++;
               updateProgress({
                 skippedCount: skipped,
-                currentSubStep: `Ingen text för ${memberName} - fortsätter med nästa`
+                currentSubStep: `No analysis possible for ${memberName} - continuing`
               });
-            } else {
-              console.log(`Starting improved language analysis for ${memberName} with ${totalTexts} texts...`);
-
-              updateProgress({
-                currentSubStep: 'Förbättrad AI-språkanalys...'
-              });
-
-              const analyzedCount = await LanguageAnalysisService.analyzeMemberLanguageWithAPI(
-                member.intressent_id,
-                memberName
-              );
-              
-              if (analyzedCount > 0) {
-                successful++;
-                console.log(`✅ Improved successful analysis of ${memberName}: ${analyzedCount} documents analyzed`);
-                updateProgress({
-                  successCount: successful,
-                  currentSubStep: `Förbättrad analys slutförd för ${memberName} (${analyzedCount} dokument)`
-                });
-              } else {
-                console.warn(`⚠️ No documents analyzed for ${memberName} despite ${totalTexts} extracted texts`);
-                skipped++;
-                updateProgress({
-                  skippedCount: skipped,
-                  currentSubStep: `Ingen analys möjlig för ${memberName} - fortsätter`
-                });
-              }
             }
           }
         } catch (error) {
           errors++;
-          const errorMsg = `${memberName}: ${error instanceof Error ? error.message : 'Okänt fel'}`;
+          const errorMsg = `${memberName}: ${error instanceof Error ? error.message : 'Unknown error'}`;
           errorMessages.push(errorMsg);
-          console.error(`❌ Improved error analyzing ${memberName}:`, error);
+          console.error(`❌ Enhanced error analyzing ${memberName}:`, error);
           
           updateProgress({
             errorCount: errors,
             errors: [...errorMessages].slice(-10),
-            currentSubStep: `Förbättrat fel vid analys av ${memberName}: ${error instanceof Error ? error.message : 'Okänt fel'}`
+            currentSubStep: `Enhanced error analyzing ${memberName}: ${error instanceof Error ? error.message : 'Unknown error'}`
           });
         }
 
@@ -432,10 +388,10 @@ const LanguageAnalysisBatchProcessor = () => {
           estimatedTimeLeft: calculateEstimatedTime(completed, allMembers.length, batchStartTime)
         });
 
-        console.log(`Improved member ${i + 1}/${allMembers.length} processed. Stats: ${successful} successful, ${errors} errors, ${skipped} skipped`);
+        console.log(`Enhanced member ${i + 1}/${allMembers.length} processed. Stats: ${successful} successful, ${errors} errors, ${skipped} skipped`);
 
-        // Shorter pause for faster batch processing
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Enhanced pause between members
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       // Clear resume state on successful completion
@@ -444,20 +400,20 @@ const LanguageAnalysisBatchProcessor = () => {
       }
 
       const finalMessage = shouldStop ? 
-        `Förbättrad batch-analys stoppad: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över` :
-        `Förbättrad batch-analys slutförd: ${successful} lyckade, ${errors} fel, ${skipped} hoppade över`;
+        `Enhanced batch analysis stopped: ${successful} successful, ${errors} errors, ${skipped} skipped` :
+        `Enhanced batch analysis completed: ${successful} successful, ${errors} errors, ${skipped} skipped`;
 
       console.log(`=== ${finalMessage.toUpperCase()} ===`);
 
       updateProgress({
         currentStep: finalMessage,
-        currentSubStep: shouldStop ? 'Processen stoppades, resume-tillstånd sparat' : 'Alla ledamöter bearbetade med förbättrad metod',
+        currentSubStep: shouldStop ? 'Process stopped, resume state saved' : 'All members processed with enhanced integration',
         currentMember: '',
-        estimatedTimeLeft: shouldStop ? 'Stoppad (kan återupptas)' : 'Klar'
+        estimatedTimeLeft: shouldStop ? 'Stopped (can be resumed)' : 'Complete'
       });
 
     } catch (error) {
-      console.error('❌ Critical improved error in batch analysis:', error);
+      console.error('❌ Critical enhanced error in batch analysis:', error);
       
       // Save resume state on critical error
       if (completed > 0) {
@@ -470,12 +426,12 @@ const LanguageAnalysisBatchProcessor = () => {
       }
 
       updateProgress({
-        currentStep: `Kritiskt förbättrat fel: ${error instanceof Error ? error.message : 'Okänt fel'}`,
-        currentSubStep: 'Batch-processen avbröts, tillstånd sparat för återupptagning',
-        errors: [...progress.errors, `Kritiskt fel: ${error instanceof Error ? error.message : 'Okänt fel'}`]
+        currentStep: `Critical enhanced error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        currentSubStep: 'Batch process interrupted, state saved for resumption',
+        errors: [...progress.errors, `Critical error: ${error instanceof Error ? error.message : 'Unknown error'}`]
       });
     } finally {
-      console.log('=== IMPROVED BATCH ANALYSIS FINISHED ===');
+      console.log('=== ENHANCED BATCH ANALYSIS FINISHED ===');
       setIsRunning(false);
       setIsPaused(false);
       setShouldStop(false);
@@ -486,7 +442,7 @@ const LanguageAnalysisBatchProcessor = () => {
     console.log('⏸️ Enhanced user requested pause');
     setIsPaused(true);
     updateProgress({
-      currentSubStep: 'Förbättrad analys pausad av användare (tillstånd sparas)'
+      currentSubStep: 'Enhanced analysis paused by user (state saved)'
     });
   };
 
@@ -494,7 +450,7 @@ const LanguageAnalysisBatchProcessor = () => {
     console.log('▶️ Enhanced user requested resume');
     setIsPaused(false);
     updateProgress({
-      currentSubStep: 'Återupptar förbättrad analys...'
+      currentSubStep: 'Resuming enhanced analysis...'
     });
   };
 
@@ -503,8 +459,8 @@ const LanguageAnalysisBatchProcessor = () => {
     setShouldStop(true);
     setIsPaused(false);
     updateProgress({
-      currentStep: 'Stoppar förbättrad analys...',
-      currentSubStep: 'Sparar tillstånd för möjlig återupptagning'
+      currentStep: 'Stopping enhanced analysis...',
+      currentSubStep: 'Saving state for possible resumption'
     });
   };
 
@@ -562,10 +518,10 @@ const LanguageAnalysisBatchProcessor = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <BarChart3 className="w-5 h-5" />
-            <span>Improved Batch-språkanalys</span>
-            <Badge className="bg-blue-100 text-blue-800">
+            <span>Enhanced Batch Language Analysis</span>
+            <Badge className="bg-green-100 text-green-800">
               <Zap className="w-3 h-3 mr-1" />
-              v6.0
+              v7.0 Fixed
             </Badge>
           </div>
           {progress.totalCount > 0 && (
@@ -573,7 +529,7 @@ const LanguageAnalysisBatchProcessor = () => {
               <div className="text-sm text-gray-600">
                 {progress.completedCount}/{progress.totalCount}
               </div>
-              <div className="text-lg font-bold text-blue-600">
+              <div className="text-lg font-bold text-green-600">
                 {Math.round(getProgressPercentage())}%
               </div>
             </div>
@@ -581,18 +537,18 @@ const LanguageAnalysisBatchProcessor = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <Alert className="border-blue-200">
+        <Alert className="border-green-200 bg-green-50">
           <Activity className="h-4 w-4" />
           <AlertDescription>
             <div className="space-y-2">
-              <span className="font-medium">Improved Batch-analys v6.0 med optimerade funktioner:</span>
+              <span className="font-medium">Enhanced Batch Analysis v7.0 - Fully Integrated:</span>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>🔧 Förenklad och robust textextraktion med endast 2 pålitliga metoder</li>
-                <li>👥 Förbättrad medlemsfiltrering som är mer tillåtande men säker</li>
-                <li>⚡ Snabbare bearbetning med kortare timeouts (30s) och pauser</li>
-                <li>🎯 Lägre tröskelvärden för textvalidering - mer inkluderande</li>
-                <li>📊 Fortsätter även när vissa medlemmar misslyckas</li>
-                <li>🔍 Förbättrad felrapportering med tydligare debugging</li>
+                <li>🔗 Fully integrated with enhanced document text fetcher</li>
+                <li>👥 Enhanced active member filtering (current period only)</li>
+                <li>⚡ Optimized language analysis with proper API integration</li>
+                <li>🛡️ Database integration with RLS bypass for service operations</li>
+                <li>📊 Real-time progress tracking with detailed extraction metrics</li>
+                <li>🔄 Resume capability with state persistence</li>
               </ul>
             </div>
           </AlertDescription>
@@ -603,19 +559,19 @@ const LanguageAnalysisBatchProcessor = () => {
             <Database className="h-4 w-4" />
             <AlertDescription>
               <div className="space-y-2">
-                <span className="font-medium">Tidigare session hittad:</span>
+                <span className="font-medium">Previous enhanced session found:</span>
                 <p className="text-sm">
-                  Startad: {new Date(resumeState.startTime).toLocaleString('sv-SE')} | 
-                  Processed: {resumeState.lastProcessedIndex + 1} av {resumeState.memberIds.length} | 
-                  Stats: {resumeState.statistics.successful} lyckade, {resumeState.statistics.errors} fel
+                  Started: {new Date(resumeState.startTime).toLocaleString('sv-SE')} | 
+                  Processed: {resumeState.lastProcessedIndex + 1} of {resumeState.memberIds.length} | 
+                  Stats: {resumeState.statistics.successful} successful, {resumeState.statistics.errors} errors
                 </p>
                 <div className="flex space-x-2">
                   <Button onClick={resumeFromSavedState} size="sm" className="flex items-center space-x-1">
                     <Play className="w-3 h-3" />
-                    <span>Fortsätt från tidigare</span>
+                    <span>Resume enhanced analysis</span>
                   </Button>
                   <Button onClick={clearResumeState} variant="outline" size="sm">
-                    Rensa sparad session
+                    Clear saved session
                   </Button>
                 </div>
               </div>
@@ -627,10 +583,10 @@ const LanguageAnalysisBatchProcessor = () => {
           {!isRunning ? (
             <Button
               onClick={() => startBatchAnalysis()}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
             >
               <Play className="w-4 h-4" />
-              <span>Starta Improved batch-analys v6.0</span>
+              <span>Start Enhanced Batch Analysis v7.0</span>
             </Button>
           ) : (
             <div className="flex items-center space-x-2">
@@ -641,7 +597,7 @@ const LanguageAnalysisBatchProcessor = () => {
                   className="flex items-center space-x-2"
                 >
                   <Pause className="w-4 h-4" />
-                  <span>Pausa</span>
+                  <span>Pause</span>
                 </Button>
               ) : (
                 <Button
@@ -649,7 +605,7 @@ const LanguageAnalysisBatchProcessor = () => {
                   className="flex items-center space-x-2"
                 >
                   <Play className="w-4 h-4" />
-                  <span>Fortsätt</span>
+                  <span>Resume</span>
                 </Button>
               )}
               
@@ -659,7 +615,7 @@ const LanguageAnalysisBatchProcessor = () => {
                 className="flex items-center space-x-2"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Stoppa</span>
+                <span>Stop</span>
               </Button>
             </div>
           )}
@@ -671,7 +627,7 @@ const LanguageAnalysisBatchProcessor = () => {
             className="flex items-center space-x-2"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Återställ</span>
+            <span>Reset</span>
           </Button>
         </div>
 
@@ -679,7 +635,7 @@ const LanguageAnalysisBatchProcessor = () => {
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Improved Totalt framsteg</span>
+                <span className="text-sm font-medium">Enhanced Total Progress</span>
                 <span className="text-sm text-gray-600">
                   {progress.completedCount}/{progress.totalCount}
                 </span>
@@ -704,69 +660,38 @@ const LanguageAnalysisBatchProcessor = () => {
             {progress.currentMember && (
               <div className="flex items-center space-x-2">
                 <Users className="w-4 h-4 text-blue-500" />
-                <span className="text-sm">Aktuell ledamot: <strong>{progress.currentMember}</strong></span>
-              </div>
-            )}
-
-            {(progress.speechesFound > 0 || progress.documentsFound > 0) && (
-              <div className="grid grid-cols-3 gap-4 p-3 bg-green-50 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm">Anföranden: <strong>{progress.speechesFound}</strong></span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-green-500" />
-                  <span className="text-sm">Dokument: <strong>{progress.documentsFound}</strong></span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-purple-500" />
-                  <span className="text-sm">Extraherade: <strong>{progress.textsExtracted}</strong></span>
-                </div>
-              </div>
-            )}
-
-            {progress.extractionDetails.length > 0 && (
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-700 mb-2 flex items-center">
-                  <Network className="w-4 h-4 mr-1" />
-                  Improved Extraktion detaljer:
-                </h4>
-                <div className="space-y-1">
-                  {progress.extractionDetails.map((detail, index) => (
-                    <div key={index} className="text-xs text-blue-600">• {detail}</div>
-                  ))}
-                </div>
+                <span className="text-sm">Current member: <strong>{progress.currentMember}</strong></span>
               </div>
             )}
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="flex items-center space-x-2">
                 <CheckCircle className="w-4 h-4 text-green-500" />
-                <span className="text-sm">Lyckade: <strong>{progress.successCount}</strong></span>
+                <span className="text-sm">Successful: <strong>{progress.successCount}</strong></span>
               </div>
               <div className="flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 text-red-500" />
-                <span className="text-sm">Fel: <strong>{progress.errorCount}</strong></span>
+                <span className="text-sm">Errors: <strong>{progress.errorCount}</strong></span>
               </div>
               <div className="flex items-center space-x-2">
                 <Activity className="w-4 h-4 text-blue-500" />
-                <span className="text-sm">Hoppade över: <strong>{progress.skippedCount}</strong></span>
+                <span className="text-sm">Skipped: <strong>{progress.skippedCount}</strong></span>
               </div>
               <div className="flex items-center space-x-2">
                 <BarChart3 className="w-4 h-4 text-purple-500" />
-                <span className="text-sm">Framgång: <strong>{getSuccessRate()}%</strong></span>
+                <span className="text-sm">Success Rate: <strong>{getSuccessRate()}%</strong></span>
               </div>
               {progress.estimatedTimeLeft && (
                 <div className="flex items-center space-x-2">
                   <Clock className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm">Kvar: <strong>{progress.estimatedTimeLeft}</strong></span>
+                  <span className="text-sm">ETA: <strong>{progress.estimatedTimeLeft}</strong></span>
                 </div>
               )}
             </div>
 
             {progress.errors.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-red-700">Improved senaste fel:</h4>
+                <h4 className="text-sm font-medium text-red-700">Recent enhanced errors:</h4>
                 <div className="max-h-32 overflow-y-auto space-y-1">
                   {progress.errors.slice(-5).map((error, index) => (
                     <Alert key={index} className="border-red-200 py-2">
