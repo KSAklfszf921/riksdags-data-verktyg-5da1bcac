@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,16 +14,22 @@ import {
   Database,
   Zap,
   Shield,
-  Activity
+  Activity,
+  Search,
+  Filter
 } from 'lucide-react';
 import { ApiTestSuite } from '../utils/apiTestSuite';
 import { DataValidationSuite } from '../utils/dataValidationSuite';
+import { ComprehensiveApiTestSuite } from '../utils/comprehensiveTestSuite';
+import { SearchFilterTestSuite } from '../utils/searchFilterTestSuite';
 import { EnhancedTestSuite, DetailedTestResult } from '../utils/enhancedTestUtils';
 
 const EnhancedTestRunner = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [apiSuite, setApiSuite] = useState<EnhancedTestSuite | null>(null);
   const [validationSuite, setValidationSuite] = useState<EnhancedTestSuite | null>(null);
+  const [comprehensiveSuite, setComprehensiveSuite] = useState<EnhancedTestSuite | null>(null);
+  const [searchFilterSuite, setSearchFilterSuite] = useState<EnhancedTestSuite | null>(null);
   const [currentTest, setCurrentTest] = useState<string>('');
   const [progress, setProgress] = useState(0);
 
@@ -94,10 +99,90 @@ const EnhancedTestRunner = () => {
     }
   };
 
+  const runComprehensiveTests = async () => {
+    setIsRunning(true);
+    setComprehensiveSuite(null);
+    setProgress(0);
+
+    try {
+      const tester = new ComprehensiveApiTestSuite();
+      const tests = [
+        'Member Basic Fetching',
+        'Member Details with Assignments',
+        'Committee Filtering',
+        'Member Search',
+        'Member Documents',
+        'Member Speeches',
+        'Calendar Data Formatting',
+        'Speech Data Quality',
+        'Vote Data Structure',
+        'Document Search',
+        'Party Data Accuracy',
+        'Language Analysis Data',
+        'Data Sync Log Integrity'
+      ];
+
+      for (let i = 0; i < tests.length; i++) {
+        setCurrentTest(`Running ${tests[i]}...`);
+        setProgress((i / tests.length) * 100);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      await tester.runAllComprehensiveTests();
+      setComprehensiveSuite(tester.getSummary());
+    } catch (error) {
+      console.error('Comprehensive test execution failed:', error);
+    } finally {
+      setIsRunning(false);
+      setCurrentTest('');
+      setProgress(100);
+    }
+  };
+
+  const runSearchFilterTests = async () => {
+    setIsRunning(true);
+    setSearchFilterSuite(null);
+    setProgress(0);
+
+    try {
+      const tester = new SearchFilterTestSuite();
+      const tests = [
+        'Member Name Search',
+        'Party Filtering',
+        'Committee Search',
+        'Document Type Filtering',
+        'Date Range Filtering',
+        'Vote Search by Topic',
+        'Language Analysis Filtering'
+      ];
+
+      for (let i = 0; i < tests.length; i++) {
+        setCurrentTest(`Running ${tests[i]}...`);
+        setProgress((i / tests.length) * 100);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      await tester.runAllSearchFilterTests();
+      setSearchFilterSuite(tester.getSummary());
+    } catch (error) {
+      console.error('Search/Filter test execution failed:', error);
+    } finally {
+      setIsRunning(false);
+      setCurrentTest('');
+      setProgress(100);
+    }
+  };
+
   const runAllTests = async () => {
     await runApiTests();
     setTimeout(async () => {
       await runValidationTests();
+      setTimeout(async () => {
+        await runComprehensiveTests();
+        setTimeout(async () => {
+          await runSearchFilterTests();
+        }, 1000);
+      }, 1000);
     }, 1000);
   };
 
@@ -228,6 +313,14 @@ const EnhancedTestRunner = () => {
                 {isRunning ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Shield className="w-4 h-4 mr-2" />}
                 Validation Tests
               </Button>
+              <Button onClick={runComprehensiveTests} disabled={isRunning} size="sm" variant="outline">
+                {isRunning ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Activity className="w-4 h-4 mr-2" />}
+                Comprehensive Tests
+              </Button>
+              <Button onClick={runSearchFilterTests} disabled={isRunning} size="sm" variant="outline">
+                {isRunning ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Search className="w-4 h-4 mr-2" />}
+                Search & Filter Tests
+              </Button>
               <Button onClick={runAllTests} disabled={isRunning}>
                 {isRunning ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                 Run All Tests
@@ -235,7 +328,7 @@ const EnhancedTestRunner = () => {
             </div>
           </CardTitle>
           <CardDescription>
-            Comprehensive testing of all analysis tools with detailed error reporting
+            Comprehensive testing of all analysis tools with detailed error reporting, search functionality, and filtering
           </CardDescription>
         </CardHeader>
         {isRunning && (
@@ -248,7 +341,7 @@ const EnhancedTestRunner = () => {
         )}
       </Card>
 
-      {(apiSuite || validationSuite) && (
+      {(apiSuite || validationSuite || comprehensiveSuite || searchFilterSuite) && (
         <Alert>
           <Zap className="h-4 w-4" />
           <AlertDescription>
@@ -258,9 +351,11 @@ const EnhancedTestRunner = () => {
       )}
 
       <Tabs defaultValue="api" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="api">API Tests</TabsTrigger>
           <TabsTrigger value="validation">Data Validation</TabsTrigger>
+          <TabsTrigger value="comprehensive">Comprehensive</TabsTrigger>
+          <TabsTrigger value="search">Search & Filter</TabsTrigger>
         </TabsList>
 
         <TabsContent value="api" className="space-y-4">
@@ -278,6 +373,26 @@ const EnhancedTestRunner = () => {
             <Card>
               <CardContent className="p-6 text-center text-gray-500">
                 Run validation tests to see results here
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="comprehensive" className="space-y-4">
+          {comprehensiveSuite ? renderTestSuite(comprehensiveSuite) : (
+            <Card>
+              <CardContent className="p-6 text-center text-gray-500">
+                Run comprehensive tests to see results here
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="search" className="space-y-4">
+          {searchFilterSuite ? renderTestSuite(searchFilterSuite) : (
+            <Card>
+              <CardContent className="p-6 text-center text-gray-500">
+                Run search & filter tests to see results here
               </CardContent>
             </Card>
           )}
