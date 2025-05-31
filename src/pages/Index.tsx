@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp, FileText, Calendar } from "lucide-react";
@@ -70,34 +69,7 @@ const Index = () => {
   return <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Navigation */}
       <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  Riksdagskollen
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" className="text-gray-600 hover:text-blue-600" onClick={() => navigate('/topplistor')}>
-                Topplistor
-              </Button>
-              <Button variant="ghost" className="text-gray-600 hover:text-blue-600">
-                Om oss
-              </Button>
-              <Button variant="ghost" className="text-gray-600 hover:text-blue-600">
-                API
-              </Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700" onClick={handleGetStarted}>
-                Kom igång
-              </Button>
-            </div>
-          </div>
-        </div>
+        
       </nav>
 
       {/* Hero Section */}
