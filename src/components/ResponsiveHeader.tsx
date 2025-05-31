@@ -1,101 +1,89 @@
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Button } from './ui/button';
-import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
-import { Menu, Home, Users, BarChart3, Vote, FileText, Megaphone, Calendar, Trophy, Database } from 'lucide-react';
+import { Menu, X, User, MessageSquare, Vote, FileText, Calendar, BarChart3, Trophy, Languages, Database } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 
-export const ResponsiveHeader = () => {
+const ResponsiveHeader = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
   const navigation = [
-    { name: 'Hem', href: '/', icon: Home },
-    { name: 'Ledamöter', href: '/ledamoter', icon: Users },
-    { name: 'Partianalys', href: '/partianalys', icon: BarChart3 },
+    { name: 'Hem', href: '/', icon: null },
+    { name: 'Ledamöter', href: '/ledamoter', icon: User },
+    { name: 'Anföranden', href: '/anforanden', icon: MessageSquare },
     { name: 'Voteringar', href: '/voteringar', icon: Vote },
     { name: 'Dokument', href: '/dokument', icon: FileText },
-    { name: 'Anföranden', href: '/anforanden', icon: Megaphone },
     { name: 'Kalender', href: '/kalender', icon: Calendar },
+    { name: 'Partianalys', href: '/partianalys', icon: BarChart3 },
     { name: 'Topplistor', href: '/topplistor', icon: Trophy },
-    { name: 'Databas', href: '/databas', icon: Database },
+    { name: 'Språkanalys', href: '/sprakanalys', icon: Languages },
+    { name: 'Databashantering', href: '/databashantering', icon: Database },
   ];
 
-  const isActiveRoute = (href: string) => {
-    if (href === '/') {
-      return location.pathname === '/';
-    }
-    return location.pathname.startsWith(href);
+  const NavLink = ({ item, mobile = false }: { item: typeof navigation[0]; mobile?: boolean }) => {
+    const isActive = location.pathname === item.href;
+    const Icon = item.icon;
+    
+    return (
+      <Link
+        to={item.href}
+        onClick={() => mobile && setIsOpen(false)}
+        className={cn(
+          'inline-flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
+          isActive
+            ? 'bg-blue-100 text-blue-700'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50',
+          mobile && 'w-full justify-start space-x-3'
+        )}
+      >
+        {Icon && <Icon className="h-4 w-4" />}
+        <span className={mobile ? '' : 'ml-1'}>{item.name}</span>
+      </Link>
+    );
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+    <header className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-                <span className="text-white font-bold text-sm">R</span>
-              </div>
-              <span className="font-bold text-xl">Riksdag Explorer</span>
+          <div className="flex-shrink-0">
+            <Link to="/" className="text-xl font-bold text-blue-600">
+              Riksdag Analytics
             </Link>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.name} to={item.href}>
-                  <Button
-                    variant={isActiveRoute(item.href) ? "default" : "ghost"}
-                    className="flex items-center space-x-1"
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.name}</span>
-                  </Button>
-                </Link>
-              );
-            })}
+          <nav className="hidden lg:flex space-x-1">
+            {navigation.map((item) => (
+              <NavLink key={item.name} item={item} />
+            ))}
           </nav>
 
-          {/* Mobile Navigation */}
-          <div className="md:hidden">
+          {/* Mobile menu button */}
+          <div className="lg:hidden">
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="sm">
                   <Menu className="h-6 w-6" />
                   <span className="sr-only">Öppna meny</span>
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-64">
-                <div className="flex flex-col space-y-4 mt-8">
-                  <div className="flex items-center space-x-2 mb-4">
-                    <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">R</span>
-                    </div>
-                    <span className="font-bold text-lg">Riksdag Explorer</span>
-                  </div>
-                  {navigation.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.name}
-                        to={item.href}
-                        onClick={() => setIsOpen(false)}
-                      >
-                        <Button
-                          variant={isActiveRoute(item.href) ? "default" : "ghost"}
-                          className="w-full justify-start flex items-center space-x-2"
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span>{item.name}</span>
-                        </Button>
-                      </Link>
-                    );
-                  })}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-semibold">Navigation</h2>
+                  <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
+                <nav className="space-y-2">
+                  {navigation.map((item) => (
+                    <NavLink key={item.name} item={item} mobile />
+                  ))}
+                </nav>
               </SheetContent>
             </Sheet>
           </div>
@@ -103,4 +91,6 @@ export const ResponsiveHeader = () => {
       </div>
     </header>
   );
-}
+};
+
+export { ResponsiveHeader };

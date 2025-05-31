@@ -7,45 +7,43 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ResponsiveHeader } from "./components/ResponsiveHeader";
 import Index from "./pages/Index";
 import Ledamoter from "./pages/Ledamoter";
-import Partianalys from "./pages/Partianalys";
+import Anforanden from "./pages/Anforanden";
 import Voteringar from "./pages/Voteringar";
 import Dokument from "./pages/Dokument";
-import Anforanden from "./pages/Anforanden";
 import Kalender from "./pages/Kalender";
+import Partianalys from "./pages/Partianalys";
 import Topplistor from "./pages/Topplistor";
+import SprakAnalys from "./pages/SprakAnalys";
 import DatabaseManager from "./pages/DatabaseManager";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <div className="min-h-screen bg-background">
-            <ResponsiveHeader />
-            <main className="container mx-auto px-4 py-8">
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/ledamoter" element={<Ledamoter />} />
-                <Route path="/partianalys" element={<Partianalys />} />
-                <Route path="/voteringar" element={<Voteringar />} />
-                <Route path="/dokument" element={<Dokument />} />
-                <Route path="/anforanden" element={<Anforanden />} />
-                <Route path="/kalender" element={<Kalender />} />
-                <Route path="/topplistor" element={<Topplistor />} />
-                <Route path="/databas" element={<DatabaseManager />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <div className="min-h-screen bg-background">
+          <ResponsiveHeader />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/ledamoter" element={<Ledamoter />} />
+            <Route path="/anforanden" element={<Anforanden />} />
+            <Route path="/voteringar" element={<Voteringar />} />
+            <Route path="/dokument" element={<Dokument />} />
+            <Route path="/kalender" element={<Kalender />} />
+            <Route path="/partianalys" element={<Partianalys />} />
+            <Route path="/topplistor" element={<Topplistor />} />
+            <Route path="/sprakanalys" element={<SprakAnalys />} />
+            <Route path="/databashantering" element={<DatabaseManager />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

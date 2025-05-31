@@ -189,6 +189,99 @@ export type Database = {
         }
         Relationships: []
       }
+      language_analysis: {
+        Row: {
+          analysis_date: string
+          analysis_version: string
+          avg_sentence_length: number | null
+          avg_word_length: number | null
+          complex_words_ratio: number | null
+          created_at: string
+          document_id: string
+          document_title: string | null
+          document_type: string
+          exclamation_count: number
+          formal_language_indicators: number
+          full_text: string | null
+          id: string
+          language_complexity_score: number
+          member_id: string
+          member_name: string
+          overall_score: number
+          paragraph_count: number
+          passive_voice_ratio: number | null
+          question_count: number
+          rhetorical_elements_score: number
+          sentence_count: number
+          structural_clarity_score: number
+          technical_terms_count: number
+          unique_words_ratio: number | null
+          updated_at: string
+          vocabulary_richness_score: number
+          word_count: number
+        }
+        Insert: {
+          analysis_date?: string
+          analysis_version?: string
+          avg_sentence_length?: number | null
+          avg_word_length?: number | null
+          complex_words_ratio?: number | null
+          created_at?: string
+          document_id: string
+          document_title?: string | null
+          document_type: string
+          exclamation_count?: number
+          formal_language_indicators?: number
+          full_text?: string | null
+          id?: string
+          language_complexity_score: number
+          member_id: string
+          member_name: string
+          overall_score: number
+          paragraph_count?: number
+          passive_voice_ratio?: number | null
+          question_count?: number
+          rhetorical_elements_score: number
+          sentence_count?: number
+          structural_clarity_score: number
+          technical_terms_count?: number
+          unique_words_ratio?: number | null
+          updated_at?: string
+          vocabulary_richness_score: number
+          word_count?: number
+        }
+        Update: {
+          analysis_date?: string
+          analysis_version?: string
+          avg_sentence_length?: number | null
+          avg_word_length?: number | null
+          complex_words_ratio?: number | null
+          created_at?: string
+          document_id?: string
+          document_title?: string | null
+          document_type?: string
+          exclamation_count?: number
+          formal_language_indicators?: number
+          full_text?: string | null
+          id?: string
+          language_complexity_score?: number
+          member_id?: string
+          member_name?: string
+          overall_score?: number
+          paragraph_count?: number
+          passive_voice_ratio?: number | null
+          question_count?: number
+          rhetorical_elements_score?: number
+          sentence_count?: number
+          structural_clarity_score?: number
+          technical_terms_count?: number
+          unique_words_ratio?: number | null
+          updated_at?: string
+          vocabulary_richness_score?: number
+          word_count?: number
+        }
+        Relationships: []
+      }
       member_data: {
         Row: {
           activity_data: Json | null
