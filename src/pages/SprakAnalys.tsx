@@ -1,382 +1,295 @@
 
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LanguageAnalysisService, LanguageAnalysisResult } from '@/services/languageAnalysisService';
-import { supabase } from '@/integrations/supabase/client';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Users, FileText, Award } from 'lucide-react';
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Brain, 
+  Users, 
+  BarChart3, 
+  FileText, 
+  Trophy, 
+  BookOpen, 
+  MessageSquare, 
+  Target 
+} from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import LanguageAnalysisIntegration from "@/components/LanguageAnalysisIntegration";
+import LanguageAnalysisBatchRunner from "@/components/LanguageAnalysisBatchRunner";
+import { LanguageAnalysisService } from "@/services/languageAnalysisService";
+import { useQuery } from "@tanstack/react-query";
 
 const SprakAnalys = () => {
-  const [selectedMember, setSelectedMember] = useState<string>('');
-  const [scoreType, setScoreType] = useState<'overall_score' | 'language_complexity_score' | 'vocabulary_richness_score' | 'rhetorical_elements_score' | 'structural_clarity_score'>('overall_score');
+  const [activeTab, setActiveTab] = useState("overview");
 
-  // Fetch top performers
+  // Hämta toppresultat för översikt
   const { data: topPerformers, isLoading: topLoading } = useQuery({
-    queryKey: ['topPerformers', scoreType],
-    queryFn: () => LanguageAnalysisService.getTopPerformers(scoreType, 10)
+    queryKey: ['top-language-performers'],
+    queryFn: () => LanguageAnalysisService.getTopPerformers('overall_score', 10),
+    staleTime: 5 * 60 * 1000, // 5 minuter
   });
-
-  // Fetch member-specific analysis
-  const { data: memberAnalysis, isLoading: memberLoading } = useQuery({
-    queryKey: ['memberAnalysis', selectedMember],
-    queryFn: () => selectedMember ? LanguageAnalysisService.getAnalysisByMember(selectedMember) : Promise.resolve([]),
-    enabled: !!selectedMember
-  });
-
-  // Fetch overall statistics
-  const { data: statistics } = useQuery({
-    queryKey: ['languageStatistics'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('language_analysis')
-        .select('*');
-      
-      if (error) return null;
-      
-      const totalAnalyses = data.length;
-      const avgOverallScore = data.reduce((sum, item) => sum + item.overall_score, 0) / totalAnalyses;
-      const uniqueMembers = new Set(data.map(item => item.member_id)).size;
-      
-      const documentTypes = data.reduce((acc, item) => {
-        acc[item.document_type] = (acc[item.document_type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      return {
-        totalAnalyses,
-        avgOverallScore: Math.round(avgOverallScore),
-        uniqueMembers,
-        documentTypes
-      };
-    }
-  });
-
-  const getScoreColor = (score: number): string => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getScoreBadgeVariant = (score: number): "default" | "secondary" | "destructive" | "outline" => {
-    if (score >= 80) return 'default';
-    if (score >= 60) return 'secondary';
-    return 'destructive';
-  };
-
-  const chartData = topPerformers?.map(analysis => ({
-    name: analysis.member_name,
-    score: analysis[scoreType],
-    complexity: analysis.language_complexity_score,
-    vocabulary: analysis.vocabulary_richness_score,
-    rhetorical: analysis.rhetorical_elements_score,
-    structure: analysis.structural_clarity_score
-  })) || [];
-
-  const pieData = statistics ? Object.entries(statistics.documentTypes).map(([type, count]) => ({
-    name: type,
-    value: count
-  })) : [];
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Språkanalys
-        </h1>
-        <p className="text-gray-600">
-          Regelbaserad analys av språklig komplexitet, ordförråd och retoriska element i politiska dokument
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageHeader
+          title="Språkanalys"
+          description="Avancerad analys av riksdagsledamöters språkbruk i anföranden och skriftliga frågor"
+          icon={<Brain className="w-6 h-6 text-white" />}
+        />
 
-      {/* Statistics Cards */}
-      {statistics && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Totala analyser</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statistics.totalAnalyses}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Genomsnittlig poäng</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statistics.avgOverallScore}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Analyserade ledamöter</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statistics.uniqueMembers}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dokumenttyper</CardTitle>
-              <Award className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{Object.keys(statistics.documentTypes).length}</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" className="flex items-center space-x-2">
+              <BarChart3 className="w-4 h-4" />
+              <span>Översikt</span>
+            </TabsTrigger>
+            <TabsTrigger value="batch" className="flex items-center space-x-2">
+              <Users className="w-4 h-4" />
+              <span>Batch-analys</span>
+            </TabsTrigger>
+            <TabsTrigger value="individual" className="flex items-center space-x-2">
+              <FileText className="w-4 h-4" />
+              <span>Individuell analys</span>
+            </TabsTrigger>
+            <TabsTrigger value="results" className="flex items-center space-x-2">
+              <Trophy className="w-4 h-4" />
+              <span>Resultat</span>
+            </TabsTrigger>
+          </TabsList>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">Översikt</TabsTrigger>
-          <TabsTrigger value="rankings">Ranking</TabsTrigger>
-          <TabsTrigger value="member">Ledamot</TabsTrigger>
-          <TabsTrigger value="analysis">Gör analys</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Fördelning av dokumenttyper</CardTitle>
-                <CardDescription>Antal analyserade dokument per typ</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Topp 5 prestationer</CardTitle>
-                <CardDescription>Högsta poäng inom olika kategorier</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {topPerformers?.slice(0, 5).map((analysis, index) => (
-                    <div key={analysis.id} className="flex items-center space-x-4">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium">{analysis.member_name}</p>
-                        <p className="text-sm text-gray-500">{analysis.document_type}</p>
-                      </div>
-                      <Badge variant={getScoreBadgeVariant(analysis[scoreType])}>
-                        {analysis[scoreType]}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="rankings" className="space-y-6">
-          <div className="flex gap-4 mb-6">
-            <Select value={scoreType} onValueChange={(value: any) => setScoreType(value)}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Välj kategori" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="overall_score">Övergripande poäng</SelectItem>
-                <SelectItem value="language_complexity_score">Språklig komplexitet</SelectItem>
-                <SelectItem value="vocabulary_richness_score">Ordförrådsrikedom</SelectItem>
-                <SelectItem value="rhetorical_elements_score">Retoriska element</SelectItem>
-                <SelectItem value="structural_clarity_score">Strukturell tydlighet</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Ranking - {scoreType.replace('_', ' ').replace('score', 'poäng')}</CardTitle>
-              <CardDescription>Topp 10 prestationer inom vald kategori</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                  />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Bar dataKey="score" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="member" className="space-y-6">
-          <div className="flex gap-4 mb-6">
-            <Input
-              placeholder="Ange medlems-ID eller sök efter namn..."
-              value={selectedMember}
-              onChange={(e) => setSelectedMember(e.target.value)}
-              className="flex-1"
-            />
-          </div>
-
-          {memberAnalysis && memberAnalysis.length > 0 && (
-            <div className="space-y-6">
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>{memberAnalysis[0].member_name} - Språkanalys</CardTitle>
-                  <CardDescription>{memberAnalysis.length} analyserade dokument</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {Math.round(memberAnalysis.reduce((sum, a) => sum + a.overall_score, 0) / memberAnalysis.length)}
-                      </div>
-                      <div className="text-sm text-gray-500">Genomsnitt</div>
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-2">
+                    <Brain className="w-8 h-8 text-blue-600" />
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">AI-driven</p>
+                      <p className="text-sm text-gray-600">Språkanalys</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">
-                        {Math.max(...memberAnalysis.map(a => a.overall_score))}
-                      </div>
-                      <div className="text-sm text-gray-500">Högsta</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="w-8 h-8 text-green-600" />
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">4</p>
+                      <p className="text-sm text-gray-600">Analysområden</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">
-                        {Math.min(...memberAnalysis.map(a => a.overall_score))}
-                      </div>
-                      <div className="text-sm text-gray-500">Lägsta</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-8 h-8 text-purple-600" />
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">349</p>
+                      <p className="text-sm text-gray-600">Ledamöter</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600">
-                        {memberAnalysis.reduce((sum, a) => sum + a.word_count, 0).toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 className="w-8 h-8 text-orange-600" />
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">1-100</p>
+                      <p className="text-sm text-gray-600">Poängskala</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Om språkanalysen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700">
+                  Vår avancerade språkanalys utvärderar riksdagsledamöters kommunikativa färdigheter genom att analysera 
+                  deras anföranden och skriftliga frågor. Systemet bedömer fyra huvudområden:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Brain className="w-4 h-4 text-blue-600" />
                       </div>
-                      <div className="text-sm text-gray-500">Totala ord</div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Språkkomplexitet</h4>
+                        <p className="text-sm text-gray-600">
+                          Bedömer meningslängd, ordlängd, användning av komplexa ord och passiva konstruktioner.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-4 h-4 text-green-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Ordförrådsrikedom</h4>
+                        <p className="text-sm text-gray-600">
+                          Mäter variationen i ordval och användningen av unika ord i relation till total textmängd.
+                        </p>
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    {memberAnalysis.map((analysis) => (
-                      <div key={analysis.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <MessageSquare className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Retoriska element</h4>
+                        <p className="text-sm text-gray-600">
+                          Analyserar användning av frågor, utropstecken och formella språkmarkörer.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                        <Target className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-900">Strukturell tydlighet</h4>
+                        <p className="text-sm text-gray-600">
+                          Utvärderar textorganisation, styckeindelning och balans i meningsbyggnad.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {topPerformers && topPerformers.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Trophy className="w-5 h-5" />
+                    <span>Toppresultat (Senaste analyser)</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {topPerformers.slice(0, 5).map((result, index) => (
+                      <div key={result.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                            index === 0 ? 'bg-yellow-500' :
+                            index === 1 ? 'bg-gray-400' :
+                            index === 2 ? 'bg-amber-600' :
+                            'bg-blue-500'
+                          }`}>
+                            {index + 1}
+                          </div>
                           <div>
-                            <h3 className="font-medium">{analysis.document_title}</h3>
-                            <p className="text-sm text-gray-500">
-                              {analysis.document_type} • {new Date(analysis.analysis_date).toLocaleDateString('sv-SE')}
+                            <p className="font-medium text-gray-900">{result.member_name}</p>
+                            <p className="text-sm text-gray-600">
+                              {result.document_type === 'speech' ? 'Anförande' : 'Skriftlig fråga'} • 
+                              {new Date(result.analysis_date).toLocaleDateString('sv-SE')}
                             </p>
                           </div>
-                          <Badge variant={getScoreBadgeVariant(analysis.overall_score)}>
-                            {analysis.overall_score}
-                          </Badge>
                         </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Komplexitet:</span>
-                            <span className={`ml-2 font-medium ${getScoreColor(analysis.language_complexity_score)}`}>
-                              {analysis.language_complexity_score}
-                            </span>
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-blue-600">{result.overall_score}/100</div>
+                          <div className="text-xs text-gray-500">
+                            {LanguageAnalysisService.getLanguageLevel(result.overall_score).level}
                           </div>
-                          <div>
-                            <span className="text-gray-500">Ordförråd:</span>
-                            <span className={`ml-2 font-medium ${getScoreColor(analysis.vocabulary_richness_score)}`}>
-                              {analysis.vocabulary_richness_score}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Retorik:</span>
-                            <span className={`ml-2 font-medium ${getScoreColor(analysis.rhetorical_elements_score)}`}>
-                              {analysis.rhetorical_elements_score}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Struktur:</span>
-                            <span className={`ml-2 font-medium ${getScoreColor(analysis.structural_clarity_score)}`}>
-                              {analysis.structural_clarity_score}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-500 mt-2">
-                          <div>{analysis.word_count} ord</div>
-                          <div>{analysis.sentence_count} meningar</div>
-                          <div>{analysis.question_count} frågor</div>
-                          <div>{analysis.technical_terms_count} tekniska termer</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          )}
-        </TabsContent>
+            )}
+          </TabsContent>
 
-        <TabsContent value="analysis" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Skapa ny språkanalys</CardTitle>
-              <CardDescription>
-                Analysera språklig kvalitet i politiska dokument med regelbaserade metoder
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">
-                Språkanalys sker automatiskt när nya anföranden och dokument läggs till i systemet. 
-                Analysen utvärderar text baserat på:
-              </p>
-              <ul className="list-disc list-inside mt-4 space-y-2 text-gray-600">
-                <li><strong>Språklig komplexitet:</strong> Meningslängd, ordlängd, komplexa ord och passiv form</li>
-                <li><strong>Ordförrådsrikedom:</strong> Andel unika ord och variation i ordval</li>
-                <li><strong>Retoriska element:</strong> Användning av frågor, utrop och formella språkmarkörer</li>
-                <li><strong>Strukturell tydlighet:</strong> Meningsbyggnad och styckeindelning</li>
-              </ul>
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>Information:</strong> Språkanalys körs automatiskt för nya anföranden från Riksdagens API. 
-                  Befintliga dokument kan analyseras manuellt via databashanteringssidan.
+          <TabsContent value="batch">
+            <LanguageAnalysisBatchRunner />
+          </TabsContent>
+
+          <TabsContent value="individual">
+            <LanguageAnalysisIntegration />
+          </TabsContent>
+
+          <TabsContent value="results">
+            <Card>
+              <CardHeader>
+                <CardTitle>Analysresultat och statistik</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Här visas detaljerade resultat och statistik från genomförda språkanalyser.
+                  Denna sektion kommer att utökas med interaktiva grafer och jämförelser.
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                
+                {topPerformers && topPerformers.length > 0 ? (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold mb-4">Alla toppresultat</h3>
+                    <div className="grid gap-4">
+                      {topPerformers.map((result, index) => (
+                        <div key={result.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium">{result.member_name}</h4>
+                            <Badge className={LanguageAnalysisService.getLanguageLevel(result.overall_score).color}>
+                              {result.overall_score}/100
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-600">Komplexitet:</span>
+                              <div className="font-medium">{result.language_complexity_score}/100</div>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Ordförråd:</span>
+                              <div className="font-medium">{result.vocabulary_richness_score}/100</div>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Retorik:</span>
+                              <div className="font-medium">{result.rhetorical_elements_score}/100</div>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Tydlighet:</span>
+                              <div className="font-medium">{result.structural_clarity_score}/100</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {result.document_type === 'speech' ? 'Anförande' : 'Skriftlig fråga'} • 
+                            {result.word_count} ord • 
+                            {new Date(result.analysis_date).toLocaleDateString('sv-SE')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Inga analysresultat tillgängliga ännu.</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Använd batch-analysen för att analysera alla aktiva ledamöter.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

@@ -47,6 +47,20 @@ export interface TextAnalysisMetrics {
   technicalTermsCount: number;
 }
 
+export interface MemberLanguageSummary {
+  member_id: string;
+  member_name: string;
+  overall_average: number;
+  speech_count: number;
+  question_count: number;
+  total_words: number;
+  complexity_average: number;
+  vocabulary_average: number;
+  rhetorical_average: number;
+  clarity_average: number;
+  last_analysis: string;
+}
+
 export class LanguageAnalysisService {
   private static complexWords = new Set([
     'återgång', 'förutsättning', 'ansvarighet', 'genomförande', 'utveckling',
@@ -185,6 +199,101 @@ export class LanguageAnalysisService {
     };
   }
 
+  static async analyzeCurrentMembers(limit: number = 50): Promise<void> {
+    console.log('Starting language analysis for current members...');
+    
+    try {
+      // Hämta nuvarande aktiva ledamöter
+      const { data: members, error: membersError } = await supabase
+        .from('member_data')
+        .select('member_id, first_name, last_name')
+        .eq('is_active', true)
+        .limit(limit);
+
+      if (membersError) {
+        console.error('Error fetching members:', membersError);
+        return;
+      }
+
+      console.log(`Found ${members?.length || 0} active members to analyze`);
+
+      for (const member of members || []) {
+        await this.analyzeMemberLanguage(member.member_id, `${member.first_name} ${member.last_name}`);
+        // Lägg till en kort paus för att inte överbelasta databasen
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      console.log('Language analysis completed for all members');
+    } catch (error) {
+      console.error('Error in analyzeCurrentMembers:', error);
+    }
+  }
+
+  static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<void> {
+    try {
+      console.log(`Analyzing language for member: ${memberName} (${memberId})`);
+
+      // Hämta anföranden för ledamoten
+      const { data: speeches, error: speechError } = await supabase
+        .from('speech_data')
+        .select('speech_id, anforandetext, rel_dok_titel, anforandedatum')
+        .eq('intressent_id', memberId)
+        .not('anforandetext', 'is', null)
+        .order('anforandedatum', { ascending: false })
+        .limit(20); // Begränsa till de senaste 20 anförandena
+
+      if (speechError) {
+        console.error('Error fetching speeches:', speechError);
+      }
+
+      // Analysera anföranden
+      for (const speech of speeches || []) {
+        if (speech.anforandetext && speech.anforandetext.trim().length > 100) {
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            'speech',
+            speech.speech_id,
+            speech.rel_dok_titel || 'Anförande',
+            speech.anforandetext
+          );
+        }
+      }
+
+      // Hämta skriftliga frågor
+      const { data: questions, error: questionError } = await supabase
+        .from('document_data')
+        .select('document_id, titel, datum, content_preview')
+        .eq('intressent_id', memberId)
+        .eq('typ', 'fr') // Skriftliga frågor
+        .not('content_preview', 'is', null)
+        .order('datum', { ascending: false })
+        .limit(10); // Begränsa till de senaste 10 frågorna
+
+      if (questionError) {
+        console.error('Error fetching written questions:', questionError);
+      }
+
+      // Analysera skriftliga frågor
+      for (const question of questions || []) {
+        if (question.content_preview && question.content_preview.trim().length > 50) {
+          await this.saveAnalysis(
+            memberId,
+            memberName,
+            'written_question',
+            question.document_id,
+            question.titel || 'Skriftlig fråga',
+            question.content_preview
+          );
+        }
+      }
+
+      console.log(`Completed analysis for ${memberName}`);
+    } catch (error) {
+      console.error(`Error analyzing member ${memberName}:`, error);
+    }
+  }
+
   static async saveAnalysis(
     memberId: string,
     memberName: string,
@@ -244,12 +353,74 @@ export class LanguageAnalysisService {
     }
   }
 
+  static async getMemberLanguageSummary(memberId: string): Promise<MemberLanguageSummary | null> {
+    try {
+      const { data, error } = await supabase
+        .from('language_analysis')
+        .select('*')
+        .eq('member_id', memberId)
+        .in('document_type', ['speech', 'written_question']);
+
+      if (error) {
+        console.error('Error fetching member language summary:', error);
+        return null;
+      }
+
+      if (!data || data.length === 0) {
+        return null;
+      }
+
+      const analyses = data as LanguageAnalysisResult[];
+      const speeches = analyses.filter(a => a.document_type === 'speech');
+      const questions = analyses.filter(a => a.document_type === 'written_question');
+
+      const totalWords = analyses.reduce((sum, a) => sum + a.word_count, 0);
+      const overallAverage = Math.round(
+        analyses.reduce((sum, a) => sum + a.overall_score, 0) / analyses.length
+      );
+      const complexityAverage = Math.round(
+        analyses.reduce((sum, a) => sum + a.language_complexity_score, 0) / analyses.length
+      );
+      const vocabularyAverage = Math.round(
+        analyses.reduce((sum, a) => sum + a.vocabulary_richness_score, 0) / analyses.length
+      );
+      const rhetoricalAverage = Math.round(
+        analyses.reduce((sum, a) => sum + a.rhetorical_elements_score, 0) / analyses.length
+      );
+      const clarityAverage = Math.round(
+        analyses.reduce((sum, a) => sum + a.structural_clarity_score, 0) / analyses.length
+      );
+
+      const lastAnalysis = analyses.sort((a, b) => 
+        new Date(b.analysis_date).getTime() - new Date(a.analysis_date).getTime()
+      )[0].analysis_date;
+
+      return {
+        member_id: memberId,
+        member_name: analyses[0].member_name,
+        overall_average: overallAverage,
+        speech_count: speeches.length,
+        question_count: questions.length,
+        total_words: totalWords,
+        complexity_average: complexityAverage,
+        vocabulary_average: vocabularyAverage,
+        rhetorical_average: rhetoricalAverage,
+        clarity_average: clarityAverage,
+        last_analysis: lastAnalysis
+      };
+    } catch (error) {
+      console.error('Error getting member language summary:', error);
+      return null;
+    }
+  }
+
   static async getAnalysisByMember(memberId: string): Promise<LanguageAnalysisResult[]> {
     try {
       const { data, error } = await supabase
         .from('language_analysis')
         .select('*')
         .eq('member_id', memberId)
+        .in('document_type', ['speech', 'written_question'])
         .order('analysis_date', { ascending: false });
 
       if (error) {
@@ -272,6 +443,7 @@ export class LanguageAnalysisService {
       const { data, error } = await supabase
         .from('language_analysis')
         .select('*')
+        .in('document_type', ['speech', 'written_question'])
         .order(scoreType, { ascending: false })
         .limit(limit);
 
@@ -284,6 +456,40 @@ export class LanguageAnalysisService {
     } catch (error) {
       console.error('Error fetching top performers:', error);
       return [];
+    }
+  }
+
+  static getLanguageLevel(score: number): { level: string; description: string; color: string } {
+    if (score >= 85) {
+      return {
+        level: 'Mycket hög',
+        description: 'Exceptionell språklig kvalitet med sofistikerat ordförråd och komplex struktur',
+        color: 'text-green-700 bg-green-50'
+      };
+    } else if (score >= 70) {
+      return {
+        level: 'Hög',
+        description: 'Hög språklig kvalitet med varierat ordförråd och tydlig struktur',
+        color: 'text-blue-700 bg-blue-50'
+      };
+    } else if (score >= 55) {
+      return {
+        level: 'Medel',
+        description: 'Genomsnittlig språklig kvalitet med standardordförråd och struktur',
+        color: 'text-yellow-700 bg-yellow-50'
+      };
+    } else if (score >= 40) {
+      return {
+        level: 'Låg',
+        description: 'Grundläggande språklig kvalitet med enkelt ordförråd och struktur',
+        color: 'text-orange-700 bg-orange-50'
+      };
+    } else {
+      return {
+        level: 'Mycket låg',
+        description: 'Begränsad språklig kvalitet med mycket enkelt ordförråd och struktur',
+        color: 'text-red-700 bg-red-50'
+      };
     }
   }
 }

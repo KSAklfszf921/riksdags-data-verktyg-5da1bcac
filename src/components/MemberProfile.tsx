@@ -1,3 +1,4 @@
+
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import DocumentViewer from './DocumentViewer';
 import RecentSpeeches from './RecentSpeeches';
 import MemberNewsField from './MemberNewsField';
+import MemberLanguageAnalysis from './MemberLanguageAnalysis';
 import { 
   MapPin, 
   Mail, 
@@ -23,7 +25,8 @@ import {
   ExternalLink,
   X,
   BarChart3,
-  Building
+  Building,
+  Brain
 } from 'lucide-react';
 
 interface MemberProfileProps {
@@ -225,6 +228,12 @@ const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
               )}
             </CardContent>
           </Card>
+
+          {/* Språkanalys */}
+          <MemberLanguageAnalysis 
+            memberId={member.id}
+            memberName={`${member.firstName} ${member.lastName}`}
+          />
 
           {/* Nyhetsflöde - uppdaterat med memberId */}
           <MemberNewsField 
