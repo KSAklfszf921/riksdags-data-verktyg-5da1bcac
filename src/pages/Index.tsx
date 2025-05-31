@@ -105,9 +105,7 @@ const Index = () => {
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Analysverktyg
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Välj det verktyg som passar dina behov för att utforska riksdagens data
-            </p>
+            
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -133,12 +131,8 @@ const Index = () => {
       <section className="px-4 sm:px-6 lg:px-8 bg-white/50 py-[20px]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Kraftfulla funktioner
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Allt du behöver för att analysera och förstå riksdagens arbete
-            </p>
+            
+            
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
