@@ -616,8 +616,8 @@ export class LanguageAnalysisService {
         return 0;
       }
 
-      // Fetch content directly from API
-      const content = await documentTextFetcher.fetchMemberContentBatch(memberId);
+      // Fetch content directly from API using the correct method name
+      const content = await documentTextFetcher.fetchMemberContentStepByStep(memberId, memberName);
       
       if (content.speeches.length === 0 && content.documents.length === 0) {
         throw new Error('Ingen text hittades från Riksdagen API');
