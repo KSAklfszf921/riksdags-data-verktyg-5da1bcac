@@ -1,4 +1,7 @@
 
+import { proxyManager } from './proxyManager';
+import { searchStrategyManager } from './searchStrategyManager';
+
 interface RssItem {
   title: string;
   link: string;
@@ -13,63 +16,80 @@ interface FetchResult {
   error?: string;
   strategy?: string;
   proxy?: string;
+  metrics?: {
+    strategiesAttempted: number;
+    proxiesAttempted: number;
+    totalRetries: number;
+    responseTime: number;
+  };
 }
 
 class EnhancedRssFetcher {
-  private proxies = [
-    '', // Direct
-    'https://corsproxy.io/?',
-    'https://api.allorigins.win/get?url=',
-    'https://proxy.cors.sh/',
-    'https://cors-anywhere.herokuapp.com/',
-  ];
+  private readonly REQUEST_TIMEOUT = 15000;
+  private readonly MAX_RETRIES = 2;
 
-  private searchStrategies = [
-    // High precision strategies
-    (name: string) => `"${name}" riksdag (site:svt.se OR site:dn.se OR site:aftonbladet.se OR site:expressen.se)`,
-    (name: string) => `"${name}" politik Sverige (site:svt.se OR site:dn.se)`,
-    
-    // Medium precision strategies
-    (name: string) => {
-      const [firstName, ...lastNameParts] = name.split(' ');
-      const lastName = lastNameParts.join(' ');
-      return `"${lastName}" riksdag Sverige`;
-    },
-    
-    // Broad strategies for fallback
-    (name: string) => `"${name}" politik`,
-    (name: string) => `"${name}" Sverige`,
-  ];
-
-  async fetchNewsForMember(memberName: string, maxRetries = 2): Promise<FetchResult> {
+  async fetchNewsForMember(memberName: string, maxStrategies = 4): Promise<FetchResult> {
     console.log(`🔍 Enhanced RSS fetch for ${memberName}`);
     
-    for (let strategyIndex = 0; strategyIndex < this.searchStrategies.length; strategyIndex++) {
-      const strategy = this.searchStrategies[strategyIndex];
-      const query = strategy(memberName);
+    const startTime = Date.now();
+    let totalStrategiesAttempted = 0;
+    let totalProxiesAttempted = 0;
+    let totalRetries = 0;
+
+    // Get optimal search strategies
+    const strategies = searchStrategyManager.getOptimalStrategies(memberName, maxStrategies);
+    
+    for (let strategyIndex = 0; strategyIndex < strategies.length; strategyIndex++) {
+      const strategy = strategies[strategyIndex];
+      const query = strategy.generator(memberName);
       
-      console.log(`📋 Strategy ${strategyIndex + 1}: ${query}`);
+      totalStrategiesAttempted++;
+      console.log(`📋 Strategy ${strategyIndex + 1} (${strategy.name}): ${query}`);
       
-      for (let proxyIndex = 0; proxyIndex < this.proxies.length; proxyIndex++) {
-        const proxy = this.proxies[proxyIndex];
+      // Get working proxies
+      const workingProxies = proxyManager.getWorkingProxies();
+      
+      for (let proxyIndex = 0; proxyIndex < workingProxies.length; proxyIndex++) {
+        const proxy = workingProxies[proxyIndex];
+        totalProxiesAttempted++;
         
-        for (let retry = 0; retry < maxRetries; retry++) {
+        for (let retry = 0; retry < this.MAX_RETRIES; retry++) {
+          totalRetries++;
+          
           try {
+            const proxyStartTime = Date.now();
             const result = await this.tryFetchWithProxy(query, proxy, memberName, retry + 1);
+            const responseTime = Date.now() - proxyStartTime;
             
             if (result.success && result.items.length > 0) {
+              // Mark proxy as successful
+              proxyManager.markProxySuccess(proxy, responseTime);
+              
+              // Update strategy performance
+              searchStrategyManager.updateStrategyPerformance(strategy.id, true, result.items.length);
+              
               console.log(`✅ Success with strategy ${strategyIndex + 1}, proxy ${proxyIndex + 1}: ${result.items.length} items`);
+              
               return {
                 ...result,
-                strategy: `${strategyIndex + 1}`,
-                proxy: proxy || 'direct'
+                strategy: `${strategyIndex + 1} (${strategy.name})`,
+                proxy: proxy || 'direct',
+                metrics: {
+                  strategiesAttempted: totalStrategiesAttempted,
+                  proxiesAttempted: totalProxiesAttempted,
+                  totalRetries,
+                  responseTime: Date.now() - startTime
+                }
               };
             }
           } catch (error) {
+            // Mark proxy failure
+            proxyManager.markProxyFailure(proxy, error instanceof Error ? error : new Error('Unknown error'));
+            
             console.log(`❌ Failed strategy ${strategyIndex + 1}, proxy ${proxyIndex + 1}, retry ${retry + 1}:`, error);
             
             // Add delay between retries
-            if (retry < maxRetries - 1) {
+            if (retry < this.MAX_RETRIES - 1) {
               await this.delay(1000 * (retry + 1));
             }
           }
@@ -78,12 +98,21 @@ class EnhancedRssFetcher {
         // Add delay between proxies
         await this.delay(500);
       }
+      
+      // Update strategy performance for failed strategy
+      searchStrategyManager.updateStrategyPerformance(strategy.id, false, 0);
     }
     
     return {
       success: false,
       items: [],
-      error: 'All strategies and proxies failed'
+      error: 'All strategies and proxies failed',
+      metrics: {
+        strategiesAttempted: totalStrategiesAttempted,
+        proxiesAttempted: totalProxiesAttempted,
+        totalRetries,
+        responseTime: Date.now() - startTime
+      }
     };
   }
 
@@ -95,33 +124,42 @@ class EnhancedRssFetcher {
       rssUrl = proxy + encodeURIComponent(rssUrl);
     }
     
-    const response = await fetch(rssUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
-        'Accept': 'application/rss+xml, application/xml, text/xml',
-      },
-      signal: AbortSignal.timeout(15000), // 15 second timeout
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT);
+    
+    try {
+      const response = await fetch(rssUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)',
+          'Accept': 'application/rss+xml, application/xml, text/xml',
+        },
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
+      clearTimeout(timeoutId);
 
-    let xmlText: string;
-    
-    if (proxy === 'https://api.allorigins.win/get?url=') {
-      const data = await response.json();
-      xmlText = data.contents;
-    } else {
-      xmlText = await response.text();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      let xmlText: string;
+      
+      if (proxy === 'https://api.allorigins.win/get?url=') {
+        const data = await response.json();
+        xmlText = data.contents;
+      } else {
+        xmlText = await response.text();
+      }
+      
+      const items = this.parseRssXml(xmlText, memberName);
+      
+      return {
+        success: true,
+        items: items
+      };
+    } finally {
+      clearTimeout(timeoutId);
     }
-    
-    const items = this.parseRssXml(xmlText, memberName);
-    
-    return {
-      success: true,
-      items: items
-    };
   }
 
   private parseRssXml(xmlText: string, memberName: string): RssItem[] {
@@ -251,14 +289,17 @@ class EnhancedRssFetcher {
     const lastName = nameParts[nameParts.length - 1];
     const firstName = nameParts[0];
     
-    // Check for exact name match
+    // Enhanced relevance scoring
+    let relevanceScore = 0;
+    
+    // Check for exact name match (highest score)
     if (titleLower.includes(memberLower) || descLower.includes(memberLower)) {
-      return true;
+      relevanceScore += 10;
     }
     
     // Check for last name match (common in news)
     if (lastName.length > 2 && (titleLower.includes(lastName) || descLower.includes(lastName))) {
-      return true;
+      relevanceScore += 7;
     }
     
     // Check for first + last name combinations
@@ -267,11 +308,24 @@ class EnhancedRssFetcher {
       const hasLastName = titleLower.includes(lastName) || descLower.includes(lastName);
       
       if (hasFirstName && hasLastName) {
-        return true;
+        relevanceScore += 8;
+      } else if (hasFirstName || hasLastName) {
+        relevanceScore += 3;
       }
     }
     
-    return false;
+    // Boost score for political context
+    const politicalKeywords = ['riksdag', 'politik', 'parti', 'minister', 'ledamot', 'regering'];
+    const politicalContext = politicalKeywords.some(keyword => 
+      titleLower.includes(keyword) || descLower.includes(keyword)
+    );
+    
+    if (politicalContext) {
+      relevanceScore += 2;
+    }
+    
+    // Minimum relevance threshold
+    return relevanceScore >= 5;
   }
 
   private cleanText(text: string): string {
@@ -284,6 +338,15 @@ class EnhancedRssFetcher {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Diagnostic methods
+  getProxyStats() {
+    return proxyManager.getProxyStats();
+  }
+
+  getStrategyStats() {
+    return searchStrategyManager.getStrategyStats();
   }
 }
 

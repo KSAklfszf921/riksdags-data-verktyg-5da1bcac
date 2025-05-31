@@ -1,6 +1,7 @@
 
 import { supabase } from '../integrations/supabase/client';
 import { enhancedRssFetcher, type FetchResult } from './enhancedRssFetcher';
+import { databaseManager } from './databaseManager';
 
 interface BatchProgress {
   currentMember: number;
@@ -12,10 +13,18 @@ interface BatchProgress {
   currentMemberName: string;
   status: 'running' | 'paused' | 'completed' | 'error';
   estimatedTimeRemaining?: number;
+  detailedStats: {
+    totalFetched: number;
+    duplicatesSkipped: number;
+    databaseErrors: number;
+    strategiesUsed: { [key: string]: number };
+    proxiesUsed: { [key: string]: number };
+  };
   errors: Array<{
     memberName: string;
     error: string;
     timestamp: string;
+    type: 'fetch' | 'database' | 'system';
   }>;
 }
 
@@ -59,6 +68,9 @@ class ContinuousBatchProcessor {
     this.abortController = new AbortController();
     this.currentBatchId = `batch_${Date.now()}`;
 
+    // Reset database manager stats
+    databaseManager.resetStats();
+
     console.log(`🚀 Starting continuous batch processing (max ${maxMembers} members)`);
 
     try {
@@ -84,6 +96,13 @@ class ContinuousBatchProcessor {
         newArticles: 0,
         currentMemberName: '',
         status: 'running',
+        detailedStats: {
+          totalFetched: 0,
+          duplicatesSkipped: 0,
+          databaseErrors: 0,
+          strategiesUsed: {},
+          proxiesUsed: {}
+        },
         errors: []
       };
 
@@ -115,18 +134,25 @@ class ContinuousBatchProcessor {
         console.log(`📰 Processing ${i + 1}/${members.length}: ${memberName} (${member.party})`);
 
         try {
-          const result = await this.processMemberNews(member);
+          const result = await this.processMemberNews(member, progress);
           
           if (result.success) {
             progress.successful++;
             progress.newArticles += result.newArticles || 0;
+            
+            // Update detailed stats
+            if (result.fetchResult?.metrics) {
+              progress.detailedStats.totalFetched += result.fetchResult.items.length;
+            }
+            
             console.log(`✅ ${memberName}: ${result.newArticles} new articles stored`);
           } else {
             progress.failed++;
             progress.errors.push({
               memberName,
               error: result.error || 'Unknown error',
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              type: result.errorType || 'system'
             });
             console.log(`❌ ${memberName}: ${result.error}`);
           }
@@ -136,12 +162,19 @@ class ContinuousBatchProcessor {
           progress.errors.push({
             memberName,
             error: errorMessage,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            type: 'system'
           });
           console.error(`💥 Error processing ${memberName}:`, error);
         }
 
         progress.processed = i + 1;
+        
+        // Update stats from database manager
+        const dbStats = databaseManager.getStats();
+        progress.detailedStats.duplicatesSkipped = dbStats.duplicates;
+        progress.detailedStats.databaseErrors = dbStats.errors;
+        
         this.progressCallback?.(progress);
 
         // Add delay between members to avoid rate limiting
@@ -156,6 +189,9 @@ class ContinuousBatchProcessor {
 
       console.log(`🎉 Batch processing completed: ${progress.successful}/${progress.totalMembers} successful, ${progress.newArticles} new articles`);
 
+      // Log final statistics
+      this.logFinalStatistics(progress);
+
     } catch (error) {
       console.error('💥 Batch processing failed:', error);
       const errorProgress: BatchProgress = {
@@ -167,10 +203,18 @@ class ContinuousBatchProcessor {
         newArticles: 0,
         currentMemberName: '',
         status: 'error',
+        detailedStats: {
+          totalFetched: 0,
+          duplicatesSkipped: 0,
+          databaseErrors: 0,
+          strategiesUsed: {},
+          proxiesUsed: {}
+        },
         errors: [{
           memberName: 'System',
           error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          type: 'system'
         }]
       };
       this.progressCallback?.(errorProgress);
@@ -180,10 +224,12 @@ class ContinuousBatchProcessor {
     }
   }
 
-  private async processMemberNews(member: Member): Promise<{
+  private async processMemberNews(member: Member, progress: BatchProgress): Promise<{
     success: boolean;
     error?: string;
+    errorType?: 'fetch' | 'database' | 'system';
     newArticles?: number;
+    fetchResult?: FetchResult;
   }> {
     const memberName = `${member.first_name} ${member.last_name}`;
     
@@ -191,58 +237,87 @@ class ContinuousBatchProcessor {
       // Use the enhanced RSS fetcher
       const result = await enhancedRssFetcher.fetchNewsForMember(memberName);
       
+      // Update strategy and proxy usage stats
+      if (result.strategy) {
+        progress.detailedStats.strategiesUsed[result.strategy] = 
+          (progress.detailedStats.strategiesUsed[result.strategy] || 0) + 1;
+      }
+      
+      if (result.proxy) {
+        progress.detailedStats.proxiesUsed[result.proxy] = 
+          (progress.detailedStats.proxiesUsed[result.proxy] || 0) + 1;
+      }
+      
       if (!result.success || result.items.length === 0) {
         return {
           success: false,
-          error: result.error || 'No news items found'
+          error: result.error || 'No news items found',
+          errorType: 'fetch',
+          fetchResult: result
         };
       }
 
-      // Store new items in database
-      let storedCount = 0;
-      
-      for (const item of result.items) {
-        try {
-          // Check if item already exists
-          const { data: existing } = await supabase
-            .from('member_news')
-            .select('id')
-            .eq('member_id', member.member_id)
-            .eq('link', item.link)
-            .single();
-
-          if (!existing) {
-            const { error: insertError } = await supabase
-              .from('member_news')
-              .insert({
-                member_id: member.member_id,
-                title: item.title,
-                link: item.link,
-                pub_date: item.pubDate,
-                description: item.description,
-                image_url: item.imageUrl
-              });
-            
-            if (!insertError) {
-              storedCount++;
-            }
-          }
-        } catch (error) {
-          console.warn(`Failed to store item for ${memberName}:`, error);
+      // Store items using database manager
+      const dbStats = await databaseManager.storeNewsItems(
+        member.member_id,
+        memberName,
+        result.items,
+        (dbProgress) => {
+          // Update progress with database operation details
+          // This could be used for more granular progress reporting
         }
-      }
+      );
 
       return {
         success: true,
-        newArticles: storedCount
+        newArticles: dbStats.successfulInserts,
+        fetchResult: result
       };
 
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorType: 'system'
       };
     }
+  }
+
+  private logFinalStatistics(progress: BatchProgress): void {
+    console.log('\n📊 === FINAL BATCH STATISTICS ===');
+    console.log(`Members processed: ${progress.processed}/${progress.totalMembers}`);
+    console.log(`Successful: ${progress.successful}`);
+    console.log(`Failed: ${progress.failed}`);
+    console.log(`New articles stored: ${progress.newArticles}`);
+    console.log(`Total articles fetched: ${progress.detailedStats.totalFetched}`);
+    console.log(`Duplicates skipped: ${progress.detailedStats.duplicatesSkipped}`);
+    console.log(`Database errors: ${progress.detailedStats.databaseErrors}`);
+    
+    console.log('\nStrategy usage:');
+    Object.entries(progress.detailedStats.strategiesUsed).forEach(([strategy, count]) => {
+      console.log(`  ${strategy}: ${count} times`);
+    });
+    
+    console.log('\nProxy usage:');
+    Object.entries(progress.detailedStats.proxiesUsed).forEach(([proxy, count]) => {
+      const proxyName = proxy || 'direct';
+      console.log(`  ${proxyName}: ${count} times`);
+    });
+    
+    // Log proxy performance
+    const proxyStats = enhancedRssFetcher.getProxyStats();
+    console.log('\nProxy performance:');
+    proxyStats.forEach(proxy => {
+      const name = proxy.url || 'direct';
+      console.log(`  ${name}: ${proxy.isWorking ? 'working' : 'disabled'}, failures: ${proxy.consecutiveFailures}`);
+    });
+    
+    // Log strategy performance
+    const strategyStats = enhancedRssFetcher.getStrategyStats();
+    console.log('\nStrategy performance:');
+    strategyStats.forEach(strategy => {
+      console.log(`  ${strategy.name}: ${(strategy.successRate * 100).toFixed(1)}% success, avg ${strategy.averageResults.toFixed(1)} results`);
+    });
   }
 
   pauseProcessing(): void {

@@ -1,15 +1,15 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
-import { Newspaper, Download, Database, RefreshCw, Loader2, CheckCircle, AlertCircle, Search, Users, Play, Pause, Square, Clock, TrendingUp } from 'lucide-react';
+import { Newspaper, Download, Database, RefreshCw, Loader2, CheckCircle, AlertCircle, Search, Users, Play, Pause, Square, Clock, TrendingUp, BarChart3, Zap, Shield } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useToast } from './ui/use-toast';
 import { continuousBatchProcessor, type BatchProgress } from '../services/continuousBatchProcessor';
 import { enhancedRssFetcher } from '../services/enhancedRssFetcher';
+import { databaseManager } from '../services/databaseManager';
 
 interface NewsStats {
   total: number;
@@ -101,41 +101,12 @@ const NewsManagementTool = () => {
       if (result.success && result.items.length > 0) {
         setResults(result.items || []);
         
-        // Store new items
-        let storedCount = 0;
-        for (const item of result.items) {
-          try {
-            const { data: existing } = await supabase
-              .from('member_news')
-              .select('id')
-              .eq('member_id', member.member_id)
-              .eq('link', item.link)
-              .single();
-
-            if (!existing) {
-              const { error: insertError } = await supabase
-                .from('member_news')
-                .insert({
-                  member_id: member.member_id,
-                  title: item.title,
-                  link: item.link,
-                  pub_date: item.pubDate,
-                  description: item.description,
-                  image_url: item.imageUrl
-                });
-              
-              if (!insertError) {
-                storedCount++;
-              }
-            }
-          } catch (error) {
-            console.warn('Failed to store item:', error);
-          }
-        }
+        // Store new items using database manager
+        const dbStats = await databaseManager.storeNewsItems(member.member_id, fullName, result.items);
         
         toast({
           title: "Test slutförd",
-          description: `Hittade ${result.items.length} artiklar för ${fullName}. ${storedCount} nya sparades. Strategi: ${result.strategy}, Proxy: ${result.proxy}`,
+          description: `Hittade ${result.items.length} artiklar för ${fullName}. ${dbStats.successfulInserts} nya sparades. Strategi: ${result.strategy}, Proxy: ${result.proxy}`,
         });
       } else {
         toast({
@@ -386,12 +357,12 @@ const NewsManagementTool = () => {
             </div>
           </div>
 
-          {/* Batch Progress */}
+          {/* Enhanced Batch Progress */}
           {batchProgress && (
             <div className="border-t pt-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center">
                 <TrendingUp className="w-5 h-5 mr-2" />
-                Batch-progress
+                Förbättrad batch-progress
               </h3>
               
               <div className="space-y-4">
@@ -415,7 +386,8 @@ const NewsManagementTool = () => {
                   className="w-full"
                 />
                 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                {/* Enhanced Statistics Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                   <div className="text-center">
                     <div className="font-semibold text-blue-600">{batchProgress.processed}</div>
                     <div className="text-gray-600">Bearbetade</div>
@@ -429,8 +401,41 @@ const NewsManagementTool = () => {
                     <div className="text-gray-600">Nya artiklar</div>
                   </div>
                   <div className="text-center">
+                    <div className="font-semibold text-purple-600">{batchProgress.detailedStats.totalFetched}</div>
+                    <div className="text-gray-600">Totalt hämtade</div>
+                  </div>
+                  <div className="text-center">
                     <div className="font-semibold text-red-600">{batchProgress.failed}</div>
                     <div className="text-gray-600">Misslyckade</div>
+                  </div>
+                </div>
+
+                {/* Additional detailed statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <h4 className="text-sm font-semibold mb-2 flex items-center">
+                      <BarChart3 className="w-4 h-4 mr-1" />
+                      Databasstatistik
+                    </h4>
+                    <div className="text-xs space-y-1">
+                      <div>Dubbletter: {batchProgress.detailedStats.duplicatesSkipped}</div>
+                      <div>Databasfel: {batchProgress.detailedStats.databaseErrors}</div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <h4 className="text-sm font-semibold mb-2 flex items-center">
+                      <Zap className="w-4 h-4 mr-1" />
+                      Mest använda strategier
+                    </h4>
+                    <div className="text-xs space-y-1">
+                      {Object.entries(batchProgress.detailedStats.strategiesUsed)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 3)
+                        .map(([strategy, count]) => (
+                          <div key={strategy}>{strategy.split('(')[0]}: {count}</div>
+                        ))}
+                    </div>
                   </div>
                 </div>
                 
@@ -443,11 +448,20 @@ const NewsManagementTool = () => {
                 
                 {batchProgress.errors.length > 0 && (
                   <div className="mt-4">
-                    <h4 className="text-sm font-semibold mb-2 text-red-600">Senaste fel:</h4>
+                    <h4 className="text-sm font-semibold mb-2 text-red-600 flex items-center">
+                      <AlertCircle className="w-4 h-4 mr-1" />
+                      Senaste fel:
+                    </h4>
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {batchProgress.errors.slice(-5).map((error, index) => (
                         <div key={index} className="text-xs bg-red-50 p-2 rounded">
-                          <span className="font-medium">{error.memberName}:</span> {error.error}
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="text-xs">
+                              {error.type}
+                            </Badge>
+                            <span className="font-medium">{error.memberName}:</span>
+                          </div>
+                          <div className="mt-1">{error.error}</div>
                         </div>
                       ))}
                     </div>
