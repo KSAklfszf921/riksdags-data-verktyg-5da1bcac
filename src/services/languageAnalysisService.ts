@@ -237,7 +237,7 @@ export class LanguageAnalysisService {
         return null;
       }
 
-      return data;
+      return data as LanguageAnalysisResult;
     } catch (error) {
       console.error('Error in language analysis:', error);
       return null;
@@ -257,7 +257,7 @@ export class LanguageAnalysisService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as LanguageAnalysisResult[];
     } catch (error) {
       console.error('Error fetching member analysis:', error);
       return [];
@@ -280,7 +280,7 @@ export class LanguageAnalysisService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as LanguageAnalysisResult[];
     } catch (error) {
       console.error('Error fetching top performers:', error);
       return [];
