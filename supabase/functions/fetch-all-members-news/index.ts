@@ -13,21 +13,23 @@ interface BatchProgress {
   successfulFetches: number;
   failedFetches: number;
   currentMember: string;
-  status: 'running' | 'completed' | 'paused' | 'error' | 'idle';
+  status: 'running' | 'completed' | 'paused' | 'error';
   startTime: string;
   estimatedCompletion?: string;
   errors: Array<{ memberName: string; error: string }>;
-  totalRssItems: number;
-  currentBatchRssItems: number;
 }
 
-// Process control
-const MEMBERS_PER_CHUNK = 5; // Process 5 members per chunk
-const DELAY_BETWEEN_MEMBERS = 2000;
+// Rate limiting and batch control
+const BATCH_SIZE = 5; // Process 5 members at a time
+const DELAY_BETWEEN_BATCHES = 3000; // 3 seconds between batches
 const MAX_RETRIES = 2;
+const REQUEST_TIMEOUT = 30000; // 30 seconds per member
+
+// Global progress tracking
+let currentProgress: BatchProgress | null = null;
 
 function estimateCompletion(processed: number, total: number, startTime: Date): string {
-  if (processed === 0) return 'Beräknar...';
+  if (processed === 0) return 'Calculating...';
   
   const elapsed = Date.now() - startTime.getTime();
   const avgTimePerMember = elapsed / processed;
@@ -45,81 +47,60 @@ async function fetchMemberNewsWithRetry(
   retryCount = 0
 ): Promise<{ success: boolean; error?: string; newsCount?: number }> {
   try {
-    console.log(`🔄 Hämtar nyheter för ${memberName} (försök ${retryCount + 1})`);
+    console.log(`Fetching news for ${memberName} (attempt ${retryCount + 1})`);
     
     const { data, error } = await supabase.functions.invoke('fetch-member-news', {
       body: { memberName, memberId }
     });
 
     if (error) {
-      throw new Error(error.message || 'Okänt fel från fetch-member-news');
+      throw new Error(error.message || 'Unknown error from fetch-member-news');
     }
 
     const newsCount = data?.newsItems?.length || 0;
-    console.log(`✅ Hämtade ${newsCount} nyhetsobjekt för ${memberName}`);
+    console.log(`✅ Successfully fetched ${newsCount} news items for ${memberName}`);
     
-    return { success: true, newsCount };
+    return { 
+      success: true, 
+      newsCount 
+    };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Okänt fel';
-    console.error(`❌ Misslyckades att hämta nyheter för ${memberName}: ${errorMessage}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Failed to fetch news for ${memberName}: ${errorMessage}`);
     
     if (retryCount < MAX_RETRIES) {
-      console.log(`🔄 Försöker igen ${memberName} om 2 sekunder...`);
+      console.log(`Retrying ${memberName} in 2 seconds...`);
       await new Promise(resolve => setTimeout(resolve, 2000));
       return fetchMemberNewsWithRetry(memberName, memberId, supabase, retryCount + 1);
     }
     
-    return { success: false, error: errorMessage };
+    return { 
+      success: false, 
+      error: errorMessage 
+    };
   }
 }
 
-async function getOrCreateBatchSession(supabase: any, sessionId: string, members: any[]) {
-  // Try to get existing session
-  const { data: existingSession } = await supabase
-    .from('batch_progress')
-    .select('*')
-    .eq('session_id', sessionId)
-    .single();
+async function processBatch(
+  members: Array<{ member_id: string; first_name: string; last_name: string }>,
+  supabase: any
+): Promise<Array<{ memberName: string; success: boolean; error?: string; newsCount?: number }>> {
+  const promises = members.map(async (member) => {
+    const memberName = `${member.first_name} ${member.last_name}`;
+    const result = await fetchMemberNewsWithRetry(memberName, member.member_id, supabase);
+    
+    return {
+      memberName,
+      memberId: member.member_id,
+      ...result
+    };
+  });
 
-  if (existingSession) {
-    return existingSession;
-  }
-
-  // Create new session
-  const { data: newSession, error } = await supabase
-    .from('batch_progress')
-    .insert({
-      session_id: sessionId,
-      status: 'idle',
-      total_members: members.length,
-      member_list: members,
-      start_time: new Date().toISOString()
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to create batch session: ${error.message}`);
-  }
-
-  return newSession;
-}
-
-async function updateBatchProgress(supabase: any, sessionId: string, updates: any) {
-  const { error } = await supabase
-    .from('batch_progress')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    .eq('session_id', sessionId);
-
-  if (error) {
-    console.error('Failed to update batch progress:', error);
-  }
+  return Promise.all(promises);
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -129,269 +110,183 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { action, sessionId = 'default' } = await req.json();
+    const { action } = await req.json();
 
     // Handle status requests
     if (action === 'status') {
-      const { data: session } = await supabase
-        .from('batch_progress')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-
-      if (!session) {
-        return new Response(
-          JSON.stringify({ 
-            progress: { 
-              status: 'idle', 
-              totalMembers: 0, 
-              processedMembers: 0, 
-              successfulFetches: 0, 
-              failedFetches: 0,
-              totalRssItems: 0,
-              currentBatchRssItems: 0,
-              currentMember: '',
-              startTime: '',
-              errors: []
-            }
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      const progress: BatchProgress = {
-        totalMembers: session.total_members,
-        processedMembers: session.processed_members,
-        successfulFetches: session.successful_fetches,
-        failedFetches: session.failed_fetches,
-        currentMember: session.current_member_name || '',
-        status: session.status,
-        startTime: session.start_time || '',
-        estimatedCompletion: session.estimated_completion,
-        errors: session.errors || [],
-        totalRssItems: session.total_rss_items,
-        currentBatchRssItems: session.current_batch_rss_items
-      };
-
       return new Response(
-        JSON.stringify({ progress }),
+        JSON.stringify({ 
+          progress: currentProgress || { status: 'idle' }
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Handle stop requests
     if (action === 'stop') {
-      await updateBatchProgress(supabase, sessionId, { status: 'paused' });
+      if (currentProgress) {
+        currentProgress.status = 'paused';
+      }
       return new Response(
-        JSON.stringify({ message: 'Batch-bearbetning pausad' }),
+        JSON.stringify({ message: 'Batch processing stopped' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Handle start/continue requests
-    if (action === 'start' || action === 'continue') {
-      console.log(`🚀 ${action === 'start' ? 'Startar' : 'Fortsätter'} batch RSS-hämtning...`);
-
-      // Get all active members if starting fresh
-      let members = [];
-      if (action === 'start') {
-        const { data: memberData, error: membersError } = await supabase
-          .from('member_data')
-          .select('member_id, first_name, last_name')
-          .eq('is_active', true)
-          .order('last_name');
-
-        if (membersError) {
-          throw new Error(`Misslyckades att hämta ledamöter: ${membersError.message}`);
-        }
-
-        members = memberData || [];
-        console.log(`Hittade ${members.length} aktiva ledamöter att bearbeta`);
-      }
-
-      // Get or create batch session
-      const session = await getOrCreateBatchSession(supabase, sessionId, members);
-      
-      if (action === 'start' && session.status === 'running') {
+    // Start batch processing
+    if (action === 'start') {
+      // Check if already running
+      if (currentProgress && currentProgress.status === 'running') {
         return new Response(
           JSON.stringify({ 
-            error: 'Batch-bearbetning körs redan',
-            progress: {
-              totalMembers: session.total_members,
-              processedMembers: session.processed_members,
-              successfulFetches: session.successful_fetches,
-              failedFetches: session.failed_fetches,
-              currentMember: session.current_member_name || '',
-              status: session.status,
-              startTime: session.start_time || '',
-              errors: session.errors || [],
-              totalRssItems: session.total_rss_items,
-              currentBatchRssItems: session.current_batch_rss_items
-            }
+            error: 'Batch processing is already running',
+            progress: currentProgress
           }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      // Mark as running
-      await updateBatchProgress(supabase, sessionId, { 
+      console.log('🚀 Starting batch RSS feed fetching for all members...');
+
+      // Fetch all active members
+      const { data: members, error: membersError } = await supabase
+        .from('member_data')
+        .select('member_id, first_name, last_name')
+        .eq('is_active', true)
+        .order('last_name');
+
+      if (membersError) {
+        throw new Error(`Failed to fetch members: ${membersError.message}`);
+      }
+
+      if (!members || members.length === 0) {
+        throw new Error('No active members found');
+      }
+
+      console.log(`Found ${members.length} active members to process`);
+
+      // Initialize progress tracking
+      const startTime = new Date();
+      currentProgress = {
+        totalMembers: members.length,
+        processedMembers: 0,
+        successfulFetches: 0,
+        failedFetches: 0,
+        currentMember: '',
         status: 'running',
-        start_time: action === 'start' ? new Date().toISOString() : session.start_time
-      });
+        startTime: startTime.toISOString(),
+        errors: []
+      };
 
-      const memberList = session.member_list || [];
-      const startIndex = session.current_member_index || 0;
-      const endIndex = Math.min(startIndex + MEMBERS_PER_CHUNK, memberList.length);
+      // Process in batches (background task)
+      EdgeRuntime.waitUntil((async () => {
+        try {
+          for (let i = 0; i < members.length; i += BATCH_SIZE) {
+            // Check if we should stop
+            if (currentProgress?.status === 'paused') {
+              console.log('Batch processing paused by user');
+              break;
+            }
 
-      console.log(`📋 Bearbetar chunk ${startIndex}-${endIndex} av ${memberList.length} ledamöter`);
+            const batch = members.slice(i, i + BATCH_SIZE);
+            console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.map(m => `${m.first_name} ${m.last_name}`).join(', ')}`);
 
-      let processedInChunk = 0;
-      let successfulInChunk = 0;
-      let failedInChunk = 0;
-      let totalRssInChunk = 0;
-      const errorsInChunk = [];
+            if (currentProgress) {
+              currentProgress.currentMember = batch.map(m => `${m.first_name} ${m.last_name}`).join(', ');
+            }
 
-      // Process the current chunk
-      for (let i = startIndex; i < endIndex; i++) {
-        // Check if we should stop
-        const { data: currentSession } = await supabase
-          .from('batch_progress')
-          .select('status')
-          .eq('session_id', sessionId)
-          .single();
+            const batchResults = await processBatch(batch, supabase);
 
-        if (currentSession?.status === 'paused') {
-          console.log('⏸️ Batch-bearbetning pausad av användare');
-          break;
-        }
+            // Update progress
+            if (currentProgress) {
+              for (const result of batchResults) {
+                currentProgress.processedMembers++;
+                if (result.success) {
+                  currentProgress.successfulFetches++;
+                } else {
+                  currentProgress.failedFetches++;
+                  if (result.error) {
+                    currentProgress.errors.push({
+                      memberName: result.memberName,
+                      error: result.error
+                    });
+                  }
+                }
+              }
 
-        const member = memberList[i];
-        const memberName = `${member.first_name} ${member.last_name}`;
-        
-        console.log(`📋 Bearbetar ledamot ${i + 1}/${memberList.length}: ${memberName}`);
+              currentProgress.estimatedCompletion = estimateCompletion(
+                currentProgress.processedMembers,
+                currentProgress.totalMembers,
+                new Date(currentProgress.startTime)
+              );
+            }
 
-        // Update current member
-        await updateBatchProgress(supabase, sessionId, {
-          current_member_name: memberName,
-          current_member_index: i,
-          current_batch_rss_items: 0
-        });
+            console.log(`Batch completed. Successful: ${batchResults.filter(r => r.success).length}, Failed: ${batchResults.filter(r => !r.success).length}`);
 
-        const result = await fetchMemberNewsWithRetry(memberName, member.member_id, supabase);
+            // Delay between batches (except for the last one)
+            if (i + BATCH_SIZE < members.length && currentProgress?.status === 'running') {
+              console.log(`Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
+              await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+            }
+          }
 
-        processedInChunk++;
-        
-        if (result.success) {
-          successfulInChunk++;
-          const rssCount = result.newsCount || 0;
-          totalRssInChunk += rssCount;
-          
-          // Update progress with current RSS count
-          await updateBatchProgress(supabase, sessionId, {
-            processed_members: session.processed_members + processedInChunk,
-            successful_fetches: session.successful_fetches + successfulInChunk,
-            failed_fetches: session.failed_fetches + failedInChunk,
-            total_rss_items: session.total_rss_items + totalRssInChunk,
-            current_batch_rss_items: rssCount
-          });
+          // Mark as completed
+          if (currentProgress && currentProgress.status === 'running') {
+            currentProgress.status = 'completed';
+            currentProgress.currentMember = 'Completed';
+            
+            const duration = Date.now() - new Date(currentProgress.startTime).getTime();
+            console.log(`🎉 Batch processing completed in ${Math.round(duration / 1000)}s`);
+            console.log(`Final results: ${currentProgress.successfulFetches} successful, ${currentProgress.failedFetches} failed`);
+          }
 
-          console.log(`📊 Totalt RSS-objekt nu: ${session.total_rss_items + totalRssInChunk} (+${rssCount} från ${memberName})`);
-        } else {
-          failedInChunk++;
-          if (result.error) {
-            errorsInChunk.push({
-              memberName: memberName,
-              error: result.error
+        } catch (error) {
+          console.error('Critical error in batch processing:', error);
+          if (currentProgress) {
+            currentProgress.status = 'error';
+            currentProgress.errors.push({
+              memberName: 'System',
+              error: error instanceof Error ? error.message : 'Unknown error'
             });
           }
         }
+      })());
 
-        // Add delay between members (except for the last one)
-        if (i < endIndex - 1) {
-          console.log(`⏱️ Väntar ${DELAY_BETWEEN_MEMBERS}ms innan nästa ledamot...`);
-          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_MEMBERS));
-        }
-      }
-
-      // Update final progress for this chunk
-      const isCompleted = endIndex >= memberList.length;
-      const newErrors = [...(session.errors || []), ...errorsInChunk];
-      
-      const finalUpdates = {
-        processed_members: session.processed_members + processedInChunk,
-        successful_fetches: session.successful_fetches + successfulInChunk,
-        failed_fetches: session.failed_fetches + failedInChunk,
-        total_rss_items: session.total_rss_items + totalRssInChunk,
-        current_member_index: endIndex,
-        errors: newErrors,
-        status: isCompleted ? 'completed' : 'running'
-      };
-
-      if (isCompleted) {
-        finalUpdates.current_member_name = 'Slutförd';
-        console.log(`🎉 Batch-bearbetning slutförd!`);
-        console.log(`📊 Slutresultat: ${session.successful_fetches + successfulInChunk} lyckade, ${session.failed_fetches + failedInChunk} misslyckade, ${session.total_rss_items + totalRssInChunk} RSS-objekt totalt`);
-      } else {
-        const estimatedCompletion = estimateCompletion(
-          session.processed_members + processedInChunk,
-          session.total_members,
-          new Date(session.start_time)
-        );
-        finalUpdates.estimated_completion = estimatedCompletion;
-      }
-
-      await updateBatchProgress(supabase, sessionId, finalUpdates);
-
-      // Get updated session data
-      const { data: updatedSession } = await supabase
-        .from('batch_progress')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-
-      const progress: BatchProgress = {
-        totalMembers: updatedSession.total_members,
-        processedMembers: updatedSession.processed_members,
-        successfulFetches: updatedSession.successful_fetches,
-        failedFetches: updatedSession.failed_fetches,
-        currentMember: updatedSession.current_member_name || '',
-        status: updatedSession.status,
-        startTime: updatedSession.start_time || '',
-        estimatedCompletion: updatedSession.estimated_completion,
-        errors: updatedSession.errors || [],
-        totalRssItems: updatedSession.total_rss_items,
-        currentBatchRssItems: updatedSession.current_batch_rss_items
-      };
-
+      // Return immediate response
       return new Response(
         JSON.stringify({ 
-          message: isCompleted 
-            ? `Batch-bearbetning slutförd! Bearbetade ${processedInChunk} ledamöter i denna chunk.`
-            : `Bearbetade chunk med ${processedInChunk} ledamöter. ${memberList.length - endIndex} ledamöter kvar.`,
-          progress,
-          isCompleted,
-          hasMore: !isCompleted
+          message: `Started batch processing for ${members.length} members`,
+          progress: currentProgress
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     return new Response(
-      JSON.stringify({ error: 'Ogiltig action-parameter' }),
+      JSON.stringify({ error: 'Invalid action parameter' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (err) {
-    console.error('=== Fel i fetch-all-members-news ===', err)
+    console.error('=== Error in fetch-all-members-news ===', err)
     
-    let errorMessage = 'Okänt fel inträffade'
+    let errorMessage = 'Unknown error occurred'
     if (err instanceof Error) {
       errorMessage = err.message
     }
 
+    if (currentProgress) {
+      currentProgress.status = 'error';
+      currentProgress.errors.push({
+        memberName: 'System',
+        error: errorMessage
+      });
+    }
+
     return new Response(
       JSON.stringify({ 
-        error: `Misslyckades att bearbeta batch: ${errorMessage}`
+        error: `Failed to process batch: ${errorMessage}`,
+        progress: currentProgress
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
