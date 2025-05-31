@@ -1,6 +1,7 @@
 
 import React from 'react';
 import DatabaseInitializer from '../components/DatabaseInitializer';
+import CalendarDataManager from '../components/CalendarDataManager';
 
 const DatabaseManager = () => {
   return (
@@ -14,7 +15,10 @@ const DatabaseManager = () => {
         </p>
       </div>
       
-      <DatabaseInitializer />
+      <div className="space-y-8">
+        <CalendarDataManager />
+        <DatabaseInitializer />
+      </div>
     </div>
   );
 };
