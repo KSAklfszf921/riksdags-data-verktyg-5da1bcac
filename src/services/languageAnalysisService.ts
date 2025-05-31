@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface LanguageAnalysisResult {
@@ -61,24 +60,39 @@ export interface MemberLanguageSummary {
   last_analysis: string;
 }
 
+export interface BatchProgress {
+  currentMember: string;
+  completedCount: number;
+  totalCount: number;
+  successCount: number;
+  errorCount: number;
+  estimatedTimeLeft: string;
+  errors: string[];
+}
+
 export class LanguageAnalysisService {
   private static complexWords = new Set([
     'återgång', 'förutsättning', 'ansvarighet', 'genomförande', 'utveckling',
     'betydelse', 'förbättring', 'möjlighet', 'verkställande', 'rättsäkerhet',
     'sammanhang', 'förändring', 'kompetens', 'organisation', 'planering',
-    'prioritering', 'konsekvens', 'förvaltning', 'hantering', 'utredning'
+    'prioritering', 'konsekvens', 'förvaltning', 'hantering', 'utredning',
+    'förfarande', 'verksamhet', 'beslutande', 'rättslig', 'förordning',
+    'lagstiftning', 'parlamentarisk', 'demokratisk', 'representation'
   ]);
 
   private static formalIndicators = new Set([
     'därför', 'således', 'emellertid', 'dessutom', 'följaktligen',
     'med anledning av', 'beträffande', 'avseende', 'enligt', 'genom',
-    'härigenom', 'jämlikt', 'oaktat', 'trots', 'utöver'
+    'härigenom', 'jämlikt', 'oaktat', 'trots', 'utöver', 'sålunda',
+    'därigenom', 'härmed', 'vidare', 'å ena sidan', 'å andra sidan'
   ]);
 
   private static technicalTerms = new Set([
     'proposition', 'betänkande', 'utskott', 'riksdag', 'motion',
     'interpellation', 'rättsfall', 'förordning', 'lagstiftning',
-    'parlamentarisk', 'konstitutionell', 'juridisk', 'demokratisk'
+    'parlamentarisk', 'konstitutionell', 'juridisk', 'demokratisk',
+    'kammare', 'plenum', 'votering', 'bordläggning', 'ärendets',
+    'remiss', 'departement', 'myndighet', 'delegation'
   ]);
 
   static analyzeText(text: string): TextAnalysisMetrics {
@@ -99,54 +113,104 @@ export class LanguageAnalysisService {
       };
     }
 
-    // Clean text from HTML tags
-    const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    
-    // Basic counts
-    const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const paragraphs = cleanText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-    const words = cleanText.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-    
-    // Word analysis
-    const uniqueWords = new Set(words);
-    const complexWordCount = words.filter(word => 
-      this.complexWords.has(word) || word.length > 10
-    ).length;
-    
-    // Passive voice detection (simplified for Swedish)
-    const passiveIndicators = ['blev', 'blivit', 'är', 'var', 'varit', 'kommer att'];
-    const passiveCount = sentences.filter(sentence => 
-      passiveIndicators.some(indicator => sentence.toLowerCase().includes(indicator))
-    ).length;
-    
-    // Question and exclamation counts
-    const questionCount = (cleanText.match(/\?/g) || []).length;
-    const exclamationCount = (cleanText.match(/!/g) || []).length;
-    
-    // Formal language indicators
-    const formalCount = words.filter(word => 
-      this.formalIndicators.has(word)
-    ).length;
-    
-    // Technical terms
-    const technicalCount = words.filter(word => 
-      this.technicalTerms.has(word)
-    ).length;
-    
-    return {
-      wordCount: words.length,
-      sentenceCount: sentences.length,
-      paragraphCount: paragraphs.length,
-      avgSentenceLength: sentences.length > 0 ? words.length / sentences.length : 0,
-      avgWordLength: words.length > 0 ? words.join('').length / words.length : 0,
-      uniqueWordsRatio: words.length > 0 ? uniqueWords.size / words.length : 0,
-      complexWordsRatio: words.length > 0 ? complexWordCount / words.length : 0,
-      passiveVoiceRatio: sentences.length > 0 ? passiveCount / sentences.length : 0,
-      questionCount,
-      exclamationCount,
-      formalLanguageIndicators: formalCount,
-      technicalTermsCount: technicalCount
-    };
+    try {
+      // Clean text from HTML tags and normalize whitespace
+      const cleanText = text
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\såäöÅÄÖ.,!?:;-]/g, '')
+        .trim();
+      
+      if (!cleanText) {
+        throw new Error('No valid text content after cleaning');
+      }
+
+      // Basic counts with improved sentence detection
+      const sentences = cleanText
+        .split(/[.!?]+/)
+        .filter(s => s.trim().length > 5 && /\w/.test(s))
+        .map(s => s.trim());
+      
+      const paragraphs = cleanText
+        .split(/\n\s*\n/)
+        .filter(p => p.trim().length > 10);
+      
+      const words = cleanText
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 2 && /[a-zåäö]/.test(w))
+        .map(w => w.replace(/[^a-zåäö]/g, ''));
+      
+      if (words.length === 0) {
+        throw new Error('No valid words found in text');
+      }
+
+      // Word analysis
+      const uniqueWords = new Set(words);
+      const complexWordCount = words.filter(word => 
+        this.complexWords.has(word) || word.length > 12
+      ).length;
+      
+      // Improved passive voice detection for Swedish
+      const passivePatterns = [
+        /\b(blev|blivit|är|var|varit|kommer att|har\s+\w+ts?)\b/gi,
+        /\b\w+a[ds]\s+av\b/gi, // words ending in -ad/-as followed by "av"
+        /\b\w+ts?\s+(av|genom)\b/gi // words ending in -t/-ts followed by "av/genom"
+      ];
+      
+      const passiveCount = sentences.filter(sentence => 
+        passivePatterns.some(pattern => pattern.test(sentence))
+      ).length;
+      
+      // Question and exclamation counts
+      const questionCount = (cleanText.match(/\?/g) || []).length;
+      const exclamationCount = (cleanText.match(/!/g) || []).length;
+      
+      // Formal language indicators (phrase matching)
+      let formalCount = 0;
+      const textLower = cleanText.toLowerCase();
+      for (const indicator of this.formalIndicators) {
+        const matches = textLower.split(indicator).length - 1;
+        formalCount += matches;
+      }
+      
+      // Technical terms
+      const technicalCount = words.filter(word => 
+        this.technicalTerms.has(word)
+      ).length;
+      
+      return {
+        wordCount: words.length,
+        sentenceCount: Math.max(sentences.length, 1),
+        paragraphCount: Math.max(paragraphs.length, 1),
+        avgSentenceLength: words.length / Math.max(sentences.length, 1),
+        avgWordLength: words.join('').length / words.length,
+        uniqueWordsRatio: uniqueWords.size / words.length,
+        complexWordsRatio: complexWordCount / words.length,
+        passiveVoiceRatio: passiveCount / Math.max(sentences.length, 1),
+        questionCount,
+        exclamationCount,
+        formalLanguageIndicators: formalCount,
+        technicalTermsCount: technicalCount
+      };
+    } catch (error) {
+      console.error('Error analyzing text:', error);
+      // Return minimal valid metrics on error
+      return {
+        wordCount: 1,
+        sentenceCount: 1,
+        paragraphCount: 1,
+        avgSentenceLength: 1,
+        avgWordLength: 5,
+        uniqueWordsRatio: 0.5,
+        complexWordsRatio: 0.1,
+        passiveVoiceRatio: 0.1,
+        questionCount: 0,
+        exclamationCount: 0,
+        formalLanguageIndicators: 0,
+        technicalTermsCount: 0
+      };
+    }
   }
 
   static calculateScores(metrics: TextAnalysisMetrics): {
@@ -156,54 +220,81 @@ export class LanguageAnalysisService {
     structuralClarity: number;
     overall: number;
   } {
-    // Language Complexity (1-100)
-    const complexityFactors = [
-      Math.min(metrics.avgSentenceLength / 20 * 100, 100),
-      Math.min(metrics.avgWordLength / 8 * 100, 100),
-      metrics.complexWordsRatio * 100,
-      metrics.passiveVoiceRatio * 100
-    ];
-    const languageComplexity = Math.round(
-      complexityFactors.reduce((sum, factor) => sum + factor, 0) / complexityFactors.length
-    );
+    try {
+      // Language Complexity (1-100) - Balanced scoring
+      const sentenceLengthScore = Math.min(Math.max(metrics.avgSentenceLength / 25 * 100, 10), 90);
+      const wordLengthScore = Math.min(Math.max(metrics.avgWordLength / 7 * 100, 10), 90);
+      const complexityScore = Math.min(metrics.complexWordsRatio * 200, 80);
+      const passiveScore = Math.min(metrics.passiveVoiceRatio * 150, 70);
+      
+      const languageComplexity = Math.round(
+        (sentenceLengthScore * 0.3 + wordLengthScore * 0.2 + complexityScore * 0.3 + passiveScore * 0.2)
+      );
 
-    // Vocabulary Richness (1-100)
-    const vocabularyRichness = Math.round(
-      Math.min(metrics.uniqueWordsRatio * 150, 100)
-    );
+      // Vocabulary Richness (1-100) - Enhanced calculation
+      const uniquenessBonus = metrics.uniqueWordsRatio > 0.7 ? 20 : 0;
+      const vocabularyRichness = Math.round(
+        Math.min(metrics.uniqueWordsRatio * 120 + uniquenessBonus, 100)
+      );
 
-    // Rhetorical Elements (1-100)
-    const rhetoricalScore = Math.min(
-      (metrics.questionCount + metrics.exclamationCount + metrics.formalLanguageIndicators) / 
-      Math.max(metrics.sentenceCount, 1) * 100, 100
-    );
-    const rhetoricalElements = Math.round(rhetoricalScore);
+      // Rhetorical Elements (1-100) - Balanced approach
+      const questionRatio = metrics.questionCount / Math.max(metrics.sentenceCount, 1);
+      const exclamationRatio = metrics.exclamationCount / Math.max(metrics.sentenceCount, 1);
+      const formalRatio = metrics.formalLanguageIndicators / Math.max(metrics.wordCount, 1);
+      const technicalRatio = metrics.technicalTermsCount / Math.max(metrics.wordCount, 1);
+      
+      const rhetoricalScore = (
+        Math.min(questionRatio * 200, 25) +
+        Math.min(exclamationRatio * 150, 20) +
+        Math.min(formalRatio * 500, 30) +
+        Math.min(technicalRatio * 300, 25)
+      );
+      const rhetoricalElements = Math.round(Math.max(Math.min(rhetoricalScore, 100), 10));
 
-    // Structural Clarity (1-100)
-    const idealSentenceLength = 15;
-    const sentenceLengthScore = Math.max(0, 100 - Math.abs(metrics.avgSentenceLength - idealSentenceLength) * 5);
-    const paragraphScore = metrics.paragraphCount > 0 ? Math.min(metrics.sentenceCount / metrics.paragraphCount * 10, 100) : 50;
-    const structuralClarity = Math.round((sentenceLengthScore + paragraphScore) / 2);
+      // Structural Clarity (1-100) - Improved calculation
+      const idealSentenceLength = 18;
+      const sentenceLengthScore2 = Math.max(0, 100 - Math.abs(metrics.avgSentenceLength - idealSentenceLength) * 3);
+      const paragraphBalance = Math.min(metrics.sentenceCount / Math.max(metrics.paragraphCount, 1) * 8, 100);
+      const structuralClarity = Math.round((sentenceLengthScore2 * 0.6 + paragraphBalance * 0.4));
 
-    // Overall Score
-    const overall = Math.round(
-      (languageComplexity + vocabularyRichness + rhetoricalElements + structuralClarity) / 4
-    );
+      // Overall Score - Weighted average
+      const overall = Math.round(
+        (languageComplexity * 0.25 + vocabularyRichness * 0.3 + rhetoricalElements * 0.2 + structuralClarity * 0.25)
+      );
 
-    return {
-      languageComplexity: Math.max(1, Math.min(100, languageComplexity)),
-      vocabularyRichness: Math.max(1, Math.min(100, vocabularyRichness)),
-      rhetoricalElements: Math.max(1, Math.min(100, rhetoricalElements)),
-      structuralClarity: Math.max(1, Math.min(100, structuralClarity)),
-      overall: Math.max(1, Math.min(100, overall))
-    };
+      return {
+        languageComplexity: Math.max(1, Math.min(100, languageComplexity)),
+        vocabularyRichness: Math.max(1, Math.min(100, vocabularyRichness)),
+        rhetoricalElements: Math.max(1, Math.min(100, rhetoricalElements)),
+        structuralClarity: Math.max(1, Math.min(100, structuralClarity)),
+        overall: Math.max(1, Math.min(100, overall))
+      };
+    } catch (error) {
+      console.error('Error calculating scores:', error);
+      // Return default scores on error
+      return {
+        languageComplexity: 50,
+        vocabularyRichness: 50,
+        rhetoricalElements: 50,
+        structuralClarity: 50,
+        overall: 50
+      };
+    }
   }
 
-  static async analyzeCurrentMembers(limit: number = 50): Promise<void> {
-    console.log('Starting language analysis for current members...');
-    
+  static async batchAnalyzeMembers(
+    onProgress?: (progress: BatchProgress) => void,
+    limit: number = 100
+  ): Promise<{ success: number; errors: number; details: string[] }> {
+    const startTime = new Date();
+    let successCount = 0;
+    let errorCount = 0;
+    const errorDetails: string[] = [];
+
     try {
-      // Hämta nuvarande aktiva ledamöter
+      console.log('Starting batch language analysis...');
+      
+      // Hämta aktiva ledamöter
       const { data: members, error: membersError } = await supabase
         .from('member_data')
         .select('member_id, first_name, last_name')
@@ -211,52 +302,150 @@ export class LanguageAnalysisService {
         .limit(limit);
 
       if (membersError) {
-        console.error('Error fetching members:', membersError);
-        return;
+        throw new Error(`Fel vid hämtning av ledamöter: ${membersError.message}`);
       }
 
-      console.log(`Found ${members?.length || 0} active members to analyze`);
-
-      for (const member of members || []) {
-        await this.analyzeMemberLanguage(member.member_id, `${member.first_name} ${member.last_name}`);
-        // Lägg till en kort paus för att inte överbelasta databasen
-        await new Promise(resolve => setTimeout(resolve, 100));
+      if (!members || members.length === 0) {
+        throw new Error('Inga aktiva ledamöter hittades');
       }
 
-      console.log('Language analysis completed for all members');
-    } catch (error) {
-      console.error('Error in analyzeCurrentMembers:', error);
+      console.log(`Startar analys för ${members.length} aktiva ledamöter`);
+
+      for (let i = 0; i < members.length; i++) {
+        const member = members[i];
+        const memberName = `${member.first_name} ${member.last_name}`;
+        
+        // Uppdatera progress
+        if (onProgress) {
+          const elapsed = new Date().getTime() - startTime.getTime();
+          const avgTimePerMember = elapsed / Math.max(i, 1);
+          const remainingMembers = members.length - i;
+          const estimatedRemaining = remainingMembers * avgTimePerMember;
+          
+          const minutes = Math.floor(estimatedRemaining / 60000);
+          const seconds = Math.floor((estimatedRemaining % 60000) / 1000);
+          
+          onProgress({
+            currentMember: memberName,
+            completedCount: i,
+            totalCount: members.length,
+            successCount,
+            errorCount,
+            estimatedTimeLeft: `${minutes}m ${seconds}s`,
+            errors: errorDetails.slice(-5) // Visa bara de senaste 5 felen
+          });
+        }
+        
+        try {
+          await this.analyzeMemberLanguage(member.member_id, memberName);
+          successCount++;
+          console.log(`✓ Slutförd analys för ${memberName} (${i + 1}/${members.length})`);
+          
+          // Paus för att inte överbelasta systemet
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (memberError: any) {
+          errorCount++;
+          const errorMsg = `${memberName}: ${memberError.message}`;
+          errorDetails.push(errorMsg);
+          console.error(`✗ Fel vid analys av ${memberName}:`, memberError);
+        }
+      }
+
+      // Final progress update
+      if (onProgress) {
+        onProgress({
+          currentMember: 'Analys slutförd',
+          completedCount: members.length,
+          totalCount: members.length,
+          successCount,
+          errorCount,
+          estimatedTimeLeft: '',
+          errors: errorDetails.slice(-10)
+        });
+      }
+
+      console.log(`Batch-analys slutförd: ${successCount} lyckades, ${errorCount} fel`);
+      
+      return {
+        success: successCount,
+        errors: errorCount,
+        details: errorDetails
+      };
+
+    } catch (error: any) {
+      console.error('Kritiskt fel i batch-analys:', error);
+      errorDetails.push(`Kritiskt fel: ${error.message}`);
+      
+      if (onProgress) {
+        onProgress({
+          currentMember: 'Fel uppstod',
+          completedCount: 0,
+          totalCount: 0,
+          successCount,
+          errorCount: errorCount + 1,
+          estimatedTimeLeft: '',
+          errors: errorDetails
+        });
+      }
+      
+      return {
+        success: successCount,
+        errors: errorCount + 1,
+        details: errorDetails
+      };
     }
   }
 
-  static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<void> {
+  static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<number> {
+    let analyzedCount = 0;
+    
     try {
-      console.log(`Analyzing language for member: ${memberName} (${memberId})`);
+      console.log(`Analyserar språk för ${memberName} (${memberId})`);
 
-      // Hämta anföranden för ledamoten
+      // Kontrollera om medlemmen redan har recenta analyser
+      const { data: existingAnalyses } = await supabase
+        .from('language_analysis')
+        .select('analysis_date')
+        .eq('member_id', memberId)
+        .gte('analysis_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (existingAnalyses && existingAnalyses.length > 0) {
+        console.log(`Hoppar över ${memberName} - har redan recent analys`);
+        return 0;
+      }
+
+      // Hämta anföranden
       const { data: speeches, error: speechError } = await supabase
         .from('speech_data')
         .select('speech_id, anforandetext, rel_dok_titel, anforandedatum')
         .eq('intressent_id', memberId)
         .not('anforandetext', 'is', null)
+        .gte('anforandetext', '') // Undvik tomma strängar
         .order('anforandedatum', { ascending: false })
-        .limit(20); // Begränsa till de senaste 20 anförandena
+        .limit(15);
 
       if (speechError) {
-        console.error('Error fetching speeches:', speechError);
+        console.error('Fel vid hämtning av anföranden:', speechError);
       }
 
       // Analysera anföranden
       for (const speech of speeches || []) {
-        if (speech.anforandetext && speech.anforandetext.trim().length > 100) {
-          await this.saveAnalysis(
-            memberId,
-            memberName,
-            'speech',
-            speech.speech_id,
-            speech.rel_dok_titel || 'Anförande',
-            speech.anforandetext
-          );
+        if (speech.anforandetext && speech.anforandetext.trim().length > 150) {
+          try {
+            await this.saveAnalysis(
+              memberId,
+              memberName,
+              'speech',
+              speech.speech_id,
+              speech.rel_dok_titel || 'Anförande',
+              speech.anforandetext
+            );
+            analyzedCount++;
+          } catch (error) {
+            console.error(`Fel vid analys av anförande för ${memberName}:`, error);
+          }
         }
       }
 
@@ -265,32 +454,45 @@ export class LanguageAnalysisService {
         .from('document_data')
         .select('document_id, titel, datum, content_preview')
         .eq('intressent_id', memberId)
-        .eq('typ', 'fr') // Skriftliga frågor
+        .eq('typ', 'fr')
         .not('content_preview', 'is', null)
+        .gte('content_preview', '') // Undvik tomma strängar
         .order('datum', { ascending: false })
-        .limit(10); // Begränsa till de senaste 10 frågorna
+        .limit(8);
 
       if (questionError) {
-        console.error('Error fetching written questions:', questionError);
+        console.error('Fel vid hämtning av skriftliga frågor:', questionError);
       }
 
       // Analysera skriftliga frågor
       for (const question of questions || []) {
-        if (question.content_preview && question.content_preview.trim().length > 50) {
-          await this.saveAnalysis(
-            memberId,
-            memberName,
-            'written_question',
-            question.document_id,
-            question.titel || 'Skriftlig fråga',
-            question.content_preview
-          );
+        if (question.content_preview && question.content_preview.trim().length > 80) {
+          try {
+            await this.saveAnalysis(
+              memberId,
+              memberName,
+              'written_question',
+              question.document_id,
+              question.titel || 'Skriftlig fråga',
+              question.content_preview
+            );
+            analyzedCount++;
+          } catch (error) {
+            console.error(`Fel vid analys av skriftlig fråga för ${memberName}:`, error);
+          }
         }
       }
 
-      console.log(`Completed analysis for ${memberName}`);
-    } catch (error) {
-      console.error(`Error analyzing member ${memberName}:`, error);
+      if (analyzedCount === 0) {
+        throw new Error('Ingen giltig text hittades för analys');
+      }
+
+      console.log(`Slutförde analys för ${memberName}: ${analyzedCount} dokument`);
+      return analyzedCount;
+      
+    } catch (error: any) {
+      console.error(`Fel vid analys av ${memberName}:`, error);
+      throw new Error(`Analys misslyckades: ${error.message}`);
     }
   }
 
@@ -303,6 +505,10 @@ export class LanguageAnalysisService {
     text: string
   ): Promise<LanguageAnalysisResult | null> {
     try {
+      if (!text || text.trim().length < 50) {
+        throw new Error('Text för kort för analys');
+      }
+
       const metrics = this.analyzeText(text);
       const scores = this.calculateScores(metrics);
 
@@ -319,17 +525,18 @@ export class LanguageAnalysisService {
         structural_clarity_score: scores.structuralClarity,
         word_count: metrics.wordCount,
         sentence_count: metrics.sentenceCount,
-        paragraph_count: metrics.paragraphCount,
-        avg_sentence_length: metrics.avgSentenceLength,
-        avg_word_length: metrics.avgWordLength,
-        unique_words_ratio: metrics.uniqueWordsRatio,
-        complex_words_ratio: metrics.complexWordsRatio,
-        passive_voice_ratio: metrics.passiveVoiceRatio,
+        paragraph_count: metrics.paragraph_count,
+        avg_sentence_length: Math.round(metrics.avgSentenceLength * 10) / 10,
+        avg_word_length: Math.round(metrics.avgWordLength * 10) / 10,
+        unique_words_ratio: Math.round(metrics.uniqueWordsRatio * 1000) / 1000,
+        complex_words_ratio: Math.round(metrics.complexWordsRatio * 1000) / 1000,
+        passive_voice_ratio: Math.round(metrics.passiveVoiceRatio * 1000) / 1000,
         question_count: metrics.questionCount,
         exclamation_count: metrics.exclamationCount,
         formal_language_indicators: metrics.formalLanguageIndicators,
         technical_terms_count: metrics.technicalTermsCount,
-        full_text: text.length > 10000 ? text.substring(0, 10000) + '...' : text
+        full_text: text.length > 10000 ? text.substring(0, 10000) + '...' : text,
+        analysis_version: '2.0'
       };
 
       const { data, error } = await supabase
@@ -342,14 +549,14 @@ export class LanguageAnalysisService {
         .single();
 
       if (error) {
-        console.error('Error saving language analysis:', error);
-        return null;
+        console.error('Fel vid sparande av språkanalys:', error);
+        throw new Error(`Databas fel: ${error.message}`);
       }
 
       return data as LanguageAnalysisResult;
-    } catch (error) {
-      console.error('Error in language analysis:', error);
-      return null;
+    } catch (error: any) {
+      console.error('Fel i språkanalys:', error);
+      throw error;
     }
   }
 
@@ -489,6 +696,53 @@ export class LanguageAnalysisService {
         level: 'Mycket låg',
         description: 'Begränsad språklig kvalitet med mycket enkelt ordförråd och struktur',
         color: 'text-red-700 bg-red-50'
+      };
+    }
+  }
+
+  static async getAnalysisStatistics(): Promise<{
+    totalAnalyses: number;
+    totalMembers: number;
+    averageScore: number;
+    lastWeekAnalyses: number;
+  }> {
+    try {
+      const [totalResult, membersResult, avgResult, weekResult] = await Promise.all([
+        supabase
+          .from('language_analysis')
+          .select('id', { count: 'exact' }),
+        supabase
+          .from('language_analysis')
+          .select('member_id')
+          .not('member_id', 'is', null),
+        supabase
+          .from('language_analysis')
+          .select('overall_score'),
+        supabase
+          .from('language_analysis')
+          .select('id', { count: 'exact' })
+          .gte('analysis_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      ]);
+
+      const totalAnalyses = totalResult.count || 0;
+      const uniqueMembers = new Set(membersResult.data?.map(d => d.member_id) || []).size;
+      const avgScore = avgResult.data?.length ? 
+        Math.round(avgResult.data.reduce((sum, d) => sum + d.overall_score, 0) / avgResult.data.length) : 0;
+      const lastWeekAnalyses = weekResult.count || 0;
+
+      return {
+        totalAnalyses,
+        totalMembers: uniqueMembers,
+        averageScore: avgScore,
+        lastWeekAnalyses
+      };
+    } catch (error) {
+      console.error('Error fetching analysis statistics:', error);
+      return {
+        totalAnalyses: 0,
+        totalMembers: 0,
+        averageScore: 0,
+        lastWeekAnalyses: 0
       };
     }
   }
