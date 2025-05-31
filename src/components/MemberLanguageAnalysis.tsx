@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -53,7 +52,7 @@ const MemberLanguageAnalysis = ({ memberId, memberName }: MemberLanguageAnalysis
   const startAnalysis = async () => {
     setAnalyzing(true);
     try {
-      await LanguageAnalysisService.analyzeMemberLanguage(memberId, memberName);
+      await LanguageAnalysisService.analyzeMemberLanguageEnhanced(memberId, memberName);
       await fetchLanguageData();
     } catch (error) {
       console.error('Error starting analysis:', error);
