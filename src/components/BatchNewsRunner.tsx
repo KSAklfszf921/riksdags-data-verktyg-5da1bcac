@@ -38,14 +38,11 @@ const BatchNewsRunner = () => {
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (isPolling && (progress.status === 'running' || progress.status === 'paused')) {
+    if (isPolling && progress.status === 'running') {
       intervalId = setInterval(async () => {
         try {
           const { data, error } = await supabase.functions.invoke('fetch-all-members-news', {
-            body: {},
-            headers: { 'Content-Type': 'application/json' }
-          }, {
-            method: 'GET'
+            body: { action: 'status' }
           });
 
           if (error) {
@@ -317,14 +314,6 @@ const BatchNewsRunner = () => {
             </div>
           </div>
         )}
-
-        {/* Instructions */}
-        <div className="text-xs text-gray-500 space-y-1">
-          <div>• This tool fetches RSS news feeds for all active parliament members</div>
-          <div>• Processing happens in batches with intelligent rate limiting</div>
-          <div>• The process can be stopped and resumed at any time</div>
-          <div>• News articles are automatically stored in the database</div>
-        </div>
       </CardContent>
     </Card>
   );

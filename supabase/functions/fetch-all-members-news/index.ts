@@ -110,8 +110,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const url = new URL(req.url);
-    const action = url.searchParams.get('action') || 'start';
+    const { action } = await req.json();
 
     // Handle status requests
     if (action === 'status') {
