@@ -6,9 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, Database, Zap, Activity, Search, Filter } from 'lucide-react';
+import { Shield, Database, Zap, Activity, Search, Filter, Users } from 'lucide-react';
 import EnhancedTestRunner from '../components/EnhancedTestRunner';
 import CalendarTestRunner from '../components/CalendarTestRunner';
+import BatchNewsRunner from '../components/BatchNewsRunner';
 
 const Testverktyg = () => {
   return (
@@ -46,12 +47,13 @@ const Testverktyg = () => {
                       <li>Datumintervall-filtrering och ämnesbaserad sökning</li>
                       <li>Språkanalys-filtrering och kvalitetstestning</li>
                       <li>Förbättrad felklassificering och debugging-information</li>
+                      <li>Batch RSS-feed hämtning för alla aktiva ledamöter</li>
                     </ul>
                   </div>
                 </AlertDescription>
               </Alert>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div className="bg-green-50 p-4 rounded-lg text-center">
                   <Database className="w-8 h-8 mx-auto text-green-600 mb-2" />
                   <div className="font-medium text-green-800">API Testing</div>
@@ -72,14 +74,20 @@ const Testverktyg = () => {
                   <div className="font-medium text-orange-800">Filter Testing</div>
                   <div className="text-sm text-orange-700">Multiple filters</div>
                 </div>
+                <div className="bg-indigo-50 p-4 rounded-lg text-center">
+                  <Users className="w-8 h-8 mx-auto text-indigo-600 mb-2" />
+                  <div className="font-medium text-indigo-800">Batch RSS</div>
+                  <div className="text-sm text-indigo-700">All members</div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           <Tabs defaultValue="enhanced" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="enhanced">Enhanced Test Suite</TabsTrigger>
               <TabsTrigger value="calendar">Calendar Tests</TabsTrigger>
+              <TabsTrigger value="batch-rss">Batch RSS</TabsTrigger>
             </TabsList>
 
             <TabsContent value="enhanced" className="space-y-4">
@@ -106,6 +114,20 @@ const Testverktyg = () => {
                 </CardHeader>
                 <CardContent>
                   <CalendarTestRunner />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="batch-rss" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Batch RSS Feed Fetcher</CardTitle>
+                  <CardDescription>
+                    Automatisk hämtning av RSS-feeds för alla aktiva riksdagsledamöter
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <BatchNewsRunner />
                 </CardContent>
               </Card>
             </TabsContent>
