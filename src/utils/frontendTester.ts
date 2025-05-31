@@ -161,43 +161,63 @@ export class FrontendTester extends CalendarTester {
       
       const errorTests = [];
 
-      // Test invalid query
+      // Test invalid query - using a valid table but invalid column
       try {
         const { data, error } = await supabase
-          .from('non_existent_table')
-          .select('*');
+          .from('calendar_data')
+          .select('non_existent_column')
+          .limit(1);
 
         errorTests.push({
-          test: 'invalid_table',
+          test: 'invalid_column',
           errorHandled: !!error,
           errorMessage: error?.message || 'No error'
         });
       } catch (error) {
         errorTests.push({
-          test: 'invalid_table',
+          test: 'invalid_column',
           errorHandled: true,
           errorMessage: error instanceof Error ? error.message : 'Unknown error'
         });
       }
 
-      // Test network simulation (timeout)
+      // Test invalid filter value
       try {
-        const controller = new AbortController();
-        setTimeout(() => controller.abort(), 100); // Very short timeout
-
         const { data, error } = await supabase
           .from('calendar_data')
           .select('*')
-          .limit(1000); // Large query
+          .eq('datum', 'invalid-date-format')
+          .limit(1);
 
         errorTests.push({
-          test: 'network_timeout',
+          test: 'invalid_filter',
           errorHandled: !!error,
-          errorMessage: error?.message || 'Completed unexpectedly'
+          errorMessage: error?.message || 'Query completed without error'
         });
       } catch (error) {
         errorTests.push({
-          test: 'network_timeout',
+          test: 'invalid_filter',
+          errorHandled: true,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // Test empty result handling
+      try {
+        const { data, error } = await supabase
+          .from('calendar_data')
+          .select('*')
+          .eq('event_id', 'definitely-non-existent-id-12345')
+          .limit(1);
+
+        errorTests.push({
+          test: 'empty_result',
+          errorHandled: !error && (!data || data.length === 0),
+          errorMessage: error?.message || `Found ${data?.length || 0} results`
+        });
+      } catch (error) {
+        errorTests.push({
+          test: 'empty_result',
           errorHandled: true,
           errorMessage: error instanceof Error ? error.message : 'Unknown error'
         });
