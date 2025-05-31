@@ -59,10 +59,17 @@ const NewBatchRssRunner = () => {
         .limit(5);
 
       if (error) throw error;
-      setRecentJobs(data || []);
+      
+      // Type cast the data to ensure proper typing
+      const typedJobs = (data || []).map(job => ({
+        ...job,
+        status: job.status as BatchJob['status']
+      })) as BatchJob[];
+      
+      setRecentJobs(typedJobs);
 
       // Check if there's a currently running job
-      const runningJob = data?.find(job => job.status === 'running');
+      const runningJob = typedJobs.find(job => job.status === 'running');
       if (runningJob) {
         setCurrentJob(runningJob);
         setIsPolling(true);
@@ -84,10 +91,16 @@ const NewBatchRssRunner = () => {
 
       if (error) throw error;
 
-      setCurrentJob(data);
+      // Type cast the data to ensure proper typing
+      const typedJob = {
+        ...data,
+        status: data.status as BatchJob['status']
+      } as BatchJob;
+
+      setCurrentJob(typedJob);
       setLastUpdate(new Date());
 
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+      if (typedJob.status === 'completed' || typedJob.status === 'failed' || typedJob.status === 'cancelled') {
         setIsPolling(false);
         loadRecentJobs();
       }
