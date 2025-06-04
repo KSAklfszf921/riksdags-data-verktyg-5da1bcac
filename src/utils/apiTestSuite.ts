@@ -57,7 +57,7 @@ export class ApiTestSuite extends EnhancedTester {
       async () => {
         const { data, error } = await supabase
           .from('vote_data')
-          .select('id, beteckning, avser, metadata')
+          .select('id, beteckning, avser, vote_statistics')
           .limit(5);
         
         if (error) throw new Error(`Vote API failed: ${error.message}`);
@@ -115,6 +115,22 @@ export class ApiTestSuite extends EnhancedTester {
     );
   }
 
+  async testLanguageAnalysisApi(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Language Analysis API',
+      async () => {
+        const { data, error } = await supabase
+          .from('language_analysis')
+          .select('id, member_name, overall_score, analysis_date')
+          .limit(5);
+        
+        if (error) throw new Error(`Language Analysis API failed: ${error.message}`);
+        return data;
+      },
+      (data) => Array.isArray(data) && data.length >= 0
+    );
+  }
+
   async runAllApiTests(): Promise<void> {
     await this.testSupabaseConnection();
     await this.testCalendarDataApi();
@@ -123,5 +139,6 @@ export class ApiTestSuite extends EnhancedTester {
     await this.testDocumentDataApi();
     await this.testMemberDataApi();
     await this.testPartyDataApi();
+    await this.testLanguageAnalysisApi();
   }
 }

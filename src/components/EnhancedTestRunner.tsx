@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 import { ApiTestSuite } from '../utils/apiTestSuite';
 import { DataValidationSuite } from '../utils/dataValidationSuite';
-import { ComprehensiveTestSuite } from '../utils/comprehensiveTestSuite';
+import { ComprehensiveApiTestSuite } from '../utils/comprehensiveTestSuite';
 import { SearchFilterTestSuite } from '../utils/searchFilterTestSuite';
 import { EnhancedTestSuite, DetailedTestResult } from '../utils/enhancedTestUtils';
 import CalendarTestRunner from './CalendarTestRunner';
@@ -146,12 +147,21 @@ const EnhancedTestRunner = () => {
 
     try {
       addLog('Starting comprehensive tests...');
-      const tester = new ComprehensiveTestSuite();
+      const tester = new ComprehensiveApiTestSuite();
       const tests = [
-        'Data Integrity Verification',
-        'System Performance Assessment',
-        'Data Completeness Assessment',
-        'Search Functionality Assessment'
+        'Member Basic Fetching',
+        'Member Details with Assignments',
+        'Committee Filtering',
+        'Member Search',
+        'Member Documents',
+        'Member Speeches',
+        'Calendar Data Formatting',
+        'Speech Data Quality',
+        'Vote Data Structure',
+        'Document Search',
+        'Party Data Accuracy',
+        'Language Analysis Data',
+        'Data Sync Log Integrity'
       ];
 
       for (let i = 0; i < tests.length; i++) {
@@ -162,7 +172,7 @@ const EnhancedTestRunner = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      await tester.runComprehensiveTests();
+      await tester.runAllComprehensiveTests();
       const suite = tester.getSummary();
       setComprehensiveSuite(suite);
       addLog(`Comprehensive tests completed: ${suite.summary.passed}/${suite.summary.total} passed`);

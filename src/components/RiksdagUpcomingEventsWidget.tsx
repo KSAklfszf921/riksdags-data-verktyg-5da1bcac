@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,8 @@ import {
   fetchUpcomingEvents,
   formatEventDate, 
   formatEventTime,
+  getEventTitle,
+  getEventTypeDescription,
   type CachedCalendarData 
 } from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
@@ -160,9 +163,9 @@ const RiksdagUpcomingEventsWidget = () => {
                   <div className="text-xs font-medium text-gray-500 uppercase">
                     {formatEventDateShort(event.datum)}
                   </div>
-                  {event.start_time && (
+                  {event.tid && (
                     <div className="text-xs text-gray-400 mt-1">
-                      {formatEventTime(event.start_time)}
+                      {formatEventTime(event.tid)}
                     </div>
                   )}
                 </div>
@@ -171,18 +174,23 @@ const RiksdagUpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {event.summary || 'Händelse'}
+                        {getEventTitle(event)}
                       </h4>
-                      {event.location && (
+                      {getEventTypeDescription(event) && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {getEventTypeDescription(event)}
+                        </div>
+                      )}
+                      {event.plats && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <MapPin className="w-3 h-3 mr-1" />
-                          <span className="truncate">{event.location}</span>
+                          <span className="truncate">{event.plats}</span>
                         </div>
                       )}
                       <div className="flex items-center space-x-1 mt-1">
                         {event.typ && (
                           <Badge variant="outline" className="text-xs">
-                            {event.typ}
+                            {getEventTypeDescription(event) || event.typ}
                           </Badge>
                         )}
                       </div>

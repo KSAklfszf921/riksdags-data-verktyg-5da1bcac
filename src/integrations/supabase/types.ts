@@ -9,57 +9,120 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      calendar_data: {
+      automated_sync_status: {
         Row: {
-          agenda_items: Json | null
-          created_at: string
-          datum: string
-          description: string | null
-          end_time: string | null
-          event_id: string
+          completed_at: string | null
+          error_message: string | null
           id: string
-          location: string | null
-          metadata: Json | null
-          organ: string | null
-          participants: Json | null
-          start_time: string | null
-          summary: string | null
-          typ: string | null
+          started_at: string
+          stats: Json | null
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json | null
+          status: string
+          sync_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          sync_type?: string
+        }
+        Relationships: []
+      }
+      cached_toplists: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          riksdags_year: string
           updated_at: string
         }
         Insert: {
-          agenda_items?: Json | null
           created_at?: string
-          datum: string
-          description?: string | null
-          end_time?: string | null
-          event_id: string
+          data: Json
           id?: string
-          location?: string | null
-          metadata?: Json | null
-          organ?: string | null
-          participants?: Json | null
-          start_time?: string | null
-          summary?: string | null
-          typ?: string | null
+          riksdags_year: string
           updated_at?: string
         }
         Update: {
-          agenda_items?: Json | null
           created_at?: string
-          datum?: string
-          description?: string | null
-          end_time?: string | null
-          event_id?: string
+          data?: Json
           id?: string
-          location?: string | null
+          riksdags_year?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      calendar_data: {
+        Row: {
+          aktivitet: string | null
+          created_at: string
+          datum: string | null
+          description: string | null
+          event_id: string
+          id: string
+          metadata: Json | null
+          organ: string | null
+          participants: Json | null
+          plats: string | null
+          related_documents: Json | null
+          sekretess: string | null
+          status: string | null
+          summary: string | null
+          tid: string | null
+          typ: string | null
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          aktivitet?: string | null
+          created_at?: string
+          datum?: string | null
+          description?: string | null
+          event_id: string
+          id?: string
           metadata?: Json | null
           organ?: string | null
           participants?: Json | null
-          start_time?: string | null
+          plats?: string | null
+          related_documents?: Json | null
+          sekretess?: string | null
+          status?: string | null
           summary?: string | null
+          tid?: string | null
           typ?: string | null
           updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          aktivitet?: string | null
+          created_at?: string
+          datum?: string | null
+          description?: string | null
+          event_id?: string
+          id?: string
+          metadata?: Json | null
+          organ?: string | null
+          participants?: Json | null
+          plats?: string | null
+          related_documents?: Json | null
+          sekretess?: string | null
+          status?: string | null
+          summary?: string | null
+          tid?: string | null
+          typ?: string | null
+          updated_at?: string
+          url?: string | null
         }
         Relationships: []
       }
@@ -180,6 +243,99 @@ export type Database = {
         }
         Relationships: []
       }
+      language_analysis: {
+        Row: {
+          analysis_date: string
+          analysis_version: string
+          avg_sentence_length: number | null
+          avg_word_length: number | null
+          complex_words_ratio: number | null
+          created_at: string
+          document_id: string
+          document_title: string | null
+          document_type: string
+          exclamation_count: number
+          formal_language_indicators: number
+          full_text: string | null
+          id: string
+          language_complexity_score: number
+          member_id: string
+          member_name: string
+          overall_score: number
+          paragraph_count: number
+          passive_voice_ratio: number | null
+          question_count: number
+          rhetorical_elements_score: number
+          sentence_count: number
+          structural_clarity_score: number
+          technical_terms_count: number
+          unique_words_ratio: number | null
+          updated_at: string
+          vocabulary_richness_score: number
+          word_count: number
+        }
+        Insert: {
+          analysis_date?: string
+          analysis_version?: string
+          avg_sentence_length?: number | null
+          avg_word_length?: number | null
+          complex_words_ratio?: number | null
+          created_at?: string
+          document_id: string
+          document_title?: string | null
+          document_type: string
+          exclamation_count?: number
+          formal_language_indicators?: number
+          full_text?: string | null
+          id?: string
+          language_complexity_score: number
+          member_id: string
+          member_name: string
+          overall_score: number
+          paragraph_count?: number
+          passive_voice_ratio?: number | null
+          question_count?: number
+          rhetorical_elements_score: number
+          sentence_count?: number
+          structural_clarity_score: number
+          technical_terms_count?: number
+          unique_words_ratio?: number | null
+          updated_at?: string
+          vocabulary_richness_score: number
+          word_count?: number
+        }
+        Update: {
+          analysis_date?: string
+          analysis_version?: string
+          avg_sentence_length?: number | null
+          avg_word_length?: number | null
+          complex_words_ratio?: number | null
+          created_at?: string
+          document_id?: string
+          document_title?: string | null
+          document_type?: string
+          exclamation_count?: number
+          formal_language_indicators?: number
+          full_text?: string | null
+          id?: string
+          language_complexity_score?: number
+          member_id?: string
+          member_name?: string
+          overall_score?: number
+          paragraph_count?: number
+          passive_voice_ratio?: number | null
+          question_count?: number
+          rhetorical_elements_score?: number
+          sentence_count?: number
+          structural_clarity_score?: number
+          technical_terms_count?: number
+          unique_words_ratio?: number | null
+          updated_at?: string
+          vocabulary_richness_score?: number
+          word_count?: number
+        }
+        Relationships: []
+      }
       member_data: {
         Row: {
           activity_data: Json | null
@@ -240,9 +396,45 @@ export type Database = {
         }
         Relationships: []
       }
+      member_news: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          link: string
+          member_id: string
+          pub_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link: string
+          member_id: string
+          pub_date: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          link?: string
+          member_id?: string
+          pub_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       party_data: {
         Row: {
-          active_members: number | null
+          active_members: number
           activity_stats: Json | null
           age_distribution: Json | null
           committee_distribution: Json | null
@@ -253,11 +445,11 @@ export type Database = {
           member_list: Json | null
           party_code: string
           party_name: string
-          total_members: number | null
+          total_members: number
           updated_at: string
         }
         Insert: {
-          active_members?: number | null
+          active_members?: number
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
@@ -268,11 +460,11 @@ export type Database = {
           member_list?: Json | null
           party_code: string
           party_name: string
-          total_members?: number | null
+          total_members?: number
           updated_at?: string
         }
         Update: {
-          active_members?: number | null
+          active_members?: number
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
@@ -283,7 +475,7 @@ export type Database = {
           member_list?: Json | null
           party_code?: string
           party_name?: string
-          total_members?: number | null
+          total_members?: number
           updated_at?: string
         }
         Relationships: []
@@ -292,7 +484,7 @@ export type Database = {
         Row: {
           anf_klockslag: string | null
           anforande_id: string | null
-          anforande_nummer: number | null
+          anforande_nummer: string | null
           anforande_url_html: string | null
           anforandedatum: string | null
           anforandetext: string | null
@@ -316,7 +508,7 @@ export type Database = {
         Insert: {
           anf_klockslag?: string | null
           anforande_id?: string | null
-          anforande_nummer?: number | null
+          anforande_nummer?: string | null
           anforande_url_html?: string | null
           anforandedatum?: string | null
           anforandetext?: string | null
@@ -340,7 +532,7 @@ export type Database = {
         Update: {
           anf_klockslag?: string | null
           anforande_id?: string | null
-          anforande_nummer?: number | null
+          anforande_nummer?: string | null
           anforande_url_html?: string | null
           anforandedatum?: string | null
           anforandetext?: string | null
@@ -372,14 +564,14 @@ export type Database = {
           dok_id: string | null
           hangar_id: string | null
           id: string
-          metadata: Json | null
           party_breakdown: Json | null
-          punkt: number | null
+          punkt: string | null
           rm: string | null
           systemdatum: string | null
           updated_at: string
           vote_id: string
           vote_results: Json | null
+          vote_statistics: Json | null
           votering: string | null
         }
         Insert: {
@@ -390,14 +582,14 @@ export type Database = {
           dok_id?: string | null
           hangar_id?: string | null
           id?: string
-          metadata?: Json | null
           party_breakdown?: Json | null
-          punkt?: number | null
+          punkt?: string | null
           rm?: string | null
           systemdatum?: string | null
           updated_at?: string
           vote_id: string
           vote_results?: Json | null
+          vote_statistics?: Json | null
           votering?: string | null
         }
         Update: {
@@ -408,14 +600,14 @@ export type Database = {
           dok_id?: string | null
           hangar_id?: string | null
           id?: string
-          metadata?: Json | null
           party_breakdown?: Json | null
-          punkt?: number | null
+          punkt?: string | null
           rm?: string | null
           systemdatum?: string | null
           updated_at?: string
           vote_id?: string
           vote_results?: Json | null
+          vote_statistics?: Json | null
           votering?: string | null
         }
         Relationships: []
@@ -425,28 +617,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      has_role: {
-        Args: {
-          _user_id: string
-          _role: Database["public"]["Enums"]["app_role"]
-        }
-        Returns: boolean
-      }
-      is_admin: {
-        Args: { _user_id?: string }
-        Returns: boolean
-      }
-      migrate_to_enhanced_member_profiles: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      update_member_active_status: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -561,8 +735,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["admin", "moderator", "user"],
-    },
+    Enums: {},
   },
 } as const

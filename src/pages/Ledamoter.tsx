@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,7 @@ const Ledamoter = () => {
   const [selectedConstituency, setSelectedConstituency] = useState<string>("all");
   const [selectedCommittee, setSelectedCommittee] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
-  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
   const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
   const [currentPage, setCurrentPage] = useState(1);
@@ -380,7 +381,7 @@ const Ledamoter = () => {
               <MemberCard
                 key={member.id}
                 member={member}
-                onClick={() => setSelectedMemberId(member.id)}
+                onClick={() => setSelectedMember(member)}
               />
             ))}
           </div>
@@ -426,10 +427,10 @@ const Ledamoter = () => {
       </div>
 
       {/* Member profile modal */}
-      {selectedMemberId && (
+      {selectedMember && (
         <MemberProfile
-          memberId={selectedMemberId}
-          onClose={() => setSelectedMemberId(null)}
+          member={selectedMember}
+          onClose={() => setSelectedMember(null)}
         />
       )}
     </>

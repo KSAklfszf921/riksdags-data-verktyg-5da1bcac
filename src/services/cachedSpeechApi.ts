@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -40,30 +41,7 @@ export const fetchCachedSpeechData = async (limit = 100): Promise<CachedSpeechDa
     throw new Error(`Failed to fetch cached speech data: ${error.message}`);
   }
 
-  return data?.map(item => ({
-    id: item.id,
-    speech_id: item.speech_id,
-    anforande_id: item.anforande_id,
-    intressent_id: item.intressent_id,
-    rel_dok_id: item.rel_dok_id,
-    namn: item.namn,
-    party: item.party,
-    anforandedatum: item.anforandedatum,
-    anforandetext: item.anforandetext,
-    anforandetyp: item.anforandetyp,
-    kammaraktivitet: item.kammaraktivitet,
-    anforande_nummer: item.anforande_nummer?.toString() || null,
-    talare: item.talare,
-    rel_dok_titel: item.rel_dok_titel,
-    rel_dok_beteckning: item.rel_dok_beteckning,
-    anf_klockslag: item.anf_klockslag,
-    anforande_url_html: item.anforande_url_html,
-    content_summary: item.content_summary,
-    word_count: item.word_count,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at
-  })) || [];
+  return data || [];
 };
 
 export const fetchSpeechesByParty = async (party: string): Promise<CachedSpeechData[]> => {
@@ -80,30 +58,7 @@ export const fetchSpeechesByParty = async (party: string): Promise<CachedSpeechD
     throw new Error(`Failed to fetch speeches by party: ${error.message}`);
   }
 
-  return data?.map(item => ({
-    id: item.id,
-    speech_id: item.speech_id,
-    anforande_id: item.anforande_id,
-    intressent_id: item.intressent_id,
-    rel_dok_id: item.rel_dok_id,
-    namn: item.namn,
-    party: item.party,
-    anforandedatum: item.anforandedatum,
-    anforandetext: item.anforandetext,
-    anforandetyp: item.anforandetyp,
-    kammaraktivitet: item.kammaraktivitet,
-    anforande_nummer: item.anforande_nummer?.toString() || null,
-    talare: item.talare,
-    rel_dok_titel: item.rel_dok_titel,
-    rel_dok_beteckning: item.rel_dok_beteckning,
-    anf_klockslag: item.anf_klockslag,
-    anforande_url_html: item.anforande_url_html,
-    content_summary: item.content_summary,
-    word_count: item.word_count,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at
-  })) || [];
+  return data || [];
 };
 
 export const fetchSpeechesByMember = async (intressentId: string): Promise<CachedSpeechData[]> => {
@@ -120,30 +75,7 @@ export const fetchSpeechesByMember = async (intressentId: string): Promise<Cache
     throw new Error(`Failed to fetch speeches by member: ${error.message}`);
   }
 
-  return data?.map(item => ({
-    id: item.id,
-    speech_id: item.speech_id,
-    anforande_id: item.anforande_id,
-    intressent_id: item.intressent_id,
-    rel_dok_id: item.rel_dok_id,
-    namn: item.namn,
-    party: item.party,
-    anforandedatum: item.anforandedatum,
-    anforandetext: item.anforandetext,
-    anforandetyp: item.anforandetyp,
-    kammaraktivitet: item.kammaraktivitet,
-    anforande_nummer: item.anforande_nummer?.toString() || null,
-    talare: item.talare,
-    rel_dok_titel: item.rel_dok_titel,
-    rel_dok_beteckning: item.rel_dok_beteckning,
-    anf_klockslag: item.anf_klockslag,
-    anforande_url_html: item.anforande_url_html,
-    content_summary: item.content_summary,
-    word_count: item.word_count,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at
-  })) || [];
+  return data || [];
 };
 
 export const fetchSpeechesByType = async (speechType: string): Promise<CachedSpeechData[]> => {
@@ -160,30 +92,7 @@ export const fetchSpeechesByType = async (speechType: string): Promise<CachedSpe
     throw new Error(`Failed to fetch speeches by type: ${error.message}`);
   }
 
-  return data?.map(item => ({
-    id: item.id,
-    speech_id: item.speech_id,
-    anforande_id: item.anforande_id,
-    intressent_id: item.intressent_id,
-    rel_dok_id: item.rel_dok_id,
-    namn: item.namn,
-    party: item.party,
-    anforandedatum: item.anforandedatum,
-    anforandetext: item.anforandetext,
-    anforandetyp: item.anforandetyp,
-    kammaraktivitet: item.kammaraktivitet,
-    anforande_nummer: item.anforande_nummer?.toString() || null,
-    talare: item.talare,
-    rel_dok_titel: item.rel_dok_titel,
-    rel_dok_beteckning: item.rel_dok_beteckning,
-    anf_klockslag: item.anf_klockslag,
-    anforande_url_html: item.anforande_url_html,
-    content_summary: item.content_summary,
-    word_count: item.word_count,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at
-  })) || [];
+  return data || [];
 };
 
 export const searchSpeeches = async (query: string): Promise<CachedSpeechData[]> => {
@@ -200,30 +109,7 @@ export const searchSpeeches = async (query: string): Promise<CachedSpeechData[]>
     throw new Error(`Failed to search speeches: ${error.message}`);
   }
 
-  return data?.map(item => ({
-    id: item.id,
-    speech_id: item.speech_id,
-    anforande_id: item.anforande_id,
-    intressent_id: item.intressent_id,
-    rel_dok_id: item.rel_dok_id,
-    namn: item.namn,
-    party: item.party,
-    anforandedatum: item.anforandedatum,
-    anforandetext: item.anforandetext,
-    anforandetyp: item.anforandetyp,
-    kammaraktivitet: item.kammaraktivitet,
-    anforande_nummer: item.anforande_nummer?.toString() || null,
-    talare: item.talare,
-    rel_dok_titel: item.rel_dok_titel,
-    rel_dok_beteckning: item.rel_dok_beteckning,
-    anf_klockslag: item.anf_klockslag,
-    anforande_url_html: item.anforande_url_html,
-    content_summary: item.content_summary,
-    word_count: item.word_count,
-    metadata: item.metadata,
-    created_at: item.created_at,
-    updated_at: item.updated_at
-  })) || [];
+  return data || [];
 };
 
 export const getSpeechDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
