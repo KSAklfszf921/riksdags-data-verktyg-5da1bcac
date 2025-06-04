@@ -26,6 +26,32 @@ interface DocumentResultsTableProps {
   onPageChange: (page: number) => void;
 }
 
+// Function to detect if a document is a calendar entry
+const isCalendarEntry = (document: RiksdagDocument): boolean => {
+  const title = document.titel?.toLowerCase() || '';
+  const subtitle = document.undertitel?.toLowerCase() || '';
+  
+  // Common patterns for calendar entries
+  const calendarPatterns = [
+    /sammanträde.*\d{4}-\d{2}-\d{2}/,  // "sammanträde" followed by date
+    /utskottsmöte/,                     // "utskottsmöte"
+    /kammakt.*\d{4}-\d{2}-\d{2}/,       // "kammakt" followed by date
+    /debatt.*med.*anledning/,           // "debatt med anledning"
+    /\d{4}-\d{2}-\d{2}.*kl\.\s*\d{1,2}:\d{2}/, // date followed by time
+    /^\s*\d{4}-\d{2}-\d{2}\s*$/, // Just a date
+  ];
+  
+  // Check if title or subtitle matches calendar patterns
+  const matchesPattern = calendarPatterns.some(pattern => 
+    pattern.test(title) || pattern.test(subtitle)
+  );
+  
+  // Additional check for very short titles that are just dates or similar
+  const isShortDateLike = title.length < 20 && /\d{4}-\d{2}-\d{2}/.test(title);
+  
+  return matchesPattern || isShortDateLike;
+};
+
 const DocumentResultsTable = ({
   documents,
   totalCount,
@@ -36,6 +62,11 @@ const DocumentResultsTable = ({
   onPageChange
 }: DocumentResultsTableProps) => {
   const { documentTypes } = useDocumentTypes();
+
+  // Filter out calendar entries from documents
+  const filteredDocuments = documents.filter(doc => !isCalendarEntry(doc));
+  const filteredCount = filteredDocuments.length;
+  const calendarEntriesFiltered = documents.length - filteredDocuments.length;
 
   // Bestäm vilka kolumner som ska visas baserat på dokumenttyp och sökkriterier
   const getVisibleColumns = () => {
@@ -79,9 +110,9 @@ const DocumentResultsTable = ({
   };
 
   const pageSize = 10; // Set to 10 results per page
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const totalPages = Math.ceil(filteredCount / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(currentPage * pageSize, totalCount);
+  const endIndex = Math.min(currentPage * pageSize, filteredCount);
 
   // Generate page numbers for pagination
   const getPageNumbers = () => {
@@ -114,7 +145,7 @@ const DocumentResultsTable = ({
     );
   }
 
-  if (!loading && documents.length === 0) {
+  if (!loading && filteredDocuments.length === 0) {
     return null;
   }
 
@@ -132,12 +163,21 @@ const DocumentResultsTable = ({
               Laddar dokument...
             </div>
           ) : (
-            `Visar ${documents.length > 0 ? startIndex : 0}-${endIndex} av ${totalCount} dokument`
+            <div className="space-y-1">
+              <div>
+                Visar {filteredDocuments.length > 0 ? startIndex : 0}-{endIndex} av {filteredCount} dokument
+              </div>
+              {calendarEntriesFiltered > 0 && (
+                <div className="text-sm text-orange-600">
+                  {calendarEntriesFiltered} kalenderinslag filtrerades bort (visas i Kalenderhändelser)
+                </div>
+              )}
+            </div>
           )}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {loading && documents.length === 0 ? (
+        {loading && filteredDocuments.length === 0 ? (
           <div className="text-center py-8">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
             <p>Laddar dokument...</p>
@@ -156,7 +196,7 @@ const DocumentResultsTable = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((doc) => (
+                {filteredDocuments.map((doc) => (
                   <TableRow key={doc.id}>
                     {visibleColumns.titel && (
                       <TableCell className="font-medium">
