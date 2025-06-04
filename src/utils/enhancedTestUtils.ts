@@ -60,3 +60,65 @@ export const calculateSummary = (results: DetailedTestResult[]): TestSuiteSummar
     averageDuration: total > 0 ? totalDuration / total : 0
   };
 };
+
+export class EnhancedTester {
+  protected testSuite: EnhancedTestSuite;
+  protected results: DetailedTestResult[] = [];
+
+  constructor(suiteName: string) {
+    this.testSuite = createTestSuite(suiteName);
+  }
+
+  async runTest(name: string, testFn: () => Promise<any>): Promise<DetailedTestResult> {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🧪 Running test: ${name}`);
+      const data = await testFn();
+      const duration = Date.now() - startTime;
+      
+      const result: DetailedTestResult = {
+        name,
+        success: true,
+        message: 'Test passed successfully',
+        duration,
+        data
+      };
+      
+      this.results.push(result);
+      this.testSuite.results = this.results;
+      console.log(`✅ ${name} - PASSED (${duration}ms)`);
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      const result: DetailedTestResult = {
+        name,
+        success: false,
+        message: errorMessage,
+        duration,
+        errorType: 'SYSTEM_ERROR',
+        errorDetails: {
+          errorMessage,
+          stackTrace: error instanceof Error ? error.stack : undefined
+        }
+      };
+      
+      this.results.push(result);
+      this.testSuite.results = this.results;
+      console.error(`❌ ${name} - FAILED (${duration}ms):`, error);
+      return result;
+    }
+  }
+
+  getSummary(): EnhancedTestSuite {
+    this.testSuite.summary = calculateSummary(this.results);
+    this.testSuite.endTime = new Date();
+    return this.testSuite;
+  }
+
+  getResults(): DetailedTestResult[] {
+    return this.results;
+  }
+}
