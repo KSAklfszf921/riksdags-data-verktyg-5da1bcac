@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,8 +92,8 @@ const MemberDataSynchronizer: React.FC = () => {
         JSON.parse(JSON.stringify(details.assignments)) : 
         [];
 
-      // Check if member is active - use tom field from member data if available
-      const isActive = !member.tom || new Date(member.tom) > new Date();
+      // Check if member is active using the correct property
+      const isActive = !(member as any).datum_tom || new Date((member as any).datum_tom) > new Date();
 
       // Prepare member data with validated fields
       const memberData = {
@@ -107,7 +108,7 @@ const MemberDataSynchronizer: React.FC = () => {
         riksdag_status: member.status || 'Okänd',
         current_committees: currentCommittees.length > 0 ? currentCommittees : null,
         image_urls: Object.keys(imageUrls).length > 0 ? imageUrls : null,
-        assignments: assignmentsForDb, // Now properly converted to Json
+        assignments: assignmentsForDb,
         activity_data: {
           motions: 0,
           speeches: 0,
@@ -136,11 +137,12 @@ const MemberDataSynchronizer: React.FC = () => {
     }
   };
 
-  // New function: retry logic for API calls
+  // Enhanced retry logic with exponential backoff
   const fetchWithRetry = async <T,>(
     fetchFn: () => Promise<T>,
     maxRetries: number = 3,
-    description: string
+    description: string,
+    baseDelay: number = 1000
   ): Promise<T | null> => {
     let retries = 0;
     let error: any;
@@ -148,9 +150,9 @@ const MemberDataSynchronizer: React.FC = () => {
     while (retries <= maxRetries) {
       try {
         if (retries > 0) {
-          addLog(`Retry attempt ${retries}/${maxRetries} for ${description}`, 'warning');
-          // Exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retries)));
+          const delay = baseDelay * Math.pow(2, retries - 1);
+          addLog(`Retry attempt ${retries}/${maxRetries} for ${description} (waiting ${delay}ms)`, 'warning');
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
         
         const result = await fetchFn();
@@ -166,7 +168,7 @@ const MemberDataSynchronizer: React.FC = () => {
     }
     
     addLog(`All ${maxRetries} retry attempts failed for ${description}`, 'error');
-    throw error;
+    return null;
   };
 
   const runFullSync = async () => {
@@ -183,34 +185,31 @@ const MemberDataSynchronizer: React.FC = () => {
     try {
       addLog('Startar fullständig synkronisering av medlemsdata...', 'info');
       
-      // Fetch all members with retry
+      // Fetch all members with enhanced retry
       addLog('Hämtar alla ledamöter från Riksdag API...', 'info');
       
-      let allMembers: RiksdagMember[];
-      try {
-        allMembers = await fetchWithRetry(
-          () => fetchAllMembers(),
-          3,
-          "fetching all members"
-        ) || [];
-        
-        if (allMembers.length === 0) {
-          throw new Error('No members returned from API');
-        }
-      } catch (error) {
-        addLog(`Kritiskt fel vid hämtning av ledamöter: ${error}`, 'error');
-        toast.error('Kunde inte hämta ledamotlista');
-        setSyncRunning(false);
-        return;
+      const allMembers = await fetchWithRetry(
+        () => fetchAllMembers(),
+        5,
+        "fetching all members",
+        2000
+      );
+      
+      if (!allMembers || allMembers.length === 0) {
+        throw new Error('No members returned from API');
       }
       
       setStats(prev => ({ ...prev, totalMembers: allMembers.length }));
       addLog(`Hittade ${allMembers.length} ledamöter att bearbeta`, 'success');
 
-      // Process members in batches to avoid overwhelming the API
-      const batchSize = 3;
+      // Process members in smaller batches with longer delays
+      const batchSize = 2;
+      const batchDelay = 3000; // 3 seconds between batches
+      
       for (let i = 0; i < allMembers.length; i += batchSize) {
         const batch = allMembers.slice(i, i + batchSize);
+        
+        addLog(`Bearbetar batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allMembers.length/batchSize)}`, 'info');
         
         await Promise.all(batch.map(async (member) => {
           try {
@@ -219,24 +218,18 @@ const MemberDataSynchronizer: React.FC = () => {
               currentMember: `${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'} (${member.parti || 'Okänt parti'})` 
             }));
             
-            addLog(`Bearbetar: ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'} (${member.parti || 'Okänt parti'})`, 'info');
+            addLog(`Bearbetar: ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'}`, 'info');
             
-            // Fetch detailed member information with retry
-            let details: RiksdagMemberDetails | null = null;
-            try {
-              details = await fetchWithRetry(
-                () => fetchMemberDetails(member.intressent_id),
-                2,
-                `fetching details for ${member.tilltalsnamn} ${member.efternamn}`
-              );
-            } catch (error) {
-              addLog(`Kan inte hämta detaljer för ${member.tilltalsnamn} ${member.efternamn}: ${error}`, 'warning');
-              // Continue with basic member data even if details fail
-            }
+            // Fetch detailed member information with enhanced retry
+            const details = await fetchWithRetry(
+              () => fetchMemberDetails(member.intressent_id),
+              3,
+              `fetching details for ${member.tilltalsnamn} ${member.efternamn}`,
+              1500
+            );
             
-            // Fallback handling for missing details
             if (!details) {
-              addLog(`Använder grundläggande information för ${member.tilltalsnamn} ${member.efternamn} - detaljinformation saknas`, 'warning');
+              addLog(`Använder grundläggande information för ${member.tilltalsnamn} ${member.efternamn}`, 'warning');
             }
             
             // Update database
@@ -260,14 +253,15 @@ const MemberDataSynchronizer: React.FC = () => {
           }
         }));
 
-        // Add delay between batches
+        // Add delay between batches to respect rate limits
         if (i + batchSize < allMembers.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          addLog(`Väntar ${batchDelay}ms innan nästa batch...`, 'info');
+          await new Promise(resolve => setTimeout(resolve, batchDelay));
         }
       }
 
       addLog('Synkronisering komplett!', 'success');
-      toast.success(`Synkronisering slutförd! ${stats.successfulUpdates} ledamöter uppdaterade, ${stats.errors} fel, ${stats.imagesProcessed} bilder processade.`);
+      toast.success(`Synkronisering slutförd! ${stats.successfulUpdates} ledamöter uppdaterade, ${stats.errors} fel.`);
 
     } catch (error) {
       addLog(`Kritiskt fel under synkronisering: ${error}`, 'error');
@@ -292,7 +286,7 @@ const MemberDataSynchronizer: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
-              Synkroniserar all medlemsdata från Riksdag API till Supabase
+              Synkroniserar all medlemsdata från Riksdag API till Supabase med förbättrad rate limiting
             </p>
             <Button 
               onClick={runFullSync} 
