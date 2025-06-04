@@ -33,7 +33,7 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
     }
 
     // Priority order: high resolution first, then fallbacks
-    const priorityOrder = ['192', '128', '80'];
+    const priorityOrder = ['192', 'max', '128', '80'];
     
     for (const size of priorityOrder) {
       if (imageUrls[size]) {
@@ -45,7 +45,25 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
   };
 
   const imageUrl = getOptimalImageUrl();
-  const initials = `${firstName[0] || ''}${lastName[0] || ''}`;
+  
+  // Generate initials with better fallback handling
+  const generateInitials = () => {
+    const first = firstName?.trim() || '';
+    const last = lastName?.trim() || '';
+    
+    if (first && last) {
+      return `${first[0]}${last[0]}`.toUpperCase();
+    } else if (last) {
+      // If only last name available, use first two letters of last name
+      return last.substring(0, 2).toUpperCase();
+    } else if (first) {
+      return first.substring(0, 2).toUpperCase();
+    }
+    
+    return '??'; // Fallback for completely missing names
+  };
+
+  const initials = generateInitials();
 
   const handleImageError = () => {
     console.log(`Failed to load image for ${firstName} ${lastName}`);
@@ -69,7 +87,7 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
         />
       ) : null}
       <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
-        {initials || <User className="w-4 h-4" />}
+        {initials !== '??' ? initials : <User className="w-4 h-4" />}
       </AvatarFallback>
     </Avatar>
   );

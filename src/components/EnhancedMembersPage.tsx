@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Filter, Search, Star, Grid, List, Smartphone } from "lucide-react";
+import { Users, Filter, Search, Star, Grid, List, Smartphone, AlertTriangle, Database } from "lucide-react";
 import { useEnhancedMembers } from '@/hooks/useEnhancedMembers';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -14,6 +14,7 @@ import EnhancedMemberGrid from './EnhancedMemberGrid';
 import MemberFilters, { MemberFilter } from './MemberFilters';
 import EnhancedMemberProfile from './EnhancedMemberProfile';
 import MobileMemberCard from './MobileMemberCard';
+import MemberDataSynchronizer from './MemberDataSynchronizer';
 import { cn } from '@/lib/utils';
 
 const EnhancedMembersPage: React.FC = () => {
@@ -22,6 +23,7 @@ const EnhancedMembersPage: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'mobile'>('grid');
   const [showFilters, setShowFilters] = useState(!isMobile);
+  const [showSyncTool, setShowSyncTool] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   
   const [filters, setFilters] = useState<MemberFilter>({
@@ -39,6 +41,13 @@ const EnhancedMembersPage: React.FC = () => {
   // Load members with enhanced data
   const { members, loading, error } = useEnhancedMembers(1, 1000, 'current');
 
+  // Check if data needs synchronization (many empty first_name fields indicate incomplete data)
+  const needsSync = useMemo(() => {
+    if (members.length === 0) return false;
+    const emptyNames = members.filter(m => !m.first_name || m.first_name.trim() === '').length;
+    return (emptyNames / members.length) > 0.1; // More than 10% have empty names
+  }, [members]);
+
   // Extract available filter options
   const filterOptions = useMemo(() => {
     const parties = [...new Set(members.map(m => m.party))].sort();
@@ -55,12 +64,17 @@ const EnhancedMembersPage: React.FC = () => {
     // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
-      filtered = filtered.filter(member =>
-        member.first_name.toLowerCase().includes(searchLower) ||
-        member.last_name.toLowerCase().includes(searchLower) ||
-        member.party.toLowerCase().includes(searchLower) ||
-        (member.constituency && member.constituency.toLowerCase().includes(searchLower))
-      );
+      filtered = filtered.filter(member => {
+        const firstName = member.first_name || '';
+        const lastName = member.last_name || '';
+        const party = member.party || '';
+        const constituency = member.constituency || '';
+        
+        return firstName.toLowerCase().includes(searchLower) ||
+               lastName.toLowerCase().includes(searchLower) ||
+               party.toLowerCase().includes(searchLower) ||
+               constituency.toLowerCase().includes(searchLower);
+      });
     }
 
     // Party filter
@@ -108,10 +122,12 @@ const EnhancedMembersPage: React.FC = () => {
       
       switch (filters.sortBy) {
         case 'name':
-          comparison = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+          const nameA = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+          const nameB = `${b.first_name || ''} ${b.last_name || ''}`.trim();
+          comparison = nameA.localeCompare(nameB);
           break;
         case 'party':
-          comparison = a.party.localeCompare(b.party);
+          comparison = (a.party || '').localeCompare(b.party || '');
           break;
         case 'age':
           const ageA = a.birth_year ? new Date().getFullYear() - a.birth_year : 0;
@@ -170,6 +186,41 @@ const EnhancedMembersPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Data quality warning */}
+      {needsSync && (
+        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+                <div>
+                  <h3 className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                    Ofullständig medlemsdata upptäckt
+                  </h3>
+                  <p className="text-xs text-orange-600 dark:text-orange-300">
+                    Många ledamöter saknar namn och annan viktig information. Kör synkronisering för att hämta fullständig data.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                onClick={() => setShowSyncTool(!showSyncTool)}
+                variant="outline"
+                size="sm"
+                className="border-orange-300 text-orange-700 hover:bg-orange-100"
+              >
+                <Database className="w-4 h-4 mr-2" />
+                {showSyncTool ? 'Dölj' : 'Visa'} Synkronisering
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sync tool */}
+      {showSyncTool && (
+        <MemberDataSynchronizer />
+      )}
+
       {/* Header with tabs */}
       <Card>
         <CardHeader className="pb-4">

@@ -256,6 +256,23 @@ const COMMITTEE_MAPPING: { [key: string]: string } = {
   'SäU': 'Säkerhetsutskottet'
 };
 
+// Enhanced image URL processing
+const processImageUrls = (member: RiksdagMember): Record<string, string> => {
+  const imageUrls: Record<string, string> = {};
+  
+  if (member.bild_url_80) {
+    imageUrls['80'] = member.bild_url_80;
+  }
+  if (member.bild_url_192) {
+    imageUrls['192'] = member.bild_url_192;
+  }
+  if (member.bild_url_max) {
+    imageUrls['max'] = member.bild_url_max;
+  }
+  
+  return imageUrls;
+};
+
 // Utility function for generating standardized emails
 const generateEmail = (firstName: string, lastName: string): string => {
   const cleanFirst = firstName.toLowerCase()
@@ -537,9 +554,12 @@ export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagM
     const assignments = filterActiveAssignments(rawAssignments);
     console.log(`Processed ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
 
+    // Process image URLs
+    const imageUrls = processImageUrls(person);
+
     return {
       intressent_id: person.intressent_id,
-      tilltalsnamn: person.tilltalsnamn, // Fixed typo here
+      tilltalsnamn: person.tilltalsnamn,
       efternamn: person.efternamn,
       parti: person.parti,
       valkrets: person.valkrets,
@@ -712,30 +732,41 @@ export const fetchMembers = async (
   }
 };
 
+// Enhanced fetchAllMembers with better error handling
 export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
   const url = `${BASE_URL}/personlista/?utformat=json&rdlstatus=tjanstgorande`;
   
   try {
+    console.log('Fetching all members from Riksdag API...');
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Kunde inte hämta ledamöter');
+      throw new Error(`HTTP ${response.status}: Kunde inte hämta ledamöter`);
     }
+    
     const data: RiksdagPersonResponse = await response.json();
     let members = data.personlista?.person || [];
     
+    console.log(`Initial fetch returned ${members.length} members`);
+    
+    // Filter for active members
     const currentDate = new Date();
     members = members.filter(member => {
       if (!member.datum_tom || member.datum_tom.trim() === '') {
         return true;
       }
-      const endDate = new Date(member.datum_tom);
-      return endDate > currentDate;
+      try {
+        const endDate = new Date(member.datum_tom);
+        return endDate > currentDate;
+      } catch {
+        return true;
+      }
     });
     
+    console.log(`After filtering for active members: ${members.length} members`);
     return members;
   } catch (error) {
     console.error('Error fetching all members:', error);
-    return [];
+    throw error;
   }
 };
 
