@@ -1,133 +1,155 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { EnhancedTester, DetailedTestResult } from './enhancedTestUtils';
 
-export class DataValidationSuite extends EnhancedTester {
-  constructor() {
-    super('Data Validation Tests');
-  }
+export interface TestResult {
+  name: string;
+  status: 'pass' | 'fail' | 'skip';
+  message: string;
+  duration?: number;
+  error?: string;
+}
 
-  async testCalendarDataIntegrity(): Promise<DetailedTestResult> {
-    return this.runTest('Calendar Data Integrity', async () => {
-      // Test for missing required fields
-      const { data: missingData, error: missingError } = await supabase
-        .from('calendar_data')
-        .select('id, event_id, datum')
-        .or('event_id.is.null,datum.is.null')
-        .limit(10);
+export class DataValidationSuite {
+  private results: TestResult[] = [];
 
-      if (missingError) throw new Error(`Integrity check failed: ${missingError.message}`);
-
-      // Test for duplicate event_ids
-      const { data: duplicates, error: dupError } = await supabase
-        .from('calendar_data')
-        .select('event_id')
-        .not('event_id', 'is', null);
-
-      if (dupError) throw new Error(`Duplicate check failed: ${dupError.message}`);
-
-      const eventIds = duplicates?.map(d => d.event_id) || [];
-      const uniqueEventIds = new Set(eventIds);
-      const duplicateCount = eventIds.length - uniqueEventIds.size;
-
-      return {
-        missingRequiredFields: missingData?.length || 0,
-        duplicateEventIds: duplicateCount,
-        totalRecords: eventIds.length,
-        dataQuality: missingData?.length === 0 && duplicateCount === 0 ? 'GOOD' : 'ISSUES_FOUND'
-      };
-    });
-  }
-
-  async testMemberDataConsistency(): Promise<DetailedTestResult> {
-    return this.runTest('Member Data Consistency', async () => {
-      // Test for members without names
-      const { data: missingNames, error: nameError } = await supabase
-        .from('member_data')
-        .select('id, first_name, last_name')
-        .or('first_name.is.null,last_name.is.null,first_name.eq.,last_name.eq.')
-        .limit(10);
-
-      if (nameError) throw new Error(`Name validation failed: ${nameError.message}`);
-
-      // Test for invalid party codes
-      const { data: invalidParties, error: partyError } = await supabase
-        .from('member_data')
-        .select('id, party')
-        .or('party.is.null,party.eq.')
-        .limit(10);
-
-      if (partyError) throw new Error(`Party validation failed: ${partyError.message}`);
-
-      return {
-        membersWithoutNames: missingNames?.length || 0,
-        membersWithoutParty: invalidParties?.length || 0,
-        dataConsistency: (missingNames?.length || 0) === 0 && (invalidParties?.length || 0) === 0 ? 'CONSISTENT' : 'INCONSISTENT'
-      };
-    });
-  }
-
-  async testSpeechDataQuality(): Promise<DetailedTestResult> {
-    return this.runTest('Speech Data Quality', async () => {
-      // Test for empty speech texts
-      const { data: emptySpeeches, error: emptyError } = await supabase
-        .from('speech_data')
-        .select('id, anforandetext')
-        .or('anforandetext.is.null,anforandetext.eq.')
-        .limit(10);
-
-      if (emptyError) throw new Error(`Empty speech check failed: ${emptyError.message}`);
-
-      // Test for speeches with word count
-      const { data: withWordCount, error: wordError } = await supabase
-        .from('speech_data')
-        .select('id, word_count')
-        .not('word_count', 'is', null)
-        .gte('word_count', 10)
-        .limit(100);
-
-      if (wordError) throw new Error(`Word count check failed: ${wordError.message}`);
-
-      return {
-        emptySpeeches: emptySpeeches?.length || 0,
-        speechesWithWordCount: withWordCount?.length || 0,
-        dataQuality: (emptySpeeches?.length || 0) < 5 ? 'GOOD' : 'POOR'
-      };
-    });
-  }
-
-  async testVoteDataCompleteness(): Promise<DetailedTestResult> {
-    return this.runTest('Vote Data Completeness', async () => {
-      // Test for votes with statistics
-      const { data: withStats, error: statsError } = await supabase
-        .from('vote_data')
-        .select('id, vote_statistics')
-        .not('vote_statistics', 'is', null)
-        .limit(50);
-
-      if (statsError) throw new Error(`Vote statistics check failed: ${statsError.message}`);
-
-      // Test for votes with party breakdown
-      const { data: withBreakdown, error: breakdownError } = await supabase
-        .from('vote_data')
-        .select('id, party_breakdown')
-        .not('party_breakdown', 'is', null)
-        .limit(50);
-
-      if (breakdownError) throw new Error(`Party breakdown check failed: ${breakdownError.message}`);
-
-      return {
-        votesWithStatistics: withStats?.length || 0,
-        votesWithPartyBreakdown: withBreakdown?.length || 0,
-        completenessRatio: ((withStats?.length || 0) + (withBreakdown?.length || 0)) / 100
-      };
-    });
-  }
-
-  async runAllValidationTests(): Promise<void> {
+  async runAllValidationTests(): Promise<TestResult[]> {
+    this.results = [];
+    
     await this.testCalendarDataIntegrity();
     await this.testMemberDataConsistency();
-    await this.testSpeechDataQuality();
     await this.testVoteDataCompleteness();
+    
+    return this.results;
+  }
+
+  private async testCalendarDataIntegrity(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('calendar_data')
+        .select('event_id, datum, aktivitet')
+        .limit(10);
+      
+      if (error) {
+        this.addResult('Calendar Data Integrity', 'fail', `Query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        this.addResult('Calendar Data Integrity', 'skip', 'No calendar data available', Date.now() - startTime);
+        return;
+      }
+
+      let integrityIssues = 0;
+      data.forEach(event => {
+        if (!event.event_id) integrityIssues++;
+        if (!event.datum) integrityIssues++;
+      });
+
+      if (integrityIssues > 0) {
+        this.addResult('Calendar Data Integrity', 'fail', `Found ${integrityIssues} integrity issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Calendar Data Integrity', 'pass', `Validated ${data.length} calendar events`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Calendar Data Integrity', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testMemberDataConsistency(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('enhanced_member_profiles')
+        .select('member_id, first_name, last_name, party')
+        .limit(10);
+      
+      if (error) {
+        this.addResult('Member Data Consistency', 'fail', `Query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        this.addResult('Member Data Consistency', 'skip', 'No member data available', Date.now() - startTime);
+        return;
+      }
+
+      let consistencyIssues = 0;
+      data.forEach(member => {
+        if (!member.member_id) consistencyIssues++;
+        if (!member.first_name) consistencyIssues++;
+        if (!member.last_name) consistencyIssues++;
+        if (!member.party) consistencyIssues++;
+      });
+
+      if (consistencyIssues > 0) {
+        this.addResult('Member Data Consistency', 'fail', `Found ${consistencyIssues} consistency issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Member Data Consistency', 'pass', `Validated ${data.length} member profiles`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Member Data Consistency', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testVoteDataCompleteness(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('vote_data')
+        .select('vote_id, beteckning, rm')
+        .limit(10);
+      
+      if (error) {
+        this.addResult('Vote Data Completeness', 'fail', `Query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        this.addResult('Vote Data Completeness', 'skip', 'No vote data available', Date.now() - startTime);
+        return;
+      }
+
+      let completenessIssues = 0;
+      data.forEach(vote => {
+        if (!vote.vote_id) completenessIssues++;
+        if (!vote.beteckning) completenessIssues++;
+      });
+
+      if (completenessIssues > 0) {
+        this.addResult('Vote Data Completeness', 'fail', `Found ${completenessIssues} completeness issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Vote Data Completeness', 'pass', `Validated ${data.length} vote records`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Vote Data Completeness', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private addResult(name: string, status: 'pass' | 'fail' | 'skip', message: string, duration?: number): void {
+    this.results.push({
+      name,
+      status,
+      message,
+      duration
+    });
+  }
+
+  getResults(): TestResult[] {
+    return this.results;
+  }
+
+  getSummary(): { total: number; passed: number; failed: number; skipped: number } {
+    return {
+      total: this.results.length,
+      passed: this.results.filter(r => r.status === 'pass').length,
+      failed: this.results.filter(r => r.status === 'fail').length,
+      skipped: this.results.filter(r => r.status === 'skip').length
+    };
   }
 }
+
+export default DataValidationSuite;

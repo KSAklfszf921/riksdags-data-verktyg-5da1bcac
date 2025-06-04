@@ -1,4 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
+import { optimizedDataRefreshService } from './optimizedDataRefreshService';
 
 type ValidTableName = 
   | 'enhanced_member_profiles'
@@ -242,15 +244,14 @@ class DataRefreshService {
   }
 }
 
-// Legacy wrapper for backward compatibility
-export { optimizedDataRefreshService as dataRefreshService } from './optimizedDataRefreshService';
-export * from './optimizedDataRefreshService';
+// Create service instance
+const legacyDataRefreshService = new DataRefreshService();
 
 // Legacy compatibility functions for DatabaseInitializer
 export async function initializeAllDatabases(): Promise<RefreshResult> {
   try {
     const startTime = Date.now();
-    const result = await dataRefreshService.refreshAllStaleData({ forceRefresh: true });
+    const result = await legacyDataRefreshService.refreshAllStaleData({ forceRefresh: true });
     const duration = Date.now() - startTime;
     
     return {
@@ -271,7 +272,7 @@ export async function initializeAllDatabases(): Promise<RefreshResult> {
 export async function refreshAllData(): Promise<RefreshResult> {
   try {
     const startTime = Date.now();
-    const result = await dataRefreshService.refreshAllStaleData();
+    const result = await legacyDataRefreshService.refreshAllStaleData();
     const duration = Date.now() - startTime;
     
     return {
@@ -307,7 +308,7 @@ export async function refreshSpecificDataType(dataType: string): Promise<Refresh
       };
     }
     
-    const success = await dataRefreshService.refreshTable(tableName, { forceRefresh: true });
+    const success = await legacyDataRefreshService.refreshTable(tableName, { forceRefresh: true });
     
     return {
       success,
@@ -327,7 +328,7 @@ export async function getComprehensiveDataStatus(): Promise<{
   totalRecords: number;
 }> {
   try {
-    const stats = await dataRefreshService.getAllTableStats();
+    const stats = await legacyDataRefreshService.getAllTableStats();
     
     const freshnessStatus: DataFreshnessStatus[] = stats.map(stat => ({
       type: stat.tableName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -368,5 +369,6 @@ export function formatDataStatusMessage(dataStatus: DataFreshnessStatus[]): stri
   }
 }
 
-export const dataRefreshService = new DataRefreshService();
+// Export optimized service as primary export
+export { optimizedDataRefreshService as dataRefreshService };
 export type { ValidTableName, RefreshOptions, TableStats };
