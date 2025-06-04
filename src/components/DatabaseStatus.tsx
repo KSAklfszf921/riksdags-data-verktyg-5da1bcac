@@ -14,7 +14,7 @@ import { SupabaseDataService } from '../services/supabaseDataService';
 
 interface TableStatus {
   table: string;
-  count: number;
+  recordCount: number;
   lastUpdate: string | null;
   hoursOld: number | null;
   isStale: boolean;
@@ -86,7 +86,7 @@ const DatabaseStatus = () => {
     return Math.round((healthyTables / totalTables) * 100);
   };
 
-  const totalRecords = status.reduce((sum, item) => sum + item.count, 0);
+  const totalRecords = status.reduce((sum, item) => sum + item.recordCount, 0);
 
   useEffect(() => {
     loadStatus();
@@ -175,7 +175,7 @@ const DatabaseStatus = () => {
                       {tableLabels[item.table] || item.table}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {item.count.toLocaleString()} poster
+                      {item.recordCount.toLocaleString()} poster
                     </div>
                     <div className="text-xs text-gray-500">
                       {formatLastUpdated(item.lastUpdate)}
