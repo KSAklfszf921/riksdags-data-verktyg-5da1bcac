@@ -23,36 +23,36 @@ const LanguageAnalysisIntegration = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch unanalyzed speeches/documents
+  // Fetch unanalyzed documents from document_data table
   const { data: unanalyzedData, isLoading } = useQuery({
-    queryKey: ['unanalyzedSpeeches', memberId, documentType, limit],
+    queryKey: ['unanalyzedDocuments', memberId, documentType, limit],
     queryFn: async () => {
       let query = supabase
-        .from('speech_data')
-        .select('speech_id, intressent_id, talare, anforandetext, rel_dok_titel, anforandedatum')
-        .not('anforandetext', 'is', null)
-        .neq('anforandetext', '')
+        .from('document_data')
+        .select('document_id, intressent_id, titel, datum, content_preview')
+        .not('content_preview', 'is', null)
+        .neq('content_preview', '')
         .limit(limit);
 
       if (memberId) {
         query = query.eq('intressent_id', memberId);
       }
 
-      const { data: speeches, error } = await query;
+      const { data: documents, error } = await query;
       if (error) throw error;
 
-      // Check which speeches already have analysis
-      const speechIds = speeches?.map(s => s.speech_id) || [];
-      if (speechIds.length === 0) return [];
+      // Check which documents already have analysis
+      const documentIds = documents?.map(d => d.document_id) || [];
+      if (documentIds.length === 0) return [];
 
       const { data: existingAnalyses } = await supabase
         .from('language_analysis')
         .select('document_id')
-        .in('document_id', speechIds);
+        .in('document_id', documentIds);
 
       const analyzedIds = new Set(existingAnalyses?.map(a => a.document_id) || []);
       
-      return speeches?.filter(speech => !analyzedIds.has(speech.speech_id)) || [];
+      return documents?.filter(doc => !analyzedIds.has(doc.document_id)) || [];
     }
   });
 
@@ -62,15 +62,15 @@ const LanguageAnalysisIntegration = ({
       const results = [];
       
       for (const doc of documents.slice(0, 5)) { // Limit to 5 at a time
-        if (!doc.anforandetext || doc.anforandetext.trim().length < 50) continue;
+        if (!doc.content_preview || doc.content_preview.trim().length < 50) continue;
         
         const result = await LanguageAnalysisService.saveAnalysis(
           doc.intressent_id || 'unknown',
-          doc.talare || 'Okänd',
-          'speech',
-          doc.speech_id,
-          doc.rel_dok_titel || 'Anförande',
-          doc.anforandetext
+          'Okänd ledamot',
+          'document',
+          doc.document_id,
+          doc.titel || 'Dokument',
+          doc.content_preview
         );
         
         if (result) {
@@ -88,7 +88,7 @@ const LanguageAnalysisIntegration = ({
         title: "Språkanalys slutförd",
         description: `${results.length} dokument har analyserats framgångsrikt.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['unanalyzedSpeeches'] });
+      queryClient.invalidateQueries({ queryKey: ['unanalyzedDocuments'] });
       queryClient.invalidateQueries({ queryKey: ['languageStatistics'] });
     },
     onError: (error) => {

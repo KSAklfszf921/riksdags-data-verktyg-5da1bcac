@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -74,7 +75,7 @@ const NewsManagementTool = () => {
       
       // First, find the member in the database
       const { data: members, error: memberError } = await supabase
-        .from('member_data')
+        .from('enhanced_member_profiles')
         .select('member_id, first_name, last_name, party')
         .or(`first_name.ilike.%${memberName}%,last_name.ilike.%${memberName}%`)
         .limit(5);
