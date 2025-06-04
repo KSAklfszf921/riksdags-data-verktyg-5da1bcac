@@ -14,10 +14,10 @@ export interface CachedMemberData {
   is_active: boolean | null;
   riksdag_status: string | null;
   current_committees: string[] | null;
-  committee_assignments: Json | null;
-  image_urls: Json | null;
   assignments: Json | null;
-  activity_data: Json | null;
+  activity_summary: Json | null;
+  image_urls: Json | null;
+  primary_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -70,8 +70,8 @@ export const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
   console.log('Fetching cached member data...');
   
   const { data, error } = await supabase
-    .from('member_data')
-    .select('*')
+    .from('enhanced_member_profiles')
+    .select('id, member_id, first_name, last_name, party, constituency, gender, birth_year, is_active, riksdag_status, current_committees, assignments, activity_summary, image_urls, primary_image_url, created_at, updated_at')
     .order('last_name');
 
   if (error) {
@@ -86,8 +86,8 @@ export const fetchMembersByCommittee = async (committeeCode: string): Promise<Ca
   console.log(`Fetching members for committee: ${committeeCode}`);
   
   const { data, error } = await supabase
-    .from('member_data')
-    .select('*')
+    .from('enhanced_member_profiles')
+    .select('id, member_id, first_name, last_name, party, constituency, gender, birth_year, is_active, riksdag_status, current_committees, assignments, activity_summary, image_urls, primary_image_url, created_at, updated_at')
     .contains('current_committees', [committeeCode])
     .eq('is_active', true)
     .order('last_name');
@@ -168,7 +168,7 @@ export const refreshPartyData = async (): Promise<void> => {
 };
 
 // Utility functions for working with the enhanced data
-export const extractCommitteeAssignments = (assignments: Json): any[] => {
+export const extractAssignments = (assignments: Json): any[] => {
   if (Array.isArray(assignments)) {
     return assignments;
   }

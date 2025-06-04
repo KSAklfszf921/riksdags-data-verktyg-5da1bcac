@@ -12,11 +12,12 @@ class SpeechTester extends CalendarTester {
   
   async testSpeechDataAccess(): Promise<TestResult> {
     return this.runTest('Speech Data Access', async () => {
-      console.log('Testing speech data access...');
+      console.log('Testing speech data access via document_data...');
       
       const { count, error } = await supabase
-        .from('speech_data')
-        .select('*', { count: 'exact', head: true });
+        .from('document_data')
+        .select('*', { count: 'exact', head: true })
+        .not('content_preview', 'is', null);
 
       if (error) {
         throw new Error(`Speech data access failed: ${error.message}`);
@@ -31,12 +32,12 @@ class SpeechTester extends CalendarTester {
 
   async testSpeechSearch(): Promise<TestResult> {
     return this.runTest('Speech Search Functionality', async () => {
-      console.log('Testing speech search...');
+      console.log('Testing speech search via document_data...');
       
       const { data, error } = await supabase
-        .from('speech_data')
+        .from('document_data')
         .select('*')
-        .ilike('anforandetext', '%debatt%')
+        .ilike('content_preview', '%debatt%')
         .limit(10);
 
       if (error) {

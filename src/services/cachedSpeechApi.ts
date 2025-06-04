@@ -4,36 +4,30 @@ import type { Json } from '@/integrations/supabase/types';
 
 export interface CachedSpeechData {
   id: string;
-  speech_id: string;
-  anforande_id: string | null;
+  document_id: string;
   intressent_id: string | null;
-  rel_dok_id: string | null;
-  namn: string | null;
+  titel: string | null;
   party: string | null;
-  anforandedatum: string | null;
-  anforandetext: string | null;
-  anforandetyp: string | null;
-  kammaraktivitet: string | null;
-  anforande_nummer: string | null;
-  talare: string | null;
-  rel_dok_titel: string | null;
-  rel_dok_beteckning: string | null;
-  anf_klockslag: string | null;
-  anforande_url_html: string | null;
-  content_summary: string | null;
-  word_count: number | null;
+  datum: string | null;
+  content_preview: string | null;
+  typ: string | null;
+  organ: string | null;
+  beteckning: string | null;
+  document_url_html: string | null;
+  summary: string | null;
   metadata: Json | null;
   created_at: string;
   updated_at: string;
 }
 
 export const fetchCachedSpeechData = async (limit = 100): Promise<CachedSpeechData[]> => {
-  console.log('Fetching cached speech data...');
+  console.log('Fetching cached speech/document data...');
   
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('*')
-    .order('anforandedatum', { ascending: false })
+    .not('content_preview', 'is', null)
+    .order('datum', { ascending: false })
     .limit(limit);
 
   if (error) {
@@ -48,10 +42,11 @@ export const fetchSpeechesByParty = async (party: string): Promise<CachedSpeechD
   console.log(`Fetching speeches for party: ${party}`);
   
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('*')
     .eq('party', party)
-    .order('anforandedatum', { ascending: false });
+    .not('content_preview', 'is', null)
+    .order('datum', { ascending: false });
 
   if (error) {
     console.error('Error fetching speeches by party:', error);
@@ -65,10 +60,11 @@ export const fetchSpeechesByMember = async (intressentId: string): Promise<Cache
   console.log(`Fetching speeches for member: ${intressentId}`);
   
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('*')
     .eq('intressent_id', intressentId)
-    .order('anforandedatum', { ascending: false });
+    .not('content_preview', 'is', null)
+    .order('datum', { ascending: false });
 
   if (error) {
     console.error('Error fetching speeches by member:', error);
@@ -82,10 +78,11 @@ export const fetchSpeechesByType = async (speechType: string): Promise<CachedSpe
   console.log(`Fetching speeches of type: ${speechType}`);
   
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('*')
-    .eq('anforandetyp', speechType)
-    .order('anforandedatum', { ascending: false });
+    .eq('typ', speechType)
+    .not('content_preview', 'is', null)
+    .order('datum', { ascending: false });
 
   if (error) {
     console.error('Error fetching speeches by type:', error);
@@ -99,10 +96,11 @@ export const searchSpeeches = async (query: string): Promise<CachedSpeechData[]>
   console.log(`Searching speeches with query: ${query}`);
   
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('*')
-    .or(`anforandetext.ilike.%${query}%, content_summary.ilike.%${query}%, rel_dok_titel.ilike.%${query}%`)
-    .order('anforandedatum', { ascending: false });
+    .or(`content_preview.ilike.%${query}%, summary.ilike.%${query}%, titel.ilike.%${query}%`)
+    .not('content_preview', 'is', null)
+    .order('datum', { ascending: false });
 
   if (error) {
     console.error('Error searching speeches:', error);
@@ -114,7 +112,7 @@ export const searchSpeeches = async (query: string): Promise<CachedSpeechData[]>
 
 export const getSpeechDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
   const { data, error } = await supabase
-    .from('speech_data')
+    .from('document_data')
     .select('updated_at')
     .order('updated_at', { ascending: false })
     .limit(1)
