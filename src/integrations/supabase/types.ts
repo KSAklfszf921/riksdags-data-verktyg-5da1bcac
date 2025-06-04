@@ -39,6 +39,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cached_toplists: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          riksdags_year: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data: Json
+          id?: string
+          riksdags_year: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          riksdags_year?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       calendar_data: {
         Row: {
           aktivitet: string | null

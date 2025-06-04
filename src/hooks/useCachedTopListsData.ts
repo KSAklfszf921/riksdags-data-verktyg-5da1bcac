@@ -38,8 +38,9 @@ export const useCachedTopListsData = (riksdagsYear: string = '2024/25', topN: nu
 
       console.log('Loading cached top lists data...');
       
+      // Use direct SQL query since cached_toplists is not in the generated types yet
       const { data, error } = await supabase
-        .from('cached_toplists')
+        .from('cached_toplists' as any)
         .select('*')
         .eq('riksdags_year', riksdagsYear)
         .single();
