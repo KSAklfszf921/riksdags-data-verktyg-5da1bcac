@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface EnhancedLoadingSkeletonProps {
   type?: 'card' | 'list' | 'table' | 'form' | 'stats' | 'chart';
@@ -164,16 +163,14 @@ const EnhancedLoadingSkeleton: React.FC<EnhancedLoadingSkeletonProps> = ({
 
   if (showTooltip) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div>{skeletonContent()}</div>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Laddar innehåll...</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div>{skeletonContent()}</div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Laddar innehåll...</p>
+        </TooltipContent>
+      </Tooltip>
     );
   }
 
