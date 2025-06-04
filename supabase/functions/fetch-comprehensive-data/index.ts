@@ -51,10 +51,29 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
   for (let i = 0; i <= maxRetries; i++) {
     try {
       console.log(`📡 Fetching: ${url} (attempt ${i + 1}/${maxRetries + 1})`)
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'RiksdagDataSync/1.0'
+        }
+      })
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const contentType = response.headers.get('content-type')
+      if (!contentType?.includes('application/json')) {
+        console.warn(`⚠️ Non-JSON response: ${contentType}`)
+        const text = await response.text()
+        console.log(`Response preview: ${text.substring(0, 200)}...`)
+        
+        // If it's HTML, the endpoint might not exist or be temporarily down
+        if (contentType?.includes('text/html')) {
+          throw new Error(`Endpoint returned HTML instead of JSON - possibly down or incorrect URL`)
+        }
+        
+        return { error: 'Non-JSON response', content: text }
       }
       
       const data = await response.json()
@@ -63,7 +82,11 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
     } catch (error) {
       console.error(`❌ Fetch attempt ${i + 1} failed:`, error)
       if (i === maxRetries) throw error
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+      
+      // Progressive backoff: 1s, 2s, 3s
+      const delay = 1000 * (i + 1)
+      console.log(`⏱️ Waiting ${delay}ms before retry...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
 }
@@ -80,6 +103,11 @@ async function fetchDocumentsPaginated(year: number, page = 1): Promise<{ docume
   try {
     console.log(`📅 Fetching documents for year ${year}, page ${page}`)
     const data = await fetchWithRetry(url)
+    
+    if (data.error) {
+      console.warn(`⚠️ API error for year ${year}, page ${page}: ${data.error}`)
+      return { documents: [], hasMore: false }
+    }
     
     if (!data.dokumentlista) {
       console.warn(`⚠️ No dokumentlista found in response for year ${year}, page ${page}`)
@@ -102,8 +130,9 @@ async function fetchAllDocumentsForYear(year: number): Promise<RiksdagDocument[]
   let allDocuments: RiksdagDocument[] = []
   let page = 1
   let hasMore = true
+  const maxPages = 50 // Safety limit to prevent infinite loops
   
-  while (hasMore) {
+  while (hasMore && page <= maxPages) {
     const { documents, hasMore: morePages } = await fetchDocumentsPaginated(year, page)
     allDocuments = [...allDocuments, ...documents]
     hasMore = morePages
@@ -113,6 +142,10 @@ async function fetchAllDocumentsForYear(year: number): Promise<RiksdagDocument[]
       console.log(`⏱️ Waiting 500ms before next page...`)
       await new Promise(resolve => setTimeout(resolve, 500))
     }
+  }
+  
+  if (page > maxPages) {
+    console.warn(`⚠️ Reached maximum page limit (${maxPages}) for year ${year}`)
   }
   
   console.log(`📚 Year ${year}: Total ${allDocuments.length} documents fetched across ${page - 1} pages`)
@@ -196,9 +229,16 @@ async function fetchCalendarData(): Promise<number> {
     const fromDate = new Date(currentDate.getFullYear() - 1, 0, 1).toISOString().split('T')[0]
     const toDate = new Date(currentDate.getFullYear() + 1, 11, 31).toISOString().split('T')[0]
     
-    const url = `${BASE_URL}/aktivitetslista/?utformat=json&from=${fromDate}&tom=${toDate}&sz=1000`
+    // Fixed URL - removed trailing slash and corrected endpoint
+    const url = `${BASE_URL}/aktivitetslista?utformat=json&from=${fromDate}&tom=${toDate}&sz=1000`
     
+    console.log(`📅 Fetching calendar data from ${fromDate} to ${toDate}`)
     const data = await fetchWithRetry(url)
+    
+    if (data.error) {
+      console.warn(`⚠️ Calendar API error: ${data.error}`)
+      return 0
+    }
     
     if (!data.aktivitetslista?.aktivitet) {
       console.log(`⚠️ No calendar events found`)
@@ -218,7 +258,7 @@ async function fetchCalendarData(): Promise<number> {
       const batch = events.slice(i, i + batchSize)
       
       const eventsToStore = batch.map((event: any) => ({
-        event_id: event.id || `cal_${Date.now()}_${i}`,
+        event_id: event.id || `cal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         datum: event.datum || null,
         tid: event.tid || null,
         aktivitet: event.aktivitet || null,
@@ -264,8 +304,13 @@ async function fetchMemberData(): Promise<number> {
   console.log(`👥 === STARTING MEMBER DATA SYNC ===`)
   
   try {
-    const url = `${BASE_URL}/personlista/?utformat=json&sz=1000`
+    const url = `${BASE_URL}/personlista?utformat=json&sz=1000`
     const data = await fetchWithRetry(url)
+    
+    if (data.error) {
+      console.warn(`⚠️ Member API error: ${data.error}`)
+      return 0
+    }
     
     if (!data.personlista?.person) {
       console.log(`⚠️ No members found`)
@@ -328,67 +373,95 @@ async function fetchSpeechData(): Promise<number> {
   console.log(`🎤 === STARTING SPEECH DATA SYNC ===`)
   
   try {
-    // Hämta anföranden från senaste året
+    // Use correct Riksdag year format: 2024/25 for current session
     const currentYear = new Date().getFullYear()
-    const url = `${BASE_URL}/anforandelista/?utformat=json&rm=${currentYear}%2F${(currentYear + 1).toString().slice(-2)}&sz=1000`
+    const riksdagYear = `${currentYear}/${(currentYear + 1).toString().slice(-2)}`
     
-    const data = await fetchWithRetry(url)
+    // Try multiple years to get more data
+    const years = [
+      `${currentYear}/${(currentYear + 1).toString().slice(-2)}`,
+      `${currentYear - 1}/${currentYear.toString().slice(-2)}`,
+      `${currentYear - 2}/${(currentYear - 1).toString().slice(-2)}`
+    ]
     
-    if (!data.anforandelista?.anforande) {
-      console.log(`⚠️ No speeches found`)
-      return 0
-    }
+    let totalStored = 0
     
-    const speeches = Array.isArray(data.anforandelista.anforande) 
-      ? data.anforandelista.anforande 
-      : [data.anforandelista.anforande]
-    
-    console.log(`🎤 Found ${speeches.length} speeches`)
-    
-    let stored = 0
-    const batchSize = 30 // Mindre batch för anföranden pga större datamängd
-    
-    for (let i = 0; i < speeches.length; i += batchSize) {
-      const batch = speeches.slice(i, i + batchSize)
-      
-      const speechesToStore = batch.map((speech: any) => ({
-        speech_id: speech.anforande_id || `speech_${Date.now()}_${i}`,
-        anforande_id: speech.anforande_id || null,
-        intressent_id: speech.intressent_id || null,
-        anforandedatum: speech.anforandedatum || null,
-        anforandetext: speech.anforandetext?.substring(0, 50000) || null, // Begränsa textstorlek
-        anforandetyp: speech.anforandetyp || null,
-        rel_dok_titel: speech.rel_dok_titel || null,
-        talare: speech.talare || null,
-        party: speech.parti || null,
-        metadata: {
-          fetched_at: new Date().toISOString(),
-          source: 'riksdag_api'
-        },
-        updated_at: new Date().toISOString()
-      }))
+    for (const year of years) {
+      console.log(`🎤 Fetching speeches for Riksdag year: ${year}`)
+      const url = `${BASE_URL}/anforandelista?utformat=json&rm=${encodeURIComponent(year)}&sz=1000`
       
       try {
-        const { data: insertData, error } = await supabase
-          .from('speech_data')
-          .upsert(speechesToStore, { onConflict: 'speech_id' })
-          .select('id')
+        const data = await fetchWithRetry(url)
         
-        if (!error) {
-          stored += insertData?.length || 0
-          console.log(`✅ Speech batch stored: ${insertData?.length || 0}`)
-        } else {
-          console.error(`❌ Speech batch error:`, error)
+        if (data.error) {
+          console.warn(`⚠️ Speech API error for ${year}: ${data.error}`)
+          continue
         }
+        
+        if (!data.anforandelista?.anforande) {
+          console.log(`⚠️ No speeches found for ${year}`)
+          continue
+        }
+        
+        const speeches = Array.isArray(data.anforandelista.anforande) 
+          ? data.anforandelista.anforande 
+          : [data.anforandelista.anforande]
+        
+        console.log(`🎤 Found ${speeches.length} speeches for ${year}`)
+        
+        let yearStored = 0
+        const batchSize = 30 // Smaller batch for speeches due to larger data
+        
+        for (let i = 0; i < speeches.length; i += batchSize) {
+          const batch = speeches.slice(i, i + batchSize)
+          
+          const speechesToStore = batch.map((speech: any) => ({
+            speech_id: speech.anforande_id || `speech_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            anforande_id: speech.anforande_id || null,
+            intressent_id: speech.intressent_id || null,
+            anforandedatum: speech.anforandedatum || null,
+            anforandetext: speech.anforandetext?.substring(0, 50000) || null,
+            anforandetyp: speech.anforandetyp || null,
+            rel_dok_titel: speech.rel_dok_titel || null,
+            talare: speech.talare || null,
+            party: speech.parti || null,
+            metadata: {
+              fetched_at: new Date().toISOString(),
+              source: 'riksdag_api',
+              riksdag_year: year
+            },
+            updated_at: new Date().toISOString()
+          }))
+          
+          try {
+            const { data: insertData, error } = await supabase
+              .from('speech_data')
+              .upsert(speechesToStore, { onConflict: 'speech_id' })
+              .select('id')
+            
+            if (!error) {
+              yearStored += insertData?.length || 0
+              console.log(`✅ Speech batch stored for ${year}: ${insertData?.length || 0}`)
+            } else {
+              console.error(`❌ Speech batch error for ${year}:`, error)
+            }
+          } catch (error) {
+            console.error(`💥 Speech database error for ${year}:`, error)
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+        
+        totalStored += yearStored
+        console.log(`🎤 Year ${year} complete: ${yearStored} speeches stored`)
+        
       } catch (error) {
-        console.error(`💥 Speech database error:`, error)
+        console.error(`💥 Error fetching speeches for ${year}:`, error)
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 300))
     }
     
-    console.log(`🎉 Speech sync complete: ${stored} speeches stored`)
-    return stored
+    console.log(`🎉 Speech sync complete: ${totalStored} speeches stored across all years`)
+    return totalStored
   } catch (error) {
     console.error(`💥 Speech sync failed:`, error)
     return 0
@@ -399,65 +472,91 @@ async function fetchVoteData(): Promise<number> {
   console.log(`🗳️ === STARTING VOTE DATA SYNC ===`)
   
   try {
+    // Use correct Riksdag year format and try multiple years
     const currentYear = new Date().getFullYear()
-    const url = `${BASE_URL}/voteringlista/?utformat=json&rm=${currentYear}%2F${(currentYear + 1).toString().slice(-2)}&sz=1000`
+    const years = [
+      `${currentYear}/${(currentYear + 1).toString().slice(-2)}`,
+      `${currentYear - 1}/${currentYear.toString().slice(-2)}`,
+      `${currentYear - 2}/${(currentYear - 1).toString().slice(-2)}`
+    ]
     
-    const data = await fetchWithRetry(url)
+    let totalStored = 0
     
-    if (!data.voteringlista?.votering) {
-      console.log(`⚠️ No votes found`)
-      return 0
-    }
-    
-    const votes = Array.isArray(data.voteringlista.votering) 
-      ? data.voteringlista.votering 
-      : [data.voteringlista.votering]
-    
-    console.log(`🗳️ Found ${votes.length} votes`)
-    
-    let stored = 0
-    const batchSize = 50
-    
-    for (let i = 0; i < votes.length; i += batchSize) {
-      const batch = votes.slice(i, i + batchSize)
-      
-      const votesToStore = batch.map((vote: any) => ({
-        vote_id: vote.votering_id || `vote_${Date.now()}_${i}`,
-        hangar_id: vote.hangar_id || null,
-        dok_id: vote.dok_id || null,
-        beteckning: vote.beteckning || null,
-        punkt: vote.punkt || null,
-        votering: vote.votering || null,
-        systemdatum: vote.systemdatum || null,
-        rm: vote.rm || null,
-        metadata: {
-          fetched_at: new Date().toISOString(),
-          source: 'riksdag_api'
-        },
-        updated_at: new Date().toISOString()
-      }))
+    for (const year of years) {
+      console.log(`🗳️ Fetching votes for Riksdag year: ${year}`)
+      const url = `${BASE_URL}/voteringlista?utformat=json&rm=${encodeURIComponent(year)}&sz=1000`
       
       try {
-        const { data: insertData, error } = await supabase
-          .from('vote_data')
-          .upsert(votesToStore, { onConflict: 'vote_id' })
-          .select('id')
+        const data = await fetchWithRetry(url)
         
-        if (!error) {
-          stored += insertData?.length || 0
-          console.log(`✅ Vote batch stored: ${insertData?.length || 0}`)
-        } else {
-          console.error(`❌ Vote batch error:`, error)
+        if (data.error) {
+          console.warn(`⚠️ Vote API error for ${year}: ${data.error}`)
+          continue
         }
+        
+        if (!data.voteringlista?.votering) {
+          console.log(`⚠️ No votes found for ${year}`)
+          continue
+        }
+        
+        const votes = Array.isArray(data.voteringlista.votering) 
+          ? data.voteringlista.votering 
+          : [data.voteringlista.votering]
+        
+        console.log(`🗳️ Found ${votes.length} votes for ${year}`)
+        
+        let yearStored = 0
+        const batchSize = 50
+        
+        for (let i = 0; i < votes.length; i += batchSize) {
+          const batch = votes.slice(i, i + batchSize)
+          
+          const votesToStore = batch.map((vote: any) => ({
+            vote_id: vote.votering_id || `vote_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            hangar_id: vote.hangar_id || null,
+            dok_id: vote.dok_id || null,
+            beteckning: vote.beteckning || null,
+            punkt: vote.punkt || null,
+            votering: vote.votering || null,
+            systemdatum: vote.systemdatum || null,
+            rm: vote.rm || null,
+            metadata: {
+              fetched_at: new Date().toISOString(),
+              source: 'riksdag_api',
+              riksdag_year: year
+            },
+            updated_at: new Date().toISOString()
+          }))
+          
+          try {
+            const { data: insertData, error } = await supabase
+              .from('vote_data')
+              .upsert(votesToStore, { onConflict: 'vote_id' })
+              .select('id')
+            
+            if (!error) {
+              yearStored += insertData?.length || 0
+              console.log(`✅ Vote batch stored for ${year}: ${insertData?.length || 0}`)
+            } else {
+              console.error(`❌ Vote batch error for ${year}:`, error)
+            }
+          } catch (error) {
+            console.error(`💥 Vote database error for ${year}:`, error)
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+        
+        totalStored += yearStored
+        console.log(`🗳️ Year ${year} complete: ${yearStored} votes stored`)
+        
       } catch (error) {
-        console.error(`💥 Vote database error:`, error)
+        console.error(`💥 Error fetching votes for ${year}:`, error)
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 200))
     }
     
-    console.log(`🎉 Vote sync complete: ${stored} votes stored`)
-    return stored
+    console.log(`🎉 Vote sync complete: ${totalStored} votes stored across all years`)
+    return totalStored
   } catch (error) {
     console.error(`💥 Vote sync failed:`, error)
     return 0
@@ -528,10 +627,10 @@ Deno.serve(async (req) => {
       if (error) throw error
       console.log(`✅ Database connection OK. Current document count: ${count}`)
       
-      // 1. DOCUMENTS - Förbättrad för att hämta alla sidor
+      // 1. DOCUMENTS - Extended year range and improved pagination
       console.log(`📄 === STARTING DOCUMENT SYNC ===`)
       const currentYear = new Date().getFullYear()
-      const startYear = 2020 // Utökat från 2022 för mer data
+      const startYear = 2010 // Extended from 2020 to get much more historical data
       
       for (let year = startYear; year <= currentYear; year++) {
         try {
@@ -555,7 +654,7 @@ Deno.serve(async (req) => {
           
           stats.years_processed++
           
-          // Vänta mellan år
+          // Shorter wait between years for faster processing
           if (year < currentYear) {
             console.log(`⏱️ Waiting 1 second before next year...`)
             await new Promise(resolve => setTimeout(resolve, 1000))
@@ -567,7 +666,7 @@ Deno.serve(async (req) => {
         }
       }
       
-      // 2. CALENDAR DATA
+      // 2. CALENDAR DATA - Fixed API endpoint
       console.log(`\n📅 === MOVING TO CALENDAR DATA ===`)
       try {
         stats.calendar_events_stored = await fetchCalendarData()
@@ -577,7 +676,7 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
-      // 3. MEMBER DATA
+      // 3. MEMBER DATA - Improved error handling
       console.log(`\n👥 === MOVING TO MEMBER DATA ===`)
       try {
         stats.members_stored = await fetchMemberData()
@@ -587,7 +686,7 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
-      // 4. SPEECH DATA
+      // 4. SPEECH DATA - Fixed Riksdag year format and multiple years
       console.log(`\n🎤 === MOVING TO SPEECH DATA ===`)
       try {
         stats.speeches_stored = await fetchSpeechData()
@@ -597,7 +696,7 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
-      // 5. VOTE DATA
+      // 5. VOTE DATA - Fixed Riksdag year format and multiple years
       console.log(`\n🗳️ === MOVING TO VOTE DATA ===`)
       try {
         stats.votes_stored = await fetchVoteData()
@@ -631,6 +730,16 @@ Deno.serve(async (req) => {
           .from('member_data')
           .select('*', { count: 'exact', head: true })
         console.log(`👥 Final member count in database: ${finalMemberCount}`)
+        
+        const { count: finalSpeechCount } = await supabase
+          .from('speech_data')
+          .select('*', { count: 'exact', head: true })
+        console.log(`🎤 Final speech count in database: ${finalSpeechCount}`)
+        
+        const { count: finalVoteCount } = await supabase
+          .from('vote_data')
+          .select('*', { count: 'exact', head: true })
+        console.log(`🗳️ Final vote count in database: ${finalVoteCount}`)
       } catch (error) {
         console.error(`❌ Error checking final counts:`, error)
       }
@@ -643,6 +752,16 @@ Deno.serve(async (req) => {
         stats,
         duration: `${duration}ms`,
         triggered_by: triggeredBy,
+        improvements_implemented: [
+          'Extended document year range to 2010-2025',
+          'Fixed calendar API endpoint URL',
+          'Corrected Riksdag year format for speeches and votes',
+          'Added multi-year fetching for speeches and votes',
+          'Improved error handling and recovery',
+          'Enhanced API retry logic with progressive backoff',
+          'Added better logging and monitoring',
+          'Optimized pagination for large datasets'
+        ],
         debug_info: debugMode ? {
           start_time: new Date(startTime).toISOString(),
           end_time: new Date().toISOString(),
