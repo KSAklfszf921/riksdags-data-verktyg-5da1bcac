@@ -4,6 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ResponsiveHeader } from "./components/ResponsiveHeader";
+import BreadcrumbNavigation from "./components/BreadcrumbNavigation";
+import ErrorBoundary from "./components/ErrorBoundary";
+import SyncStatusIndicator from "./components/SyncStatusIndicator";
 import Index from "./pages/Index";
 import Ledamoter from "./pages/Ledamoter";
 import Anforanden from "./pages/Anforanden";
@@ -17,36 +20,53 @@ import Databashantering from "./pages/Databashantering";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+    },
+  },
+});
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div className="min-h-screen bg-background font-sans antialiased">
-          <Toaster />
-          <BrowserRouter>
-            <ResponsiveHeader />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/ledamoter" element={<Ledamoter />} />
-              <Route path="/anforanden" element={<Anforanden />} />
-              <Route path="/voteringar" element={<Voteringar />} />
-              <Route path="/dokument" element={<Dokument />} />
-              <Route path="/kalender" element={<Kalender />} />
-              <Route path="/partianalys" element={<Partianalys />} />
-              <Route path="/topplistor" element={<Topplistor />} />
-              <Route path="/sprakanalys" element={<SprakAnalys />} />
-              <Route path="/databashantering" element={<Databashantering />} />
-              <Route path="/admin" element={<Admin />} />
-              <Route path="/testverktyg" element={<Admin />} />
-              <Route path="/calendar-test" element={<Admin />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </div>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <div className="min-h-screen bg-background font-sans antialiased w-full">
+            <Toaster 
+              position="top-right"
+              expand={false}
+              richColors
+              closeButton
+            />
+            <BrowserRouter>
+              <ResponsiveHeader />
+              <BreadcrumbNavigation />
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/ledamoter" element={<Ledamoter />} />
+                <Route path="/anforanden" element={<Anforanden />} />
+                <Route path="/voteringar" element={<Voteringar />} />
+                <Route path="/dokument" element={<Dokument />} />
+                <Route path="/kalender" element={<Kalender />} />
+                <Route path="/partianalys" element={<Partianalys />} />
+                <Route path="/topplistor" element={<Topplistor />} />
+                <Route path="/sprakanalys" element={<SprakAnalys />} />
+                <Route path="/databashantering" element={<Databashantering />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/testverktyg" element={<Admin />} />
+                <Route path="/calendar-test" element={<Admin />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+              <SyncStatusIndicator />
+            </BrowserRouter>
+          </div>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

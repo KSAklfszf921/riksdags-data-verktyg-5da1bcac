@@ -9,6 +9,7 @@ interface ProgressProps extends React.ComponentPropsWithoutRef<typeof ProgressPr
   showPercentage?: boolean;
   size?: "default" | "sm" | "lg";
   labelPosition?: "inside" | "above" | "none";
+  animated?: boolean;
 }
 
 const Progress = React.forwardRef<
@@ -21,6 +22,7 @@ const Progress = React.forwardRef<
   showPercentage = false,
   size = "default",
   labelPosition = "none",
+  animated = false,
   ...props 
 }, ref) => {
   const heightClass = {
@@ -29,12 +31,14 @@ const Progress = React.forwardRef<
     lg: "h-6"
   }[size];
 
+  const percentageValue = Math.round(value || 0);
+
   return (
     <div className="w-full">
       {labelPosition === "above" && showPercentage && (
         <div className="flex justify-between text-xs text-muted-foreground mb-1">
           <span>{props["aria-label"] || "Progress"}</span>
-          <span>{Math.round(value || 0)}%</span>
+          <span>{percentageValue}%</span>
         </div>
       )}
       <ProgressPrimitive.Root
@@ -48,18 +52,25 @@ const Progress = React.forwardRef<
       >
         <ProgressPrimitive.Indicator
           className={cn(
-            "h-full w-full flex-1 transition-all",
+            "h-full w-full flex-1 transition-all duration-500 ease-out",
+            animated && "animate-pulse",
             indicatorColor || "bg-primary"
           )}
           style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
         >
           {labelPosition === "inside" && showPercentage && size !== "sm" && (
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white">
-              {Math.round(value || 0)}%
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white mix-blend-difference">
+              {percentageValue}%
             </div>
           )}
         </ProgressPrimitive.Indicator>
       </ProgressPrimitive.Root>
+      
+      {labelPosition === "none" && showPercentage && (
+        <div className="text-right text-xs text-muted-foreground mt-1">
+          {percentageValue}%
+        </div>
+      )}
     </div>
   )
 })
