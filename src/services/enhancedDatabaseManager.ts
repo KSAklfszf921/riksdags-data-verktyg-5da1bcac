@@ -103,26 +103,36 @@ class EnhancedDatabaseManager {
       try {
         console.log(`🔄 Attempt ${attempt}/${this.retryAttempts} for batch of ${batch.length} items`);
 
-        let query = supabase.from(tableName).insert(batch);
+        let error: any = null;
         
         // Handle conflicts if specified
         if (options.conflictColumns && options.conflictColumns.length > 0) {
           if (options.updateOnConflict) {
-            // Use upsert strategy
-            query = query.upsert(batch, { 
-              onConflict: options.conflictColumns.join(','),
-              ignoreDuplicates: false 
-            });
+            // Use upsert strategy - call upsert directly on the table
+            const { error: upsertError } = await (supabase as any)
+              .from(tableName)
+              .upsert(batch, { 
+                onConflict: options.conflictColumns.join(','),
+                ignoreDuplicates: false 
+              });
+            error = upsertError;
           } else {
-            // Use ignore duplicates strategy
-            query = query.upsert(batch, { 
-              onConflict: options.conflictColumns.join(','),
-              ignoreDuplicates: true 
-            });
+            // Use ignore duplicates strategy - call upsert directly on the table
+            const { error: upsertError } = await (supabase as any)
+              .from(tableName)
+              .upsert(batch, { 
+                onConflict: options.conflictColumns.join(','),
+                ignoreDuplicates: true 
+              });
+            error = upsertError;
           }
+        } else {
+          // Regular insert
+          const { error: insertError } = await (supabase as any)
+            .from(tableName)
+            .insert(batch);
+          error = insertError;
         }
-
-        const { error } = await query;
 
         if (error) {
           if (error.message.includes('ON CONFLICT DO UPDATE command cannot affect row a second time')) {
@@ -187,23 +197,32 @@ class EnhancedDatabaseManager {
 
     for (const item of items) {
       try {
-        let query = supabase.from(tableName).insert([item]);
+        let error: any = null;
         
         if (options.conflictColumns && options.conflictColumns.length > 0) {
           if (options.updateOnConflict) {
-            query = query.upsert([item], { 
-              onConflict: options.conflictColumns.join(','),
-              ignoreDuplicates: false 
-            });
+            const { error: upsertError } = await (supabase as any)
+              .from(tableName)
+              .upsert([item], { 
+                onConflict: options.conflictColumns.join(','),
+                ignoreDuplicates: false 
+              });
+            error = upsertError;
           } else {
-            query = query.upsert([item], { 
-              onConflict: options.conflictColumns.join(','),
-              ignoreDuplicates: true 
-            });
+            const { error: upsertError } = await (supabase as any)
+              .from(tableName)
+              .upsert([item], { 
+                onConflict: options.conflictColumns.join(','),
+                ignoreDuplicates: true 
+              });
+            error = upsertError;
           }
+        } else {
+          const { error: insertError } = await (supabase as any)
+            .from(tableName)
+            .insert([item]);
+          error = insertError;
         }
-
-        const { error } = await query;
 
         if (error) {
           if (error.message.includes('duplicate') || error.message.includes('conflict')) {
