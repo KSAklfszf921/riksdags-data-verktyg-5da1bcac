@@ -2,6 +2,7 @@
 import React from 'react';
 import { useResponsive } from "@/hooks/use-responsive";
 import { Helmet } from 'react-helmet-async';
+import { cn } from '@/lib/utils';
 
 interface MobilePageWrapperProps {
   children: React.ReactNode;
@@ -49,13 +50,17 @@ const MobilePageWrapper: React.FC<MobilePageWrapperProps> = ({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         
+        {/* Theme color for mobile browsers */}
+        <meta name="theme-color" content="#2563eb" />
+        <meta name="color-scheme" content="light dark" />
+        
         {/* Performance hints */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://zqhpbclqvhjcyrgvgaon.supabase.co" />
       </Helmet>
       
       <div className={cn(
-        "min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50",
+        "min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-blue-950/20 dark:via-gray-900 dark:to-indigo-950/20 transition-colors duration-300",
         isMobile && "touch-manipulation",
         className
       )}>
@@ -68,11 +73,6 @@ const MobilePageWrapper: React.FC<MobilePageWrapperProps> = ({
       </div>
     </>
   );
-};
-
-// Helper function for consistent class names
-const cn = (...classes: (string | undefined | boolean)[]) => {
-  return classes.filter(Boolean).join(' ');
 };
 
 export default MobilePageWrapper;

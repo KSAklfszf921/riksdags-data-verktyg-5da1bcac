@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ResponsiveHeader } from "./components/ResponsiveHeader";
 import BreadcrumbNavigation from "./components/BreadcrumbNavigation";
-import ErrorBoundary from "./components/ErrorBoundary";
+import EnhancedErrorBoundary from "./components/EnhancedErrorBoundary";
 import SyncStatusIndicator from "./components/SyncStatusIndicator";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import Index from "./pages/Index";
 import Ledamoter from "./pages/Ledamoter";
 import Anforanden from "./pages/Anforanden";
@@ -32,41 +33,44 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <div className="min-h-screen bg-background font-sans antialiased w-full">
-            <Toaster 
-              position="top-right"
-              expand={false}
-              richColors
-              closeButton
-            />
-            <BrowserRouter>
-              <ResponsiveHeader />
-              <BreadcrumbNavigation />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/ledamoter" element={<Ledamoter />} />
-                <Route path="/anforanden" element={<Anforanden />} />
-                <Route path="/voteringar" element={<Voteringar />} />
-                <Route path="/dokument" element={<Dokument />} />
-                <Route path="/kalender" element={<Kalender />} />
-                <Route path="/partianalys" element={<Partianalys />} />
-                <Route path="/topplistor" element={<Topplistor />} />
-                <Route path="/sprakanalys" element={<SprakAnalys />} />
-                <Route path="/databashantering" element={<Databashantering />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/testverktyg" element={<Admin />} />
-                <Route path="/calendar-test" element={<Admin />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <SyncStatusIndicator />
-            </BrowserRouter>
-          </div>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+    <EnhancedErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <div className="min-h-screen bg-background text-foreground font-sans antialiased w-full transition-colors duration-300">
+              <Toaster 
+                position="top-right"
+                expand={false}
+                richColors
+                closeButton
+                className="dark:bg-gray-800"
+              />
+              <BrowserRouter>
+                <ResponsiveHeader />
+                <BreadcrumbNavigation />
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/ledamoter" element={<Ledamoter />} />
+                  <Route path="/anforanden" element={<Anforanden />} />
+                  <Route path="/voteringar" element={<Voteringar />} />
+                  <Route path="/dokument" element={<Dokument />} />
+                  <Route path="/kalender" element={<Kalender />} />
+                  <Route path="/partianalys" element={<Partianalys />} />
+                  <Route path="/topplistor" element={<Topplistor />} />
+                  <Route path="/sprakanalys" element={<SprakAnalys />} />
+                  <Route path="/databashantering" element={<Databashantering />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/testverktyg" element={<Admin />} />
+                  <Route path="/calendar-test" element={<Admin />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <SyncStatusIndicator />
+              </BrowserRouter>
+            </div>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </EnhancedErrorBoundary>
   );
 }
 
