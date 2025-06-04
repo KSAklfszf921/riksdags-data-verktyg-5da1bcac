@@ -261,12 +261,12 @@ export class SupabaseDataService {
         }
 
         const lastUpdate = latestData && latestData.length > 0 && latestData[0] && 'updated_at' in latestData[0] ? latestData[0].updated_at : null;
-        const hoursOld = lastUpdate ? 
+        const hoursOld = lastUpdate && typeof lastUpdate === 'string' ? 
           (Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60) : null;
 
         status.push({
           table,
-          count: count || 0,
+          recordCount: count || 0,
           lastUpdate,
           hoursOld,
           isStale: hoursOld ? hoursOld > 24 : true
@@ -274,7 +274,7 @@ export class SupabaseDataService {
       } catch (error) {
         status.push({
           table,
-          count: 0,
+          recordCount: 0,
           lastUpdate: null,
           hoursOld: null,
           isStale: true,

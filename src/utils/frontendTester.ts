@@ -91,8 +91,8 @@ export class FrontendTester extends EnhancedTester {
         
         return {
           totalDocuments: data?.length || 0,
-          allHaveTitles: data?.every(d => d.titel) || false,
-          documentTypes: [...new Set(data?.map(d => d.typ).filter(Boolean))] || [],
+          allHaveTitles: data ? data.every(d => d.titel) : false,
+          documentTypes: data ? [...new Set(data.map(d => d.typ).filter(Boolean))] : [],
           sampleDocument: data?.[0] || null
         };
       }
