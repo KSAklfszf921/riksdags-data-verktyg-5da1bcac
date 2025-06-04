@@ -25,10 +25,7 @@ import {
   MessageSquare,
   HelpCircle,
   Vote,
-  Newspaper,
-  History,
-  Phone,
-  GraduationCap
+  Newspaper
 } from 'lucide-react';
 
 interface EnhancedMemberProfileProps {
@@ -121,9 +118,6 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
                        (currentYearStats.written_questions * 1) + 
                        (currentYearStats.speeches * 0.5);
 
-  // Calculate current age
-  const currentAge = member.birth_year ? new Date().getFullYear() - member.birth_year : null;
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
@@ -151,7 +145,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
                   <span className="text-sm text-gray-600">Aktivitetspoäng: {activityScore.toFixed(1)}</span>
                 </div>
                 <Badge variant={member.is_active ? "default" : "secondary"}>
-                  {member.is_active ? 'Aktiv ledamot' : 'Tidigare ledamot'}
+                  {member.is_active ? 'Aktiv' : 'Tidigare ledamot'}
                 </Badge>
               </div>
               <div className="mt-2 text-sm text-gray-600">
@@ -170,12 +164,12 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
         </div>
 
         <div className="p-6 space-y-6">
-          {/* Enhanced biographical information */}
+          {/* Grundläggande information */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Users className="w-5 h-5" />
-                <span>Biografisk information</span>
+                <span>Grundläggande information</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -188,7 +182,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
                 <span className="text-sm">
-                  <strong>Ålder:</strong> {currentAge ? `${currentAge} år (f. ${member.birth_year})` : 'Ej angivet'}
+                  <strong>Födelseår:</strong> {member.birth_year || 'Ej angivet'}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -207,47 +201,6 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
                   }
                 </span>
               </div>
-              
-              {/* New biographical fields */}
-              {member.profession && (
-                <div className="flex items-center space-x-2">
-                  <Briefcase className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>Yrke:</strong> {member.profession}
-                  </span>
-                </div>
-              )}
-              
-              {member.education && (
-                <div className="flex items-center space-x-2">
-                  <GraduationCap className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>Utbildning:</strong> {member.education}
-                  </span>
-                </div>
-              )}
-              
-              {(member.date_from || member.date_to) && (
-                <div className="flex items-center space-x-2">
-                  <Calendar className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>Mandatperiod:</strong> {
-                      member.date_from ? formatDate(member.date_from) : 'Okänt'
-                    } - {
-                      member.date_to ? formatDate(member.date_to) : 'Pågående'
-                    }
-                  </span>
-                </div>
-              )}
-              
-              {member.last_sync_at && (
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>Senast uppdaterad:</strong> {formatDateTime(member.last_sync_at)}
-                  </span>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -372,50 +325,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
             </Card>
           )}
 
-          {/* Status history */}
-          {member.status_history && Array.isArray(member.status_history) && member.status_history.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <History className="w-5 h-5" />
-                  <span>Statushistorik</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Organ</TableHead>
-                      <TableHead>Roll</TableHead>
-                      <TableHead>Typ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.status_history.slice(0, 10).map((status: any, index: number) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          {formatDate(status.from)} - {status.to ? formatDate(status.to) : 'Pågående'}
-                        </TableCell>
-                        <TableCell>{status.organ}</TableCell>
-                        <TableCell>{status.role}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{status.type}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {member.status_history.length > 10 && (
-                  <p className="text-sm text-gray-500 mt-2">
-                    Visar 10 av {member.status_history.length} statusändringar
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Current assignments */}
+          {/* Aktuella uppdrag */}
           {activeAssignments.length > 0 && (
             <Card>
               <CardHeader>
@@ -455,7 +365,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
             </Card>
           )}
 
-          {/* Former assignments */}
+          {/* Tidigare uppdrag */}
           {formerAssignments.length > 0 && (
             <Card>
               <CardHeader>
