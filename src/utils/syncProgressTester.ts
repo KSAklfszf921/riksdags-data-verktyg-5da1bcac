@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { EdgeFunctionTester, TestResult } from './edgeFunctionTester';
+import { EdgeFunctionTester } from './edgeFunctionTester';
+import { TestResult } from './testUtils';
 
 interface SyncStats {
   total_records?: number;

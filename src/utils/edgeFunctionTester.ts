@@ -1,58 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { CalendarTester } from './testUtils';
-
-export interface TestResult {
-  success?: boolean;
-  message?: string;
-  stats?: any;
-  responseTime?: number;
-  handledGracefully?: boolean;
-  response?: any;
-  error?: string;
-  networkError?: string;
-  completed?: boolean;
-  duration?: number;
-  withinTimeout?: boolean;
-  status?: string;
-  progress?: number;
-  started_at?: string;
-  completed_at?: string;
-  elapsed_ms?: number;
-  timestamp?: string;
-  table_counts?: any;
-  latest_syncs?: any;
-  system_health?: any;
-}
+import { CalendarTester, TestResult } from './testUtils';
 
 export class EdgeFunctionTester extends CalendarTester {
-  
-  protected async runTest<T>(testName: string, testFn: () => Promise<T>): Promise<TestResult> {
-    const startTime = Date.now();
-    
-    try {
-      console.log(`Starting test: ${testName}`);
-      const result = await testFn();
-      const duration = Date.now() - startTime;
-      
-      return {
-        success: true,
-        message: `${testName} completed successfully`,
-        responseTime: duration,
-        ...result as any
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      console.error(`Test failed: ${testName}`, error);
-      
-      return {
-        success: false,
-        message: `${testName} failed`,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        responseTime: duration
-      };
-    }
-  }
   
   async testCalendarDataSync(): Promise<TestResult> {
     return this.runTest('Calendar Data Sync Edge Function', async () => {
