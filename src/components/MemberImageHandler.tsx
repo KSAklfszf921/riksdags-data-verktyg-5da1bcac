@@ -32,13 +32,20 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
       return null;
     }
 
-    // Priority order: high resolution first, then fallbacks
+    // Priority order with additional size options
     const priorityOrder = ['192', 'max', '128', '80'];
     
     for (const size of priorityOrder) {
-      if (imageUrls[size]) {
+      if (imageUrls[size] && typeof imageUrls[size] === 'string') {
         return imageUrls[size];
       }
+    }
+
+    // If we didn't find a match in the priority order,
+    // just use the first available image URL
+    const keys = Object.keys(imageUrls);
+    if (keys.length > 0) {
+      return imageUrls[keys[0]];
     }
 
     return null;
@@ -64,6 +71,12 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
   };
 
   const initials = generateInitials();
+  
+  const partyColor = (): string => {
+    // Since we don't have party information here, 
+    // we'll use a default blue color scheme
+    return 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400';
+  };
 
   const handleImageError = () => {
     console.log(`Failed to load image for ${firstName} ${lastName}`);
@@ -86,7 +99,7 @@ const MemberImageHandler: React.FC<MemberImageHandlerProps> = ({
           className="object-cover"
         />
       ) : null}
-      <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
+      <AvatarFallback className={partyColor()}>
         {initials !== '??' ? initials : <User className="w-4 h-4" />}
       </AvatarFallback>
     </Avatar>
