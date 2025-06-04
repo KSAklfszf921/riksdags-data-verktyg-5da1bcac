@@ -1,4 +1,3 @@
-
 import { supabase } from '../integrations/supabase/client';
 import { enhancedRssFetcher, type FetchResult } from './enhancedRssFetcher';
 import { databaseManager } from './databaseManager';
@@ -74,9 +73,9 @@ class ContinuousBatchProcessor {
     console.log(`🚀 Starting continuous batch processing (max ${maxMembers} members)`);
 
     try {
-      // Fetch members
+      // Fetch members from enhanced_member_profiles table
       const { data: members, error: memberError } = await supabase
-        .from('member_data')
+        .from('enhanced_member_profiles')
         .select('member_id, first_name, last_name, party, is_active')
         .eq('is_active', true)
         .order('party, last_name')

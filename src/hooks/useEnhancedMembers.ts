@@ -2,11 +2,27 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
-import { CachedMemberData } from '../services/cachedPartyApi';
 
 type DatabaseEnhancedMemberProfile = Database['public']['Tables']['enhanced_member_profiles']['Row'];
 
-export interface EnhancedMember extends CachedMemberData {
+export interface EnhancedMember {
+  id: string;
+  member_id: string;
+  first_name: string;
+  last_name: string;
+  party: string;
+  constituency: string | null;
+  gender: string | null;
+  birth_year: number | null;
+  is_active: boolean | null;
+  riksdag_status: string | null;
+  current_committees: string[] | null;
+  assignments: any[] | null;
+  activity_summary: Record<string, any> | null;
+  image_urls: Record<string, string> | null;
+  primary_image_url: string | null;
+  created_at: string;
+  updated_at: string;
   yearly_stats: {
     [year: string]: {
       motions: number;
@@ -25,7 +41,6 @@ export interface EnhancedMember extends CachedMemberData {
   };
   data_completeness_score?: number;
   missing_fields?: string[];
-  primary_image_url?: string;
 }
 
 // Helper function to safely parse yearly activity data
@@ -75,11 +90,10 @@ const convertEnhancedProfileToMember = (profile: DatabaseEnhancedMemberProfile):
     is_active: profile.is_active || false,
     riksdag_status: profile.riksdag_status || 'Riksdagsledamot',
     current_committees: profile.current_committees,
-    committee_assignments: (profile.committee_history as any) || [],
+    assignments: (profile.assignments as any) || [],
+    activity_summary: (profile.activity_summary as Record<string, any>) || {},
     image_urls: (profile.image_urls as Record<string, string>) || {},
     primary_image_url: profile.primary_image_url,
-    assignments: (profile.assignments as any) || [],
-    activity_data: (profile.activity_summary as any) || {},
     yearly_stats: yearlyStats,
     current_year_stats: currentYearStats,
     data_completeness_score: profile.data_completeness_score || 0,

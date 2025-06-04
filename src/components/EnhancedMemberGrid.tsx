@@ -45,29 +45,13 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
   };
 
   // Helper function to safely handle image_urls from Supabase Json type
-  const getImageUrls = (imageUrls: Json | null): Record<string, string> | null => {
-    if (!imageUrls) return null;
-    if (typeof imageUrls === 'string') {
-      // If it's a string, try to parse it as JSON
-      try {
-        const parsed = JSON.parse(imageUrls);
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          return parsed as Record<string, string>;
-        }
-      } catch {
-        return null;
-      }
-      return null;
-    }
-    if (typeof imageUrls === 'object' && imageUrls !== null && !Array.isArray(imageUrls)) {
-      return imageUrls as Record<string, string>;
-    }
-    return null;
+  const getImageUrls = (imageUrls: Record<string, string> | null): Record<string, string> | null => {
+    return imageUrls;
   };
 
   // Convert enhanced member to legacy member format for MemberProfile
   const convertToLegacyMember = (enhancedMember: EnhancedMember) => {
-    const activityData = enhancedMember.activity_data as any;
+    const activitySummary = enhancedMember.activity_summary as any;
     const assignments = enhancedMember.assignments as any;
     const imageUrls = getImageUrls(enhancedMember.image_urls);
     
@@ -87,11 +71,11 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
       birthYear: enhancedMember.birth_year || 1970,
       profession: 'Riksdagsledamot',
       committees: enhancedMember.current_committees || [],
-      speeches: activityData?.speeches || [],
-      votes: activityData?.votes || [],
-      proposals: activityData?.proposals || [],
-      documents: activityData?.documents || [],
-      calendarEvents: activityData?.calendar_events || [],
+      speeches: activitySummary?.speeches || [],
+      votes: activitySummary?.votes || [],
+      proposals: activitySummary?.proposals || [],
+      documents: activitySummary?.documents || [],
+      calendarEvents: activitySummary?.calendar_events || [],
       activityScore: enhancedMember.current_year_stats?.total_documents || 0,
       motions: enhancedMember.current_year_stats?.motions || 0,
       interpellations: enhancedMember.current_year_stats?.interpellations || 0,
