@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import MemberProfile from './MemberProfile';
 import MemberImageHandler from './MemberImageHandler';
 import CommitteeDisplay from './CommitteeDisplay';
 import ActivityIndicator from './ActivityIndicator';
+import type { Json } from '@/integrations/supabase/types';
 
 interface EnhancedMemberGridProps {
   members: EnhancedMember[];
@@ -43,7 +45,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
   };
 
   // Helper function to safely handle image_urls from Supabase Json type
-  const getImageUrls = (imageUrls: any): Record<string, string> | null => {
+  const getImageUrls = (imageUrls: Json | null): Record<string, string> | null => {
     if (!imageUrls) return null;
     if (typeof imageUrls === 'string') {
       // If it's a string, try to parse it as JSON
