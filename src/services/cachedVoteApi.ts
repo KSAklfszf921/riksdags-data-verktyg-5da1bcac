@@ -1,29 +1,27 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 export interface CachedVoteData {
   id: string;
   vote_id: string;
-  hangar_id: string | null;
-  rm: string | null;
-  beteckning: string | null;
-  punkt: string | null;
-  votering: string | null;
-  avser: string | null;
   dok_id: string | null;
+  rm: string | null;
+  hangar_id: string | null;
+  beteckning: string | null;
+  avser: string | null;
+  votering: string | null;
   systemdatum: string | null;
-  vote_results: Json | null;
-  vote_statistics: Json | null;
-  party_breakdown: Json | null;
-  constituency_breakdown: Json | null;
+  punkt: number | null;
+  vote_results: Json;
+  party_breakdown: Json;
+  constituency_breakdown: Json;
+  metadata: Json;
+  vote_statistics: Json;
   created_at: string;
   updated_at: string;
 }
 
-export const fetchCachedVoteData = async (limit = 100): Promise<CachedVoteData[]> => {
-  console.log('Fetching cached vote data...');
-  
+export const fetchCachedVoteData = async (limit: number = 100): Promise<CachedVoteData[]> => {
   const { data, error } = await supabase
     .from('vote_data')
     .select('*')
@@ -35,7 +33,126 @@ export const fetchCachedVoteData = async (limit = 100): Promise<CachedVoteData[]
     throw new Error(`Failed to fetch cached vote data: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
+};
+
+export const fetchVotesByDocument = async (dokId: string): Promise<CachedVoteData[]> => {
+  const { data, error } = await supabase
+    .from('vote_data')
+    .select('*')
+    .eq('dok_id', dokId)
+    .order('systemdatum', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching votes by document:', error);
+    throw new Error(`Failed to fetch votes by document: ${error.message}`);
+  }
+
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
+};
+
+export const searchVotes = async (query: string): Promise<CachedVoteData[]> => {
+  const { data, error } = await supabase
+    .from('vote_data')
+    .select('*')
+    .or(`avser.ilike.%${query}%, beteckning.ilike.%${query}%`)
+    .order('systemdatum', { ascending: false });
+
+  if (error) {
+    console.error('Error searching votes:', error);
+    throw new Error(`Failed to search votes: ${error.message}`);
+  }
+
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
+};
+
+export const fetchVoteById = async (voteId: string): Promise<CachedVoteData | null> => {
+  const { data, error } = await supabase
+    .from('vote_data')
+    .select('*')
+    .eq('vote_id', voteId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching vote by ID:', error);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    vote_id: data.vote_id,
+    dok_id: data.dok_id,
+    rm: data.rm,
+    hangar_id: data.hangar_id,
+    beteckning: data.beteckning,
+    avser: data.avser,
+    votering: data.votering,
+    systemdatum: data.systemdatum,
+    punkt: data.punkt,
+    vote_results: data.vote_results,
+    party_breakdown: data.party_breakdown,
+    constituency_breakdown: data.constituency_breakdown,
+    metadata: data.metadata,
+    vote_statistics: data.metadata || {},
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
 };
 
 export const fetchVotesByParty = async (party: string): Promise<CachedVoteData[]> => {
@@ -52,7 +169,25 @@ export const fetchVotesByParty = async (party: string): Promise<CachedVoteData[]
     throw new Error(`Failed to fetch votes by party: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
 };
 
 export const fetchVotesByDateRange = async (fromDate: string, toDate: string): Promise<CachedVoteData[]> => {
@@ -70,7 +205,25 @@ export const fetchVotesByDateRange = async (fromDate: string, toDate: string): P
     throw new Error(`Failed to fetch votes by date range: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
 };
 
 export const fetchVoteDetails = async (voteId: string): Promise<CachedVoteData | null> => {
@@ -87,7 +240,27 @@ export const fetchVoteDetails = async (voteId: string): Promise<CachedVoteData |
     return null;
   }
 
-  return data;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    vote_id: data.vote_id,
+    dok_id: data.dok_id,
+    rm: data.rm,
+    hangar_id: data.hangar_id,
+    beteckning: data.beteckning,
+    avser: data.avser,
+    votering: data.votering,
+    systemdatum: data.systemdatum,
+    punkt: data.punkt,
+    vote_results: data.vote_results,
+    party_breakdown: data.party_breakdown,
+    constituency_breakdown: data.constituency_breakdown,
+    metadata: data.metadata,
+    vote_statistics: data.metadata || {},
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
 };
 
 export const getVoteDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
@@ -112,7 +285,6 @@ export const getVoteDataFreshness = async (): Promise<{ lastUpdated: string | nu
   return { lastUpdated, isStale };
 };
 
-// Utility functions for working with vote data
 export const extractVoteResults = (voteResults: Json): any[] => {
   if (voteResults && typeof voteResults === 'object' && !Array.isArray(voteResults)) {
     const results = (voteResults as any)?.votering_resultat_lista?.votering_resultat;
@@ -146,4 +318,39 @@ export const calculateVoteStatistics = (voteData: CachedVoteData) => {
   });
 
   return stats;
+};
+
+export const formatVoteDate = (dateString: string | null): string => {
+  if (!dateString) return 'Okänt datum';
+  
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('sv-SE');
+  } catch {
+    return dateString;
+  }
+};
+
+export const getVoteResult = (voteData: CachedVoteData): string => {
+  if (!voteData.vote_results) return 'Okänt resultat';
+  
+  try {
+    const results = voteData.vote_results as any;
+    if (results.outcome) {
+      return results.outcome;
+    }
+    return 'Okänt resultat';
+  } catch {
+    return 'Okänt resultat';
+  }
+};
+
+export const getPartyVotes = (voteData: CachedVoteData): any => {
+  if (!voteData.party_breakdown) return {};
+  
+  try {
+    return voteData.party_breakdown as any;
+  } catch {
+    return {};
+  }
 };

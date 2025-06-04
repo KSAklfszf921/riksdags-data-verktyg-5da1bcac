@@ -1,63 +1,19 @@
 
 project_id = "zqhpbclqvhjcyrgvgaon"
 
-[api]
-enabled = true
-port = 54321
-schemas = ["public", "graphql_public"]
-extra_search_path = ["public", "extensions"]
-max_rows = 1000
+[functions.fetch-party-data]
+verify_jwt = false
 
-[db]
-port = 54322
+[functions.fetch-calendar-data]
+verify_jwt = false
 
-[studio]
-enabled = true
-port = 54323
+[functions.daily-party-data-sync]
+verify_jwt = false
 
-[ingest]
-enabled = true
-port = 54324
+# Cron job configuration for daily data sync
+# This will run the sync function every day at 2 AM UTC
+[edge-runtime]
+policy = "per-worker"
 
-[storage]
-enabled = true
-port = 54325
-image_transformation = { enabled = true }
-
-[auth]
-enabled = true
-port = 54326
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
-jwt_expiry = 3600
-refresh_token_rotation_enabled = true
-secure_password_change_enabled = true
-enable_manual_linking = false
-
-[edge_functions]
-enabled = true
-port = 54327
-
-[[edge_functions.serve]]
-name = "daily-party-data-sync"
-command = "serve supabase/functions/daily-party-data-sync/index.ts --port 54327 --env-file supabase/.env"
-
-[[edge_functions.serve]]
-name = "fetch-calendar-data"  
-command = "serve supabase/functions/fetch-calendar-data/index.ts --port 54327 --env-file supabase/.env"
-
-[[edge_functions.serve]]
-name = "fetch-comprehensive-data"
-command = "serve supabase/functions/fetch-comprehensive-data/index.ts --port 54327 --env-file supabase/.env"
-
-[[edge_functions.serve]]
-name = "fetch-member-news"
-command = "serve supabase/functions/fetch-member-news/index.ts --port 54327 --env-file supabase/.env"
-
-[[edge_functions.serve]]
-name = "fetch-party-data"
-command = "serve supabase/functions/fetch-party-data/index.ts --port 54327 --env-file supabase/.env"
-
-[[edge_functions.serve]]
-name = "fetch-toplists-data"
-command = "serve supabase/functions/fetch-toplists-data/index.ts --port 54327 --env-file supabase/.env"
+# Note: Cron jobs need to be configured via SQL in the database
+# See the SQL migration for setting up the actual cron schedule

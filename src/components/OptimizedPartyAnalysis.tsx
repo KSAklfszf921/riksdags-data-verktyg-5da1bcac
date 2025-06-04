@@ -32,6 +32,7 @@ interface PartyStats {
   committees: { [code: string]: { count: number; roles: string[] } };
 }
 
+// Helper function to safely extract gender distribution from Json
 const extractGenderDistribution = (genderDistribution: any): { male: number; female: number } => {
   if (genderDistribution && typeof genderDistribution === 'object' && !Array.isArray(genderDistribution)) {
     return {
@@ -62,8 +63,9 @@ const OptimizedPartyAnalysis = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Loading cached party analysis data...');
+      console.log('Loading enhanced cached party analysis data...');
       
+      // Check data freshness and last sync info
       const [freshness, syncInfo] = await Promise.all([
         getDataFreshness(),
         getLastSyncInfo()
@@ -72,6 +74,7 @@ const OptimizedPartyAnalysis = () => {
       setDataFreshness(freshness);
       setLastSync(syncInfo);
       
+      // Load cached data
       const [parties, members] = await Promise.all([
         fetchCachedPartyData(),
         fetchCachedMemberData()
@@ -80,12 +83,12 @@ const OptimizedPartyAnalysis = () => {
       setPartyData(parties);
       setMemberData(members);
       
-      console.log(`Loaded ${members.length} members and ${parties.length} parties from cache`);
+      console.log(`Loaded ${members.length} members and ${parties.length} parties from enhanced cache`);
       
       if (freshness.isStale) {
         toast({
-          title: "Data uppdateras automatiskt",
-          description: "Data uppdateras dagligen - ingen manuell uppdatering behövs.",
+          title: "Data kanske är föråldrad",
+          description: "Datan är äldre än 24 timmar. Överväg att uppdatera.",
           variant: "default"
         });
       }
@@ -95,7 +98,7 @@ const OptimizedPartyAnalysis = () => {
       console.error('Error loading cached data:', err);
       toast({
         title: "Fel",
-        description: "Kunde inte hämta partidata. Data uppdateras automatiskt.",
+        description: "Kunde inte hämta partidata. Försök igen senare.",
         variant: "destructive"
       });
     } finally {
@@ -108,24 +111,29 @@ const OptimizedPartyAnalysis = () => {
       setRefreshing(true);
       
       toast({
-        title: "Läser cachad data",
-        description: "Hämtar senaste cachade data...",
+        title: "Uppdaterar data",
+        description: "Hämtar senaste data från Riksdagen...",
       });
       
-      await loadCachedData();
-      setRefreshing(false);
+      await refreshPartyData();
       
-      toast({
-        title: "Data uppdaterad",
-        description: "Senaste cachade data har hämtats.",
-      });
+      // Wait a moment for the data to be processed, then reload
+      setTimeout(async () => {
+        await loadCachedData();
+        setRefreshing(false);
+        
+        toast({
+          title: "Data uppdaterad",
+          description: "Senaste data har hämtats från Riksdagen.",
+        });
+      }, 3000);
       
     } catch (err) {
       setRefreshing(false);
       console.error('Error refreshing data:', err);
       toast({
         title: "Fel vid uppdatering",
-        description: "Kunde inte uppdatera data.",
+        description: "Kunde inte uppdatera data. Försök igen senare.",
         variant: "destructive"
       });
     }
@@ -137,9 +145,9 @@ const OptimizedPartyAnalysis = () => {
       return {
         party: party.party_code,
         count: party.total_members,
-        averageAge: 0,
+        averageAge: 0, // Will be calculated from member data if needed
         genderDistribution: genderDist,
-        committees: {}
+        committees: {} // Will be populated if needed
       };
     });
   };
@@ -200,7 +208,7 @@ const OptimizedPartyAnalysis = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin mr-3" />
-        <span className="text-lg">Laddar partianalys...</span>
+        <span className="text-lg">Laddar förbättrad partianalys...</span>
       </div>
     );
   }
@@ -232,16 +240,17 @@ const OptimizedPartyAnalysis = () => {
 
   return (
     <div className="space-y-6">
+      {/* Enhanced data status and controls */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Database className="w-5 h-5" />
-                Partianalys
+                Förbättrad Partianalys
               </CardTitle>
               <CardDescription>
-                Cachad data med utskottsinformation - uppdateras automatiskt dagligen
+                Data från förbättrad cache med utskottsinformation - uppdateras automatiskt dagligen
               </CardDescription>
             </div>
             <div className="flex items-center space-x-4">
@@ -253,7 +262,7 @@ const OptimizedPartyAnalysis = () => {
                   </span>
                   {dataFreshness.isStale && (
                     <Badge variant="outline" className="text-orange-600 border-orange-600">
-                      Schemaläggs uppdatering
+                      Föråldrad
                     </Badge>
                   )}
                 </div>
@@ -269,7 +278,7 @@ const OptimizedPartyAnalysis = () => {
                 ) : (
                   <RefreshCw className="w-4 h-4 mr-2" />
                 )}
-                Uppdatera cache
+                Uppdatera data
               </Button>
             </div>
           </div>
@@ -290,6 +299,7 @@ const OptimizedPartyAnalysis = () => {
               </SelectContent>
             </Select>
 
+            {/* Sync status info */}
             {lastSync && (
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center space-x-2">
@@ -312,6 +322,7 @@ const OptimizedPartyAnalysis = () => {
         </CardContent>
       </Card>
 
+      {/* Statistics cards */}
       <PartyStatsCards
         totalMembers={totalMembers}
         totalParties={filteredStats.length}
@@ -319,11 +330,13 @@ const OptimizedPartyAnalysis = () => {
         genderDistribution={genderStats}
       />
 
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <PartyDistributionChart partyStats={filteredStats} />
         <DemographicCharts genderStats={genderStats} ageStats={ageStats} />
       </div>
 
+      {/* Details table */}
       <PartyDetailsTable partyStats={filteredStats} />
     </div>
   );

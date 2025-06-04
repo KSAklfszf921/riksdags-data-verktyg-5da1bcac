@@ -1,47 +1,38 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, MapPin, ChevronRight, Loader2, Activity } from "lucide-react";
+import { Calendar, Clock, MapPin, ChevronRight, Loader2 } from "lucide-react";
 import { 
   fetchUpcomingEvents, 
-  fetchRecentActivities,
   formatEventDate, 
   formatEventTime, 
-  isEventToday,
-  getEventTitle,
-  getEventTypeDescription,
+  isEventToday, 
   type CachedCalendarData 
 } from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
 
 const UpcomingEventsWidget = () => {
   const [events, setEvents] = useState<CachedCalendarData[]>([]);
-  const [recentActivities, setRecentActivities] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showRecent, setShowRecent] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadEventsAndActivities();
+    loadUpcomingEvents();
   }, []);
 
-  const loadEventsAndActivities = async () => {
+  const loadUpcomingEvents = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const [upcomingEvents, latestActivities] = await Promise.all([
-        fetchUpcomingEvents(7), // Next 7 days
-        fetchRecentActivities(5) // Last 5 activities
-      ]);
-      
-      setEvents(upcomingEvents.slice(0, 6)); // Show max 6 upcoming events
-      setRecentActivities(latestActivities);
+      const result = await fetchUpcomingEvents(7); // Next 7 days
+      setEvents(result.slice(0, 6)); // Show max 6 events
     } catch (err) {
-      setError('Kunde inte hämta kalenderhändelser');
-      console.error('Error loading events and activities:', err);
+      setError('Kunde inte hämta kommande händelser');
+      console.error('Error loading upcoming events:', err);
     } finally {
       setLoading(false);
     }
@@ -88,36 +79,13 @@ const UpcomingEventsWidget = () => {
     }
   };
 
-  const formatActivityTitle = (activity: CachedCalendarData) => {
-    return getEventTitle(activity);
-  };
-
-  const formatActivityTime = (activity: CachedCalendarData) => {
-    if (!activity.created_at) return '';
-    
-    try {
-      const date = new Date(activity.created_at);
-      const now = new Date();
-      const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-      
-      if (diffHours < 1) return 'Nu';
-      if (diffHours < 24) return `${diffHours}h sedan`;
-      
-      const diffDays = Math.floor(diffHours / 24);
-      if (diffDays === 1) return 'Igår';
-      return `${diffDays}d sedan`;
-    } catch {
-      return 'Nyligen';
-    }
-  };
-
   if (loading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="w-5 h-5" />
-            <span>Kalenderhändelser</span>
+            <span>Kommande händelser</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -136,13 +104,13 @@ const UpcomingEventsWidget = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="w-5 h-5" />
-            <span>Kalenderhändelser</span>
+            <span>Kommande händelser</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button variant="outline" onClick={loadEventsAndActivities}>
+            <Button variant="outline" onClick={loadUpcomingEvents}>
               Försök igen
             </Button>
           </div>
@@ -151,63 +119,46 @@ const UpcomingEventsWidget = () => {
     );
   }
 
-  const currentData = showRecent ? recentActivities : events;
-  const hasData = currentData.length > 0;
-
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center space-x-2">
-              {showRecent ? (
-                <Activity className="w-5 h-5" />
-              ) : (
-                <Calendar className="w-5 h-5" />
-              )}
-              <span>{showRecent ? 'Senaste aktiviteter' : 'Kommande händelser'}</span>
+              <Calendar className="w-5 h-5" />
+              <span>Kommande händelser</span>
             </CardTitle>
             <CardDescription>
-              {showRecent ? 'Nyligen inlagda' : 'Nästa 7 dagarna'}
+              Nästa 7 dagarna
             </CardDescription>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => setShowRecent(!showRecent)}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              {showRecent ? 'Kommande' : 'Senaste'}
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/kalender')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              Visa alla
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => navigate('/kalender')}
+            className="text-blue-600 hover:text-blue-700"
+          >
+            Visa alla
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
-        {!hasData ? (
+        {events.length === 0 ? (
           <p className="text-gray-500 text-center py-4">
-            {showRecent ? 'Inga senaste aktiviteter' : 'Inga kommande händelser de närmaste dagarna'}
+            Inga kommande händelser de närmaste dagarna
           </p>
         ) : (
           <div className="space-y-3">
-            {currentData.map((item, index) => (
-              <div key={item.id || index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+            {events.map((event, index) => (
+              <div key={event.id || index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="text-center min-w-[60px]">
                   <div className="text-xs font-medium text-gray-500 uppercase">
-                    {showRecent ? formatActivityTime(item) : formatEventDateShort(item.datum)}
+                    {formatEventDateShort(event.datum)}
                   </div>
-                  {!showRecent && item.tid && (
+                  {event.start_time && (
                     <div className="text-xs text-gray-400 mt-1">
-                      {formatEventTime(item.tid)}
+                      {formatEventTime(event.start_time)}
                     </div>
                   )}
                 </div>
@@ -216,23 +167,18 @@ const UpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {getEventTitle(item)}
+                        {event.summary || 'Händelse'}
                       </h4>
-                      {getEventTypeDescription(item) && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          {getEventTypeDescription(item)}
-                        </div>
-                      )}
-                      {item.plats && (
+                      {event.location && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <MapPin className="w-3 h-3 mr-1" />
-                          <span className="truncate">{item.plats}</span>
+                          <span className="truncate">{event.location}</span>
                         </div>
                       )}
                     </div>
-                    {item.organ && (
-                      <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(item.organ)}`}>
-                        {item.organ}
+                    {event.organ && (
+                      <Badge variant="secondary" className={`ml-2 text-xs ${getEventTypeColor(event.organ)}`}>
+                        {event.organ}
                       </Badge>
                     )}
                   </div>
@@ -242,7 +188,7 @@ const UpcomingEventsWidget = () => {
           </div>
         )}
         
-        {hasData && (
+        {events.length > 0 && (
           <div className="mt-4 pt-3 border-t">
             <Button 
               variant="outline" 
