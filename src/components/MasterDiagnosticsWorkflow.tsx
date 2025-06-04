@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { useHealthCheck } from '@/hooks/useHealthCheck';
 import { useProcessCleanup } from '@/hooks/useProcessCleanup';
 import { useDataInitializer } from '@/hooks/useDataInitializer';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Play, 
   Pause, 
@@ -54,7 +56,7 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
   const { toast } = useToast();
   const { healthData, performHealthCheck } = useHealthCheck();
   const { cleanupHangingProcesses } = useProcessCleanup();
-  const { initializeAllData, initializeMemberData, isInitializing, progress } = useDataInitializer();
+  const { initializeAllData, initializeMemberData, isInitializing, progress: initializationProgress } = useDataInitializer();
 
   const [workflow, setWorkflow] = useState<WorkflowState>({
     isRunning: false,
@@ -407,7 +409,7 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
     }
   };
 
-  const progress = workflow.overallStatus === 'completed' 
+  const workflowProgress = workflow.overallStatus === 'completed' 
     ? 100 
     : (workflow.currentStep / diagnosticSteps.length) * 100;
 
@@ -437,7 +439,7 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
               <span>Framsteg</span>
               <span>{workflow.currentStep} / {diagnosticSteps.length}</span>
             </div>
-            <Progress value={progress} className="h-3" />
+            <Progress value={workflowProgress} className="h-3" />
           </div>
 
           {/* Control Buttons */}
@@ -488,22 +490,22 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
               <AlertDescription>
                 <div className="space-y-2">
                   <div className="font-medium">Datainitialisering pågår</div>
-                  <div className="text-sm">{progress.currentStep}</div>
+                  <div className="text-sm">{initializationProgress.currentStep}</div>
                   <Progress 
-                    value={(progress.completed / progress.total) * 100} 
+                    value={(initializationProgress.completed / initializationProgress.total) * 100} 
                     className="w-full h-2" 
                   />
                   <div className="text-xs text-gray-600">
-                    {progress.completed} / {progress.total} steg slutförda
+                    {initializationProgress.completed} / {initializationProgress.total} steg slutförda
                   </div>
-                  {progress.successes.length > 0 && (
+                  {initializationProgress.successes.length > 0 && (
                     <div className="text-xs text-green-600">
-                      ✅ Senaste: {progress.successes[progress.successes.length - 1]}
+                      ✅ Senaste: {initializationProgress.successes[initializationProgress.successes.length - 1]}
                     </div>
                   )}
-                  {progress.errors.length > 0 && (
+                  {initializationProgress.errors.length > 0 && (
                     <div className="text-xs text-red-600">
-                      ❌ Fel: {progress.errors[progress.errors.length - 1]}
+                      ❌ Fel: {initializationProgress.errors[initializationProgress.errors.length - 1]}
                     </div>
                   )}
                 </div>
