@@ -1,3 +1,4 @@
+
 // Updated Riksdag API service to comply with technical guide
 const BASE_URL = 'https://data.riksdagen.se';
 
@@ -53,6 +54,62 @@ export interface RiksdagDocument {
   organ?: string;
   rm?: string;
   hangar_id?: string;
+}
+
+export interface VoteSearchParams {
+  beteckning?: string;
+  rm?: string[];
+  punkt?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  party?: string[];
+  valkrets?: string;
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet';
+  pageSize?: number;
+  page?: number;
+}
+
+export interface RiksdagVote {
+  votering_id?: string;
+  intressent_id?: string;
+  namn?: string;
+  parti?: string;
+  valkrets?: string;
+  beteckning?: string;
+  punkt?: string;
+  rost?: string;
+  rm?: string;
+  systemdatum?: string;
+  hangar_id?: string;
+  avser?: string;
+  dok_id?: string;
+}
+
+export interface SpeechSearchParams {
+  searchTerm?: string;
+  rm?: string;
+  fromDate?: string;
+  toDate?: string;
+  org?: string;
+  iid?: string;
+  parti?: string[];
+  sort?: string;
+  sortorder?: 'asc' | 'desc';
+  p?: number;
+}
+
+export interface RiksdagSpeech {
+  anforande_id: string;
+  dok_id: string;
+  rm: string;
+  anforande_nummer: string;
+  talare: string;
+  parti: string;
+  anforande_text: string;
+  datum: string;
+  titel: string;
+  kammaraktivitet: string;
+  rel_dok_id?: string;
+  intressent_id?: string;
 }
 
 export interface RiksdagMember {
@@ -210,6 +267,229 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{
       throw error;
     }
     throw new RiksdagApiError('Kunde inte söka dokument');
+  }
+};
+
+// Add searchVotes function
+export const searchVotes = async (params: VoteSearchParams): Promise<{
+  votes: RiksdagVote[];
+  totalCount: number;
+}> => {
+  console.log('🗳️ Searching votes with params:', params);
+  
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  
+  if (params.page) {
+    searchParams.append('p', params.page.toString());
+  } else {
+    searchParams.append('p', '1');
+  }
+  
+  if (params.beteckning) searchParams.append('bet', params.beteckning);
+  if (params.punkt) searchParams.append('punkt', params.punkt);
+  if (params.rost) searchParams.append('rost', params.rost);
+  if (params.valkrets) searchParams.append('valkrets', params.valkrets);
+  if (params.gruppering) searchParams.append('gruppering', params.gruppering);
+  
+  if (params.rm && params.rm.length > 0) {
+    params.rm.forEach(rm => searchParams.append('rm', rm));
+  }
+  
+  if (params.party && params.party.length > 0) {
+    params.party.forEach(party => searchParams.append('parti', party));
+  }
+
+  const url = `${BASE_URL}/voteringlista/?${searchParams.toString()}`;
+  console.log('📡 Vote API URL:', url);
+
+  try {
+    const response = await fetch(url);
+    await handleApiResponse(response);
+    const data = await response.json();
+    
+    if (!data.voteringlista) {
+      console.warn('⚠️ No voteringlista in response');
+      return { votes: [], totalCount: 0 };
+    }
+
+    let votes: any[] = [];
+    if (data.voteringlista.votering) {
+      votes = Array.isArray(data.voteringlista.votering) 
+        ? data.voteringlista.votering 
+        : [data.voteringlista.votering];
+    }
+
+    const mappedVotes: RiksdagVote[] = votes.map(vote => ({
+      votering_id: vote.votering_id,
+      intressent_id: vote.intressent_id,
+      namn: vote.namn,
+      parti: vote.parti,
+      valkrets: vote.valkrets,
+      beteckning: vote.beteckning,
+      punkt: vote.punkt,
+      rost: vote.rost,
+      rm: vote.rm,
+      systemdatum: vote.systemdatum,
+      hangar_id: vote.hangar_id,
+      avser: vote.avser,
+      dok_id: vote.dok_id
+    }));
+
+    const totalCount = parseInt(data.voteringlista['@hits']) || votes.length;
+    
+    console.log(`✅ Found ${mappedVotes.length} votes (total: ${totalCount})`);
+    return { votes: mappedVotes, totalCount };
+    
+  } catch (error) {
+    console.error('❌ Error searching votes:', error);
+    if (error instanceof RiksdagApiError) {
+      throw error;
+    }
+    throw new RiksdagApiError('Kunde inte söka voteringar');
+  }
+};
+
+// Add searchSpeeches function
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<{
+  speeches: RiksdagSpeech[];
+  totalCount: number;
+}> => {
+  console.log('🎤 Searching speeches with params:', params);
+  
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  
+  if (params.p) {
+    searchParams.append('p', params.p.toString());
+  } else {
+    searchParams.append('p', '1');
+  }
+  
+  if (params.rm) searchParams.append('rm', params.rm);
+  if (params.fromDate) searchParams.append('from', params.fromDate);
+  if (params.toDate) searchParams.append('tom', params.toDate);
+  if (params.org) searchParams.append('organ', params.org);
+  if (params.iid) searchParams.append('iid', params.iid);
+  if (params.sort) searchParams.append('sort', params.sort);
+  if (params.sortorder) searchParams.append('sortorder', params.sortorder);
+  
+  if (params.searchTerm) {
+    searchParams.append('sok', params.searchTerm);
+  }
+  
+  if (params.parti && params.parti.length > 0) {
+    const partySearch = params.parti.join(' OR ');
+    if (params.searchTerm) {
+      searchParams.set('sok', `${params.searchTerm} AND (${partySearch})`);
+    } else {
+      searchParams.append('sok', partySearch);
+    }
+  }
+
+  const url = `${BASE_URL}/anforandelista/?${searchParams.toString()}`;
+  console.log('📡 Speech API URL:', url);
+
+  try {
+    const response = await fetch(url);
+    await handleApiResponse(response);
+    const data = await response.json();
+    
+    if (!data.anforandelista) {
+      console.warn('⚠️ No anforandelista in response');
+      return { speeches: [], totalCount: 0 };
+    }
+
+    let speeches: any[] = [];
+    if (data.anforandelista.anforande) {
+      speeches = Array.isArray(data.anforandelista.anforande) 
+        ? data.anforandelista.anforande 
+        : [data.anforandelista.anforande];
+    }
+
+    const mappedSpeeches: RiksdagSpeech[] = speeches.map(speech => ({
+      anforande_id: speech.anforande_id,
+      dok_id: speech.dok_id,
+      rm: speech.rm,
+      anforande_nummer: speech.anforande_nummer,
+      talare: speech.talare,
+      parti: speech.parti,
+      anforande_text: speech.anforande_text,
+      datum: speech.datum,
+      titel: speech.titel,
+      kammaraktivitet: speech.kammaraktivitet,
+      rel_dok_id: speech.rel_dok_id,
+      intressent_id: speech.intressent_id
+    }));
+
+    const totalCount = parseInt(data.anforandelista['@hits']) || speeches.length;
+    
+    console.log(`✅ Found ${mappedSpeeches.length} speeches (total: ${totalCount})`);
+    return { speeches: mappedSpeeches, totalCount };
+    
+  } catch (error) {
+    console.error('❌ Error searching speeches:', error);
+    if (error instanceof RiksdagApiError) {
+      throw error;
+    }
+    throw new RiksdagApiError('Kunde inte söka anföranden');
+  }
+};
+
+// Add placeholder functions for document and speech text fetching
+export const fetchDocumentText = async (docId: string): Promise<string> => {
+  console.log(`📄 Fetching document text for ${docId}`);
+  
+  const url = `${BASE_URL}/dokument/${docId}?utformat=json`;
+  
+  try {
+    const response = await fetch(url);
+    await handleApiResponse(response);
+    const data = await response.json();
+    
+    return data.dokument?.html || '';
+  } catch (error) {
+    console.error('❌ Error fetching document text:', error);
+    return '';
+  }
+};
+
+export const fetchSpeechText = async (speechId: string): Promise<string> => {
+  console.log(`🎤 Fetching speech text for ${speechId}`);
+  
+  const url = `${BASE_URL}/anforande/${speechId}?utformat=json`;
+  
+  try {
+    const response = await fetch(url);
+    await handleApiResponse(response);
+    const data = await response.json();
+    
+    return data.anforande?.anforande_text || '';
+  } catch (error) {
+    console.error('❌ Error fetching speech text:', error);
+    return '';
+  }
+};
+
+export const fetchMemberContentForAnalysis = async (memberId: string): Promise<{
+  speeches: RiksdagSpeech[];
+  documents: RiksdagDocument[];
+}> => {
+  console.log(`👤 Fetching member content for analysis: ${memberId}`);
+  
+  try {
+    const [speechResult, docResult] = await Promise.all([
+      searchSpeeches({ iid: memberId, p: 1 }),
+      searchDocuments({ iid: memberId, p: 1 })
+    ]);
+    
+    return {
+      speeches: speechResult.speeches,
+      documents: docResult.documents
+    };
+  } catch (error) {
+    console.error('❌ Error fetching member content:', error);
+    return { speeches: [], documents: [] };
   }
 };
 
