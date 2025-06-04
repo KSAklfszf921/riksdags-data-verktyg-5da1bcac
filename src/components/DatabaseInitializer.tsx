@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
 import { 
   Database, 
@@ -11,18 +10,14 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { 
-  initializeAllDatabases,
-  refreshAllData,
-  refreshSpecificDataType,
-  getComprehensiveDataStatus,
-  formatDataStatusMessage,
-  type DataFreshnessStatus,
+  DatabaseService,
+  type TableStatus,
   type RefreshResult
-} from '../services/dataRefreshService';
+} from '../services/databaseService';
 import DatabaseStatus from './DatabaseStatus';
 
 const DatabaseInitializer = () => {
-  const [dataStatus, setDataStatus] = useState<DataFreshnessStatus[]>([]);
+  const [dataStatus, setDataStatus] = useState<TableStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,11 +27,13 @@ const DatabaseInitializer = () => {
   const loadDataStatus = async () => {
     try {
       setLoading(true);
-      const status = await getComprehensiveDataStatus();
-      setDataStatus(status.freshnessStatus);
-      console.log('Data status loaded:', status);
+      console.log('Laddar datastatus...');
+      const status = await DatabaseService.getDataStatus();
+      setDataStatus(status);
+      console.log('Datastatus laddad:', status);
     } catch (error) {
-      console.error('Error loading data status:', error);
+      console.error('Fel vid laddning av datastatus:', error);
+      setDataStatus([]);
     } finally {
       setLoading(false);
     }
@@ -46,23 +43,23 @@ const DatabaseInitializer = () => {
     try {
       setInitializing(true);
       setRefreshResult(null);
-      console.log('Starting database initialization...');
+      console.log('Startar databasinitiering...');
       
-      const result = await initializeAllDatabases();
+      const result = await DatabaseService.initializeAllDatabases();
       setRefreshResult(result);
       setLastRefresh(new Date());
       
       if (result.success) {
-        console.log('Database initialization completed successfully');
+        console.log('Databasinitiering slutförd framgångsrikt');
         setTimeout(() => loadDataStatus(), 2000);
       } else {
-        console.error('Database initialization failed:', result.errors);
+        console.error('Databasinitiering misslyckades:', result.errors);
       }
     } catch (error) {
-      console.error('Error during initialization:', error);
+      console.error('Fel under initiering:', error);
       setRefreshResult({
         success: false,
-        message: `Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Initiering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`
       });
     } finally {
       setInitializing(false);
@@ -73,23 +70,23 @@ const DatabaseInitializer = () => {
     try {
       setRefreshing(true);
       setRefreshResult(null);
-      console.log('Starting comprehensive data refresh...');
+      console.log('Startar omfattande datauppdatering...');
       
-      const result = await refreshAllData();
+      const result = await DatabaseService.refreshAllData();
       setRefreshResult(result);
       setLastRefresh(new Date());
       
       if (result.success) {
-        console.log('Data refresh completed successfully');
+        console.log('Datauppdatering slutförd framgångsrikt');
         setTimeout(() => loadDataStatus(), 2000);
       } else {
-        console.error('Data refresh failed:', result.errors);
+        console.error('Datauppdatering misslyckades:', result.errors);
       }
     } catch (error) {
-      console.error('Error during refresh:', error);
+      console.error('Fel under uppdatering:', error);
       setRefreshResult({
         success: false,
-        message: `Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Uppdatering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`
       });
     } finally {
       setRefreshing(false);
@@ -183,11 +180,6 @@ const DatabaseInitializer = () => {
                 <p className="font-medium">{refreshResult.message}</p>
                 {refreshResult.duration && (
                   <p className="text-sm opacity-75">Tid: {refreshResult.duration}ms</p>
-                )}
-                {refreshResult.stats && (
-                  <p className="text-sm opacity-75 mt-1">
-                    Statistik: {JSON.stringify(refreshResult.stats, null, 2)}
-                  </p>
                 )}
                 {refreshResult.errors && refreshResult.errors.length > 0 && (
                   <div className="mt-2">

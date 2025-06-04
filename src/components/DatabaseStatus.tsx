@@ -10,16 +10,7 @@ import {
   AlertCircle, 
   Clock 
 } from 'lucide-react';
-import { SupabaseDataService } from '../services/supabaseDataService';
-
-interface TableStatus {
-  table: string;
-  recordCount: number;
-  lastUpdate: string | null;
-  hoursOld: number | null;
-  isStale: boolean;
-  error?: string;
-}
+import { DatabaseService, type TableStatus } from '../services/databaseService';
 
 const DatabaseStatus = () => {
   const [status, setStatus] = useState<TableStatus[]>([]);
@@ -37,34 +28,15 @@ const DatabaseStatus = () => {
   const loadStatus = async () => {
     try {
       setLoading(true);
-      const statusData = await SupabaseDataService.getDataStatus();
+      console.log('Laddar databasstatus...');
+      const statusData = await DatabaseService.getDataStatus();
+      console.log('Databasstatus laddad:', statusData);
       setStatus(statusData);
     } catch (error) {
-      console.error('Error loading database status:', error);
+      console.error('Fel vid laddning av databasstatus:', error);
+      setStatus([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const formatLastUpdated = (dateString: string | null): string => {
-    if (!dateString) return 'Aldrig';
-    
-    try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-      
-      if (diffDays > 0) {
-        return `${diffDays} dag${diffDays > 1 ? 'ar' : ''} sedan`;
-      } else if (diffHours > 0) {
-        return `${diffHours} timm${diffHours > 1 ? 'ar' : 'e'} sedan`;
-      } else {
-        return 'Nyligen';
-      }
-    } catch {
-      return dateString;
     }
   };
 
@@ -81,9 +53,9 @@ const DatabaseStatus = () => {
   };
 
   const overallHealth = () => {
-    const totalTables = status.length;
+    if (status.length === 0) return 0;
     const healthyTables = status.filter(s => !s.isStale && !s.error).length;
-    return Math.round((healthyTables / totalTables) * 100);
+    return Math.round((healthyTables / status.length) * 100);
   };
 
   const totalRecords = status.reduce((sum, item) => sum + item.recordCount, 0);
@@ -178,7 +150,7 @@ const DatabaseStatus = () => {
                       {item.recordCount.toLocaleString()} poster
                     </div>
                     <div className="text-xs text-gray-500">
-                      {formatLastUpdated(item.lastUpdate)}
+                      {DatabaseService.formatLastUpdated(item.lastUpdate)}
                     </div>
                   </div>
                 </div>
