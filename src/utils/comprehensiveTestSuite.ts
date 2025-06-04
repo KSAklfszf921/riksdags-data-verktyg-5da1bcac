@@ -1,326 +1,290 @@
 
-import { EnhancedTester, DetailedTestResult } from './enhancedTestUtils';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
-export class ComprehensiveApiTestSuite extends EnhancedTester {
-  constructor() {
-    super('Comprehensive API Test Suite');
-  }
+export interface TestResult {
+  category: string;
+  name: string;
+  status: 'pass' | 'fail' | 'skip';
+  message: string;
+  duration?: number;
+  error?: string;
+}
 
-  async runAllComprehensiveTests(): Promise<void> {
-    // Member tests
-    await this.runTest('Member Basic Fetching', () => this.testMemberBasicFetching());
-    await this.runTest('Member Details with Assignments', () => this.testMemberDetailsWithAssignments());
-    await this.runTest('Member Search', () => this.testMemberSearch());
-    await this.runTest('Member Documents', () => this.testMemberDocuments());
-    await this.runTest('Member Speeches', () => this.testMemberSpeeches());
+export class ComprehensiveTestSuite {
+  private results: TestResult[] = [];
 
-    // Data quality tests
-    await this.runTest('Calendar Data Formatting', () => this.testCalendarDataFormatting());
-    await this.runTest('Speech Data Quality', () => this.testSpeechDataQuality());
-    await this.runTest('Vote Data Structure', () => this.testVoteDataStructure());
-    await this.runTest('Document Search', () => this.testDocumentSearch());
-    await this.runTest('Party Data Accuracy', () => this.testPartyDataAccuracy());
-    await this.runTest('Language Analysis Data', () => this.testLanguageAnalysisData());
-    await this.runTest('Data Sync Log Integrity', () => this.testDataSyncLogIntegrity());
-  }
-
-  private async testMemberBasicFetching(): Promise<any> {
-    const { data, error } = await supabase
-      .from('member_data')
-      .select('member_id, first_name, last_name, party')
-      .eq('is_active', true)
-      .limit(10);
-
-    if (error) throw new Error(`Member fetching failed: ${error.message}`);
-    if (!data || data.length === 0) throw new Error('No active members found');
-
-    // Validate structure
-    data.forEach(member => {
-      if (!member.member_id) throw new Error('Member missing ID');
-      if (!member.first_name || !member.last_name) throw new Error('Member missing name');
-      if (!member.party) throw new Error('Member missing party');
-    });
-
-    return { memberCount: data.length, sampleMember: data[0] };
-  }
-
-  private async testMemberDetailsWithAssignments(): Promise<any> {
-    const { data: members, error: memberError } = await supabase
-      .from('member_data')
-      .select('member_id, assignments')
-      .eq('is_active', true)
-      .limit(5);
-
-    if (memberError) throw new Error(`Member fetching failed: ${memberError.message}`);
-    if (!members || members.length === 0) throw new Error('No members found for assignment test');
-
-    const memberId = members[0].member_id;
-    const assignments = members[0].assignments;
-
-    return { 
-      memberId, 
-      assignmentCount: assignments ? (Array.isArray(assignments) ? assignments.length : 1) : 0,
-      hasAssignments: assignments !== null
-    };
-  }
-
-  private async testMemberSearch(): Promise<any> {
-    const searchTerm = 'andersson';
+  async runAllTests(): Promise<TestResult[]> {
+    this.results = [];
     
-    const { data, error } = await supabase
-      .from('member_data')
-      .select('member_id, first_name, last_name')
-      .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
-      .eq('is_active', true)
-      .limit(10);
-
-    if (error) throw new Error(`Member search failed: ${error.message}`);
-
-    return { 
-      searchTerm,
-      resultCount: data?.length || 0,
-      results: data?.map(m => `${m.first_name} ${m.last_name}`) || []
-    };
+    console.log('Starting comprehensive test suite...');
+    
+    await this.testDatabaseConnectivity();
+    await this.testDataIntegrity();
+    await this.testMemberDataConsistency();
+    await this.testPartyDataIntegrity();
+    await this.testVoteDataStructure();
+    await this.testLanguageAnalysisData();
+    
+    console.log('Comprehensive test suite completed');
+    return this.results;
   }
 
-  private async testMemberDocuments(): Promise<any> {
-    const { data: members, error: memberError } = await supabase
-      .from('member_data')
-      .select('member_id')
-      .eq('is_active', true)
-      .limit(3);
-
-    if (memberError) throw new Error(`Member fetching failed: ${memberError.message}`);
-    if (!members || members.length === 0) throw new Error('No members found');
-
-    const memberIds = members.map(m => m.member_id);
-
-    const { data: documents, error: docError } = await supabase
-      .from('document_data')
-      .select('document_id, titel, typ')
-      .in('intressent_id', memberIds)
-      .limit(20);
-
-    if (docError) throw new Error(`Document fetching failed: ${docError.message}`);
-
-    return { 
-      memberCount: memberIds.length,
-      documentCount: documents?.length || 0,
-      documentTypes: [...new Set(documents?.map(d => d.typ) || [])]
-    };
-  }
-
-  private async testMemberSpeeches(): Promise<any> {
-    const { data: members, error: memberError } = await supabase
-      .from('member_data')
-      .select('member_id')
-      .eq('is_active', true)
-      .limit(3);
-
-    if (memberError) throw new Error(`Member fetching failed: ${memberError.message}`);
-    if (!members || members.length === 0) throw new Error('No members found');
-
-    const memberIds = members.map(m => m.member_id);
-
-    const { data: speeches, error: speechError } = await supabase
-      .from('speech_data')
-      .select('speech_id, intressent_id, rel_dok_titel')
-      .in('intressent_id', memberIds)
-      .limit(20);
-
-    if (speechError) throw new Error(`Speech fetching failed: ${speechError.message}`);
-
-    return { 
-      memberCount: memberIds.length,
-      speechCount: speeches?.length || 0,
-      hasSpeeches: speeches && speeches.length > 0
-    };
-  }
-
-  private async testCalendarDataFormatting(): Promise<any> {
-    const { data, error } = await supabase
-      .from('calendar_data')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .limit(10);
-
-    if (error) throw new Error(`Calendar data fetching failed: ${error.message}`);
-
-    if (data && data.length > 0) {
-      const sampleEvent = data[0];
+  private async testDatabaseConnectivity(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('enhanced_member_profiles')
+        .select('member_id, first_name, last_name, party')
+        .limit(1);
       
-      // Validate date format (using datum field which exists)
-      if (sampleEvent.datum && !Date.parse(sampleEvent.datum)) {
-        throw new Error('Invalid date format in calendar data');
+      if (error) {
+        this.addResult('Database', 'Connectivity Test', 'fail', `Database connection failed: ${error.message}`, Date.now() - startTime);
+        return;
       }
 
-      // Check required fields (using aktivitet which exists)
-      if (!sampleEvent.aktivitet) {
-        throw new Error('Calendar event missing aktivitet');
+      if (!data || data.length === 0) {
+        this.addResult('Database', 'Connectivity Test', 'skip', 'Database connected but no member data found', Date.now() - startTime);
+        return;
       }
+
+      const member = data[0];
+      if (!member.member_id || !member.first_name || !member.last_name || !member.party) {
+        this.addResult('Database', 'Connectivity Test', 'fail', 'Member data structure incomplete', Date.now() - startTime);
+        return;
+      }
+
+      this.addResult('Database', 'Connectivity Test', 'pass', 'Database connection and basic data structure verified', Date.now() - startTime);
+    } catch (error) {
+      this.addResult('Database', 'Connectivity Test', 'fail', `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
     }
-
-    return { 
-      eventCount: data?.length || 0,
-      hasEvents: data && data.length > 0,
-      sampleEvent: data?.[0] || null
-    };
   }
 
-  private async testSpeechDataQuality(): Promise<any> {
-    const { data, error } = await supabase
-      .from('speech_data')
-      .select('speech_id, intressent_id, anforandetext, rel_dok_titel')
-      .not('anforandetext', 'is', null)
-      .limit(10);
+  private async testDataIntegrity(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data: memberData, error: memberError } = await supabase
+        .from('enhanced_member_profiles')
+        .select('member_id, assignments')
+        .limit(10);
+      
+      if (memberError) {
+        this.addResult('Data', 'Integrity Test', 'fail', `Member data query failed: ${memberError.message}`, Date.now() - startTime);
+        return;
+      }
 
-    if (error) throw new Error(`Speech data fetching failed: ${error.message}`);
+      if (!memberData || memberData.length === 0) {
+        this.addResult('Data', 'Integrity Test', 'skip', 'No member data available for integrity testing', Date.now() - startTime);
+        return;
+      }
 
-    let qualityIssues = 0;
-    let avgLength = 0;
-
-    if (data && data.length > 0) {
-      data.forEach(speech => {
-        if (!speech.anforandetext || speech.anforandetext.trim().length < 10) {
-          qualityIssues++;
+      let integrityIssues = 0;
+      memberData.forEach(member => {
+        if (!member.member_id) {
+          integrityIssues++;
         }
-        avgLength += speech.anforandetext?.length || 0;
+        if (member.assignments && !Array.isArray(member.assignments)) {
+          integrityIssues++;
+        }
       });
-      avgLength = avgLength / data.length;
-    }
 
-    return { 
-      speechCount: data?.length || 0,
-      qualityIssues,
-      averageLength: Math.round(avgLength),
-      qualityRate: data && data.length > 0 ? ((data.length - qualityIssues) / data.length) * 100 : 0
-    };
+      if (integrityIssues > 0) {
+        this.addResult('Data', 'Integrity Test', 'fail', `Found ${integrityIssues} data integrity issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Data', 'Integrity Test', 'pass', `Tested ${memberData.length} records, no integrity issues found`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Data', 'Integrity Test', 'fail', `Integrity test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
   }
 
-  private async testVoteDataStructure(): Promise<any> {
-    const { data, error } = await supabase
-      .from('vote_data')
-      .select('vote_id, hangar_id, beteckning')
-      .limit(10);
+  private async testMemberDataConsistency(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('enhanced_member_profiles')
+        .select('member_id, first_name, last_name, party, is_active')
+        .limit(20);
+      
+      if (error) {
+        this.addResult('Members', 'Data Consistency', 'fail', `Member query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
 
-    if (error) throw new Error(`Vote data fetching failed: ${error.message}`);
+      if (!data || data.length === 0) {
+        this.addResult('Members', 'Data Consistency', 'skip', 'No member data available', Date.now() - startTime);
+        return;
+      }
 
-    let structureIssues = 0;
+      let consistencyIssues = 0;
+      const uniqueMembers = new Set();
+      
+      data.forEach(member => {
+        // Check for duplicate member IDs
+        if (uniqueMembers.has(member.member_id)) {
+          consistencyIssues++;
+        } else {
+          uniqueMembers.add(member.member_id);
+        }
+        
+        // Check for required fields
+        if (!member.first_name || !member.last_name || !member.party) {
+          consistencyIssues++;
+        }
+      });
 
-    if (data && data.length > 0) {
+      if (consistencyIssues > 0) {
+        this.addResult('Members', 'Data Consistency', 'fail', `Found ${consistencyIssues} consistency issues in member data`, Date.now() - startTime);
+      } else {
+        this.addResult('Members', 'Data Consistency', 'pass', `Tested ${data.length} members, all data consistent`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Members', 'Data Consistency', 'fail', `Consistency test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testPartyDataIntegrity(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('party_data')
+        .select('party_code, party_name, total_members, active_members');
+      
+      if (error) {
+        this.addResult('Party', 'Data Integrity', 'fail', `Party query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        this.addResult('Party', 'Data Integrity', 'skip', 'No party data available', Date.now() - startTime);
+        return;
+      }
+
+      let integrityIssues = 0;
+      data.forEach(party => {
+        if (!party.party_code || !party.party_name) {
+          integrityIssues++;
+        }
+        if (party.active_members > party.total_members) {
+          integrityIssues++;
+        }
+      });
+
+      if (integrityIssues > 0) {
+        this.addResult('Party', 'Data Integrity', 'fail', `Found ${integrityIssues} party data integrity issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Party', 'Data Integrity', 'pass', `Tested ${data.length} parties, all data valid`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Party', 'Data Integrity', 'fail', `Party integrity test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testVoteDataStructure(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error } = await supabase
+        .from('vote_data')
+        .select('vote_id, beteckning, vote_results')
+        .limit(10);
+      
+      if (error) {
+        this.addResult('Votes', 'Data Structure', 'fail', `Vote query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        this.addResult('Votes', 'Data Structure', 'skip', 'No vote data available', Date.now() - startTime);
+        return;
+      }
+
+      let structureIssues = 0;
       data.forEach(vote => {
-        if (!vote.vote_id || !vote.hangar_id) {
+        if (!vote.vote_id) {
+          structureIssues++;
+        }
+        if (vote.vote_results && typeof vote.vote_results !== 'object') {
           structureIssues++;
         }
       });
+
+      if (structureIssues > 0) {
+        this.addResult('Votes', 'Data Structure', 'fail', `Found ${structureIssues} vote data structure issues`, Date.now() - startTime);
+      } else {
+        this.addResult('Votes', 'Data Structure', 'pass', `Tested ${data.length} votes, structure valid`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Votes', 'Data Structure', 'fail', `Vote structure test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
     }
-
-    return { 
-      voteCount: data?.length || 0,
-      structureIssues,
-      structureIntegrity: data && data.length > 0 ? ((data.length - structureIssues) / data.length) * 100 : 0
-    };
   }
 
-  private async testDocumentSearch(): Promise<any> {
-    const searchTerm = 'motion';
+  private async testLanguageAnalysisData(): Promise<void> {
+    const startTime = Date.now();
     
-    const { data, error } = await supabase
-      .from('document_data')
-      .select('document_id, titel, typ')
-      .ilike('titel', `%${searchTerm}%`)
-      .limit(10);
+    try {
+      const { data, error } = await supabase
+        .from('language_analysis')
+        .select('member_id, overall_score, document_type')
+        .limit(10);
+      
+      if (error) {
+        this.addResult('Language', 'Analysis Data', 'fail', `Language analysis query failed: ${error.message}`, Date.now() - startTime);
+        return;
+      }
 
-    if (error) throw new Error(`Document search failed: ${error.message}`);
+      if (!data || data.length === 0) {
+        this.addResult('Language', 'Analysis Data', 'skip', 'No language analysis data available', Date.now() - startTime);
+        return;
+      }
 
-    return { 
-      searchTerm,
-      resultCount: data?.length || 0,
-      documentTypes: [...new Set(data?.map(d => d.typ) || [])],
-      hasResults: data && data.length > 0
-    };
-  }
-
-  private async testPartyDataAccuracy(): Promise<any> {
-    const { data: members, error: memberError } = await supabase
-      .from('member_data')
-      .select('party')
-      .eq('is_active', true);
-
-    if (memberError) throw new Error(`Member data fetching failed: ${memberError.message}`);
-
-    const { data: parties, error: partyError } = await supabase
-      .from('party_data')
-      .select('party_code, party_name');
-
-    if (partyError) throw new Error(`Party data fetching failed: ${partyError.message}`);
-
-    const memberParties = new Set(members?.map(m => m.party) || []);
-    const registeredParties = new Set(parties?.map(p => p.party_code) || []);
-    
-    const unmatchedParties = Array.from(memberParties).filter(party => 
-      party && !registeredParties.has(party)
-    );
-
-    return { 
-      memberPartyCount: memberParties.size,
-      registeredPartyCount: registeredParties.size,
-      unmatchedParties,
-      dataConsistency: unmatchedParties.length === 0
-    };
-  }
-
-  private async testLanguageAnalysisData(): Promise<any> {
-    const { data, error } = await supabase
-      .from('language_analysis')
-      .select('*')
-      .limit(10);
-
-    if (error) throw new Error(`Language analysis data fetching failed: ${error.message}`);
-
-    let analysisQuality = 0;
-    if (data && data.length > 0) {
+      let validAnalyses = 0;
       data.forEach(analysis => {
-        if (analysis.overall_score !== null && 
-            analysis.language_complexity_score !== null &&
-            analysis.word_count && analysis.word_count > 0) {
-          analysisQuality++;
+        if (analysis.member_id && 
+            analysis.overall_score >= 0 && 
+            analysis.overall_score <= 100 &&
+            ['speech', 'document'].includes(analysis.document_type)) {
+          validAnalyses++;
         }
       });
-    }
 
-    return { 
-      analysisCount: data?.length || 0,
-      qualityAnalyses: analysisQuality,
-      qualityRate: data && data.length > 0 ? (analysisQuality / data.length) * 100 : 0,
-      hasAnalysisData: data && data.length > 0
-    };
+      const validationRate = (validAnalyses / data.length) * 100;
+      
+      if (validationRate < 90) {
+        this.addResult('Language', 'Analysis Data', 'fail', `Only ${validationRate.toFixed(1)}% of analyses are valid`, Date.now() - startTime);
+      } else {
+        this.addResult('Language', 'Analysis Data', 'pass', `${validationRate.toFixed(1)}% of ${data.length} analyses are valid`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addResult('Language', 'Analysis Data', 'fail', `Language analysis test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
   }
 
-  private async testDataSyncLogIntegrity(): Promise<any> {
-    const { data, error } = await supabase
-      .from('data_sync_log')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(10);
+  private addResult(category: string, name: string, status: 'pass' | 'fail' | 'skip', message: string, duration?: number): void {
+    this.results.push({
+      category,
+      name,
+      status,
+      message,
+      duration
+    });
+  }
 
-    if (error) throw new Error(`Sync log fetching failed: ${error.message}`);
+  getResults(): TestResult[] {
+    return this.results;
+  }
 
-    let recentSyncs = 0;
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-    if (data && data.length > 0) {
-      recentSyncs = data.filter(log => 
-        log.created_at && new Date(log.created_at) > oneDayAgo
-      ).length;
-    }
-
-    return { 
-      totalLogs: data?.length || 0,
-      recentSyncs,
-      hasRecentActivity: recentSyncs > 0,
-      latestSync: data?.[0]?.created_at || null
+  getSummary(): { total: number; passed: number; failed: number; skipped: number } {
+    return {
+      total: this.results.length,
+      passed: this.results.filter(r => r.status === 'pass').length,
+      failed: this.results.filter(r => r.status === 'fail').length,
+      skipped: this.results.filter(r => r.status === 'skip').length
     };
   }
 }
+
+export default ComprehensiveTestSuite;

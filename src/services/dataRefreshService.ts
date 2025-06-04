@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 type ValidTableName = 
@@ -242,6 +241,10 @@ class DataRefreshService {
     };
   }
 }
+
+// Legacy wrapper for backward compatibility
+export { optimizedDataRefreshService as dataRefreshService } from './optimizedDataRefreshService';
+export * from './optimizedDataRefreshService';
 
 // Legacy compatibility functions for DatabaseInitializer
 export async function initializeAllDatabases(): Promise<RefreshResult> {
