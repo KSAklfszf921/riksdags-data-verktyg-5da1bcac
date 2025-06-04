@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,11 +42,22 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     return new Date().getFullYear() - birthYear;
   };
 
-  // Helper function to safely handle image_urls
+  // Helper function to safely handle image_urls from Supabase Json type
   const getImageUrls = (imageUrls: any): Record<string, string> | null => {
     if (!imageUrls) return null;
-    if (typeof imageUrls === 'string') return null;
-    if (typeof imageUrls === 'object' && imageUrls !== null) {
+    if (typeof imageUrls === 'string') {
+      // If it's a string, try to parse it as JSON
+      try {
+        const parsed = JSON.parse(imageUrls);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          return parsed as Record<string, string>;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+    if (typeof imageUrls === 'object' && imageUrls !== null && !Array.isArray(imageUrls)) {
       return imageUrls as Record<string, string>;
     }
     return null;
