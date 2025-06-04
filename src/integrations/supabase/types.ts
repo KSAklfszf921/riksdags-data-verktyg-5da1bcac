@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      automated_sync_status: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          started_at: string
+          stats: Json | null
+          status: string
+          sync_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json | null
+          status: string
+          sync_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json | null
+          status?: string
+          sync_type?: string
+        }
+        Relationships: []
+      }
       calendar_data: {
         Row: {
           aktivitet: string | null
