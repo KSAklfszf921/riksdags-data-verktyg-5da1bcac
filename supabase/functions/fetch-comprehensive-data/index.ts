@@ -1,576 +1,573 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-interface RiksdagParty {
-  kod: string;
-  namn: string;
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+interface RiksdagDocument {
+  id: string;
+  titel: string;
   beteckning: string;
-  webbadress: string;
-  bild_url: string;
+  datum: string;
+  typ: string;
+  organ: string;
+  intressent_id?: string;
+  hangar_id?: string;
+  dokument_url_text?: string;
+  dokument_url_html?: string;
+  dokumentstatus?: string;
+  publicerad?: string;
+  rm?: string;
 }
 
 interface RiksdagMember {
   intressent_id: string;
-  fornamn: string;
+  tilltalsnamn: string;
   efternamn: string;
   parti: string;
   valkrets: string;
   kon: string;
   fodd_ar: string;
-  status: string;
-  datum_fran?: string;
-  datum_tom?: string;
-  bild_url_80?: string;
   bild_url_192?: string;
-  bild_url_max?: string;
 }
 
-// Förbättrad fetchRiksdagData med bättre timeout och felhantering
-const fetchRiksdagData = async (endpoint: string, retries = 3, timeout = 30000): Promise<any> => {
-  const url = `https://data.riksdagen.se${endpoint}`;
-  console.log(`Fetching: ${url}`);
-  
-  for (let attempt = 1; attempt <= retries; attempt++) {
+interface RiksdagSpeech {
+  anforande_id: string;
+  intressent_id: string;
+  namn: string;
+  parti: string;
+  anforandedatum: string;
+  anforandetext: string;
+  rel_dok_id: string;
+  rel_dok_titel?: string;
+}
+
+interface RiksdagVote {
+  votering_id: string;
+  hangar_id: string;
+  rm: string;
+  beteckning: string;
+  punkt: string;
+  namn: string;
+  parti: string;
+  rost: string;
+  intressent_id: string;
+  systemdatum: string;
+}
+
+interface CalendarEvent {
+  id: string;
+  datum: string;
+  tid: string;
+  plats: string;
+  aktivitet: string;
+  typ: string;
+  organ: string;
+  summary: string;
+  status: string;
+}
+
+const BASE_URL = 'https://data.riksdagen.se'
+
+async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
+  for (let i = 0; i <= maxRetries; i++) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Riksdag-Data-Sync/2.0'
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
+      console.log(`Fetching: ${url} (attempt ${i + 1}/${maxRetries + 1})`)
+      const response = await fetch(url)
       
       if (!response.ok) {
-        throw new Error(`HTTP error ${response.status} for ${url}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.warn(`Non-JSON response from ${url}, content-type: ${contentType}`);
-        if (attempt === retries) {
-          throw new Error(`Invalid content type: ${contentType}`);
-        }
-        continue;
-      }
-      
-      const data = await response.json();
-      console.log(`Successfully fetched ${url} on attempt ${attempt}`);
-      return data;
+      return await response.json()
     } catch (error) {
-      console.error(`Attempt ${attempt}/${retries} failed for ${url}:`, error);
-      if (attempt === retries) {
-        throw error;
-      }
-      // Exponential backoff
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-      console.log(`Waiting ${delay}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      console.error(`Fetch attempt ${i + 1} failed:`, error)
+      if (i === maxRetries) throw error
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
     }
   }
-};
+}
 
-const fetchPartiesAndMembers = async () => {
-  console.log('Fetching parties and members...');
+async function fetchDocumentsFromYear(year: number): Promise<RiksdagDocument[]> {
+  const fromDate = `${year}-01-01`
+  const toDate = year === new Date().getFullYear() ? 
+    new Date().toISOString().split('T')[0] : 
+    `${year}-12-31`
   
-  // Hämta medlemmar först (detta fungerar)
-  const membersData = await fetchRiksdagData('/personlista/?utformat=json&rdlstatus=tjanstgorande');
-  const members = membersData.personlista?.person || [];
-  console.log(`Found ${members.length} members`);
+  const url = `${BASE_URL}/dokumentlista/?utformat=json&from=${fromDate}&tom=${toDate}&sz=1000&sort=datum&sortorder=desc`
   
-  // Skapa parti-data från medlemsdata (eftersom partier-API:t inte fungerar)
-  const partyStats: { [key: string]: any } = {};
-  
-  members.forEach((member: RiksdagMember) => {
-    if (!partyStats[member.parti]) {
-      partyStats[member.parti] = {
-        kod: member.parti,
-        namn: member.parti, // Vi får använda koden som namn tills vi hittar bättre data
-        members: [],
-        activeMembers: 0,
-        totalMembers: 0,
-        genderStats: { male: 0, female: 0 },
-        ageGroups: { '20-30': 0, '31-40': 0, '41-50': 0, '51-60': 0, '61+': 0 }
-      };
-    }
-    
-    const party = partyStats[member.parti];
-    party.members.push(member);
-    party.totalMembers++;
-    
-    // Kontrollera om medlemmen är aktiv
-    const isActive = !member.datum_tom || new Date(member.datum_tom) > new Date();
-    if (isActive) {
-      party.activeMembers++;
-      
-      // Könsstatistik
-      if (member.kon === 'man') party.genderStats.male++;
-      if (member.kon === 'kvinna') party.genderStats.female++;
-      
-      // Åldersfördelning
-      const currentYear = new Date().getFullYear();
-      const age = currentYear - parseInt(member.fodd_ar);
-      if (age <= 30) party.ageGroups['20-30']++;
-      else if (age <= 40) party.ageGroups['31-40']++;
-      else if (age <= 50) party.ageGroups['41-50']++;
-      else if (age <= 60) party.ageGroups['51-60']++;
-      else party.ageGroups['61+']++;
-    }
-  });
-  
-  return { parties: Object.values(partyStats), members };
-};
-
-// Förbättrad safe database insertion med retry-logik
-const safeInsertData = async (supabase: any, tableName: string, data: any[], conflictColumn: string, batchSize = 100) => {
-  if (!data || data.length === 0) {
-    console.log(`No data to insert for ${tableName}`);
-    return { success: true, processed: 0 };
-  }
-
-  console.log(`Inserting ${data.length} records into ${tableName} in batches of ${batchSize}`);
-  let totalProcessed = 0;
-  let errors = 0;
-
-  for (let i = 0; i < data.length; i += batchSize) {
-    const batch = data.slice(i, i + batchSize);
-    let retries = 3;
-    
-    while (retries > 0) {
-      try {
-        const { error } = await supabase
-          .from(tableName)
-          .upsert(batch, { onConflict: conflictColumn });
-        
-        if (error) {
-          console.error(`Error inserting batch ${i}-${i + batch.length} into ${tableName}:`, error);
-          errors++;
-          break;
-        } else {
-          console.log(`Successfully inserted batch ${i + 1}-${i + batch.length} into ${tableName}`);
-          totalProcessed += batch.length;
-          break;
-        }
-      } catch (insertError) {
-        retries--;
-        console.warn(`Insert retry ${3 - retries} for ${tableName} batch ${i}-${i + batch.length}:`, insertError);
-        if (retries === 0) {
-          errors++;
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
-        }
-      }
-    }
-  }
-
-  return { success: errors === 0, processed: totalProcessed, errors };
-};
-
-const transformPartyData = (partiesData: any[]) => {
-  return partiesData.map(party => ({
-    party_code: party.kod,
-    party_name: party.namn,
-    total_members: party.totalMembers,
-    active_members: party.activeMembers,
-    gender_distribution: party.genderStats,
-    age_distribution: party.ageGroups,
-    member_list: party.members.map((m: RiksdagMember) => ({
-      member_id: m.intressent_id,
-      first_name: m.fornamn,
-      last_name: m.efternamn,
-      constituency: m.valkrets,
-      birth_year: parseInt(m.fodd_ar),
-      gender: m.kon
-    }))
-  }));
-};
-
-const transformMemberData = (members: RiksdagMember[]) => {
-  return members.map(member => ({
-    member_id: member.intressent_id,
-    first_name: member.fornamn,
-    last_name: member.efternamn,
-    party: member.parti,
-    constituency: member.valkrets,
-    gender: member.kon,
-    birth_year: parseInt(member.fodd_ar),
-    riksdag_status: member.status,
-    is_active: !member.datum_tom || new Date(member.datum_tom) > new Date(),
-    image_urls: {
-      small: member.bild_url_80,
-      medium: member.bild_url_192,
-      large: member.bild_url_max
-    }
-  }));
-};
-
-const transformDocumentData = (documents: any[]) => {
-  return documents.map(doc => ({
-    document_id: doc.dok_id,
-    titel: doc.titel,
-    beteckning: doc.beteckning,
-    datum: doc.datum,
-    typ: doc.doktyp,
-    organ: doc.organ,
-    intressent_id: doc.intressent_id,
-    document_url_html: doc.dokument_url_html,
-    document_url_text: doc.dokument_url_text,
-    summary: doc.summary || doc.notis,
-    rm: doc.rm,
-    hangar_id: doc.hangar_id,
-    publicerad: doc.publicerad,
-    dokumentstatus: doc.dokumentstatus
-  }));
-};
-
-const transformVoteData = (votes: any[]) => {
-  console.log(`Processing ${votes.length} individual vote records...`);
-  
-  const voteGroups: { [key: string]: any } = {};
-  
-  votes.forEach(vote => {
-    const voteId = vote.votering_id || `${vote.dok_id}-${vote.beteckning}-${vote.punkt}`;
-    
-    if (!voteGroups[voteId]) {
-      voteGroups[voteId] = {
-        vote_id: voteId,
-        dok_id: vote.dok_id,
-        rm: vote.rm,
-        beteckning: vote.beteckning,
-        punkt: vote.punkt,
-        votering: vote.votering,
-        avser: vote.avser,
-        hangar_id: vote.hangar_id,
-        systemdatum: vote.systemdatum,
-        vote_results: [],
-        party_breakdown: {},
-        constituency_breakdown: {}
-      };
-    }
-    
-    const group = voteGroups[voteId];
-    group.vote_results.push({
-      member_id: vote.intressent_id,
-      name: vote.namn,
-      party: vote.parti,
-      constituency: vote.valkrets,
-      vote: vote.rost
-    });
-    
-    // Uppdatera partifördelning
-    if (!group.party_breakdown[vote.parti]) {
-      group.party_breakdown[vote.parti] = { Ja: 0, Nej: 0, Avstår: 0, Frånvarande: 0 };
-    }
-    group.party_breakdown[vote.parti][vote.rost || 'Frånvarande']++;
-    
-    // Uppdatera valkretsfördelning
-    if (!group.constituency_breakdown[vote.valkrets]) {
-      group.constituency_breakdown[vote.valkrets] = { Ja: 0, Nej: 0, Avstår: 0, Frånvarande: 0 };
-    }
-    group.constituency_breakdown[vote.valkrets][vote.rost || 'Frånvarande']++;
-  });
-  
-  const groupedVotes = Object.values(voteGroups);
-  console.log(`Grouped into ${groupedVotes.length} vote events`);
-  return groupedVotes;
-};
-
-const transformSpeechData = (speeches: any[]) => {
-  return speeches.map(speech => ({
-    speech_id: speech.anforande_id || `${speech.dok_id}-${speech.anforande_nummer}`,
-    anforande_id: speech.anforande_id,
-    intressent_id: speech.intressent_id,
-    rel_dok_id: speech.rel_dok_id,
-    namn: speech.namn,
-    party: speech.parti,
-    anforandedatum: speech.anforandedatum,
-    anforandetext: speech.anforandetext,
-    anforandetyp: speech.anforandetyp,
-    kammaraktivitet: speech.kammaraktivitet,
-    anforande_nummer: speech.anforande_nummer,
-    talare: speech.talare,
-    rel_dok_titel: speech.rel_dok_titel,
-    rel_dok_beteckning: speech.rel_dok_beteckning,
-    anforande_url_html: speech.anforande_url_html,
-    anf_klockslag: speech.anf_klockslag,
-    word_count: speech.anforandetext ? speech.anforandetext.split(' ').length : 0,
-    content_summary: speech.anforandetext ? speech.anforandetext.substring(0, 500) : null
-  }));
-};
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
   try {
-    console.log('Starting enhanced comprehensive data sync...');
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const startTime = Date.now();
-    let stats = {
-      parties_processed: 0,
-      members_processed: 0,
-      documents_processed: 0,
-      votes_processed: 0,
-      speeches_processed: 0,
-      calendar_events_processed: 0,
-      errors_count: 0,
-      warnings: [] as string[]
-    };
-
-    // 1. Hämta och bearbeta partier och medlemmar med förbättrad felhantering
-    try {
-      console.log('=== Phase 1: Parties and Members ===');
-      const { parties, members } = await fetchPartiesAndMembers();
-      
-      const transformedParties = transformPartyData(parties);
-      const transformedMembers = transformMemberData(members);
-      
-      stats.parties_processed = transformedParties.length;
-      stats.members_processed = transformedMembers.length;
-      
-      console.log(`Processed ${stats.parties_processed} parties and ${stats.members_processed} members`);
-      
-      // Infoga partidata med säker insertion
-      const partyResult = await safeInsertData(supabase, 'party_data', transformedParties, 'party_code');
-      if (!partyResult.success) {
-        console.error(`Failed to insert party data: ${partyResult.errors} errors`);
-        stats.errors_count += partyResult.errors;
-      }
-      
-      // Infoga medlemsdata med säker insertion
-      const memberResult = await safeInsertData(supabase, 'member_data', transformedMembers, 'member_id');
-      if (!memberResult.success) {
-        console.error(`Failed to insert member data: ${memberResult.errors} errors`);
-        stats.errors_count += memberResult.errors;
-      }
-      
-    } catch (error) {
-      console.error('Error processing parties/members:', error);
-      stats.errors_count++;
-      stats.warnings.push('Failed to process parties/members');
-    }
-
-    // 2. Hämta och bearbeta dokument med förbättrad felhantering
-    try {
-      console.log('=== Phase 2: Documents (Enhanced) ===');
-      
-      const documentTypes = ['mot', 'prop', 'bet'];
-      let allDocuments: any[] = [];
-      
-      for (const docType of documentTypes) {
-        try {
-          const documentsData = await fetchRiksdagData(
-            `/dokumentlista/?doktyp=${docType}&utformat=json&sz=500&sort=datum&sortorder=desc`
-          );
-          const documents = documentsData.dokumentlista?.dokument || [];
-          console.log(`Found ${documents.length} documents of type ${docType}`);
-          allDocuments.push(...documents);
-          
-          // Begränsa totala antalet för att undvika timeout
-          if (allDocuments.length > 1500) break;
-        } catch (docError) {
-          console.warn(`Failed to fetch documents of type ${docType}:`, docError);
-          stats.warnings.push(`Failed to fetch ${docType} documents`);
-        }
-      }
-      
-      // Remove duplicates based on dok_id
-      const uniqueDocuments = allDocuments.filter((doc, index, self) => 
-        index === self.findIndex(d => d.dok_id === doc.dok_id)
-      );
-      
-      console.log(`Total unique documents: ${uniqueDocuments.length}`);
-      
-      if (uniqueDocuments.length > 0) {
-        const transformedDocuments = transformDocumentData(uniqueDocuments);
-        stats.documents_processed = transformedDocuments.length;
-        
-        const docResult = await safeInsertData(supabase, 'document_data', transformedDocuments, 'document_id', 150);
-        if (!docResult.success) {
-          console.error(`Failed to insert document data: ${docResult.errors} errors`);
-          stats.errors_count += docResult.errors;
-        }
-      }
-      
-    } catch (error) {
-      console.error('Error processing documents:', error);
-      stats.errors_count++;
-      stats.warnings.push('Failed to process documents');
-    }
-
-    // 3. Hämta och bearbeta voteringar med bättre felhantering och mindre omfattning
-    try {
-      console.log('=== Phase 3: Votes (Conservative) ===');
-      
-      const riksmoten = ['2024/25'];
-      let allVotes: any[] = [];
-      
-      for (const rm of riksmoten) {
-        try {
-          console.log(`Fetching votes for riksmöte: ${rm}`);
-          const votesData = await fetchRiksdagData(
-            `/voteringlista/?rm=${rm}&utformat=json&sz=200`, 2, 20000
-          );
-          
-          if (votesData.voteringlista?.votering) {
-            const votings = Array.isArray(votesData.voteringlista.votering) 
-              ? votesData.voteringlista.votering 
-              : [votesData.voteringlista.votering];
-            
-            console.log(`Found ${votings.length} vote events for ${rm}`);
-            
-            // Extrahera individuella röster från varje votering
-            votings.forEach(voting => {
-              if (voting.personroster?.roster) {
-                const roster = Array.isArray(voting.personroster.roster) 
-                  ? voting.personroster.roster 
-                  : [voting.personroster.roster];
-                
-                roster.forEach(vote => {
-                  allVotes.push({
-                    ...vote,
-                    votering_id: voting.votering_id,
-                    dok_id: voting.dok_id,
-                    rm: voting.rm,
-                    beteckning: voting.beteckning,
-                    punkt: voting.punkt,
-                    votering: voting.votering,
-                    avser: voting.avser,
-                    hangar_id: voting.hangar_id,
-                    systemdatum: voting.systemdatum
-                  });
-                });
-              }
-            });
-          }
-          
-          // Begränsa för att undvika timeout
-          if (allVotes.length > 2000) break;
-          
-        } catch (voteError) {
-          console.warn(`Failed to fetch votes for ${rm}:`, voteError);
-          stats.warnings.push(`Failed to fetch votes for ${rm}`);
-        }
-      }
-      
-      console.log(`Total individual votes collected: ${allVotes.length}`);
-      
-      if (allVotes.length > 0) {
-        const transformedVotes = transformVoteData(allVotes);
-        stats.votes_processed = transformedVotes.length;
-        
-        const voteResult = await safeInsertData(supabase, 'vote_data', transformedVotes, 'vote_id', 50);
-        if (!voteResult.success) {
-          console.error(`Failed to insert vote data: ${voteResult.errors} errors`);
-          stats.errors_count += voteResult.errors;
-        }
-      }
-      
-    } catch (error) {
-      console.error('Error processing votes:', error);
-      stats.errors_count++;
-      stats.warnings.push('Failed to process votes');
-    }
-
-    // 4. Hämta och bearbeta anföranden med konservativ approach
-    try {
-      console.log('=== Phase 4: Speeches (Conservative) ===');
-      const speechesData = await fetchRiksdagData('/anforandelista/?utformat=json&sz=500&sort=datumtid&sortorder=desc', 2, 20000);
-      const speeches = speechesData.anforandelista?.anforande || [];
-      
-      if (speeches.length > 0) {
-        const transformedSpeeches = transformSpeechData(speeches);
-        stats.speeches_processed = transformedSpeeches.length;
-        
-        const speechResult = await safeInsertData(supabase, 'speech_data', transformedSpeeches, 'speech_id', 100);
-        if (!speechResult.success) {
-          console.error(`Failed to insert speech data: ${speechResult.errors} errors`);
-          stats.errors_count += speechResult.errors;
-        }
-      }
-      
-    } catch (error) {
-      console.error('Error processing speeches:', error);
-      stats.errors_count++;
-      stats.warnings.push('Failed to process speeches');
-    }
-
-    // 5. Kalenderhändelser - hoppa över tills vidare pga API-problem
-    console.log('=== Phase 5: Calendar Events (Skipped) ===');
-    console.log('Skipping calendar events due to API issues - will be addressed in next phase');
-    stats.warnings.push('Calendar events skipped due to API returning HTML instead of JSON');
-
-    const syncDuration = Date.now() - startTime;
-
-    // Logga synkroniseringsoperationen
-    const { error: logError } = await supabase
-      .from('data_sync_log')
-      .insert({
-        sync_type: 'enhanced_comprehensive_sync',
-        status: stats.errors_count > 3 ? 'partial_success' : (stats.warnings.length > 0 ? 'success_with_warnings' : 'success'),
-        parties_processed: stats.parties_processed,
-        members_processed: stats.members_processed,
-        documents_processed: stats.documents_processed,
-        votes_processed: stats.votes_processed,
-        speeches_processed: stats.speeches_processed,
-        calendar_events_processed: stats.calendar_events_processed,
-        errors_count: stats.errors_count,
-        sync_duration_ms: syncDuration,
-        error_details: {
-          warnings: stats.warnings,
-          message: `Enhanced sync completed with ${stats.errors_count} errors and ${stats.warnings.length} warnings`
-        }
-      });
-
-    if (logError) {
-      console.error('Error logging sync operation:', logError);
-    }
-
-    console.log(`=== SYNC COMPLETED ===`);
-    console.log(`Duration: ${syncDuration}ms`);
-    console.log(`Stats:`, stats);
-
-    return new Response(
-      JSON.stringify({
-        success: stats.errors_count < 4, // Tillåt vissa errors men inte för många
-        message: `Enhanced comprehensive data sync completed with ${stats.errors_count} errors and ${stats.warnings.length} warnings`,
-        stats,
-        duration_ms: syncDuration,
-        warnings: stats.warnings
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
-      }
-    );
-
+    const data = await fetchWithRetry(url)
+    const documents = data.dokumentlista?.dokument || []
+    console.log(`Fetched ${documents.length} documents for year ${year}`)
+    return documents
   } catch (error) {
-    console.error('Fatal error in enhanced sync:', error);
-    
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message,
-        timestamp: new Date().toISOString()
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error(`Error fetching documents for year ${year}:`, error)
+    return []
   }
-});
+}
+
+async function storeDocuments(documents: RiksdagDocument[]): Promise<number> {
+  if (documents.length === 0) return 0
+  
+  let stored = 0
+  const batchSize = 100
+  
+  for (let i = 0; i < documents.length; i += batchSize) {
+    const batch = documents.slice(i, i + batchSize)
+    
+    const documentsToStore = batch.map(doc => ({
+      document_id: doc.id,
+      titel: doc.titel?.substring(0, 500) || null,
+      beteckning: doc.beteckning?.substring(0, 100) || null,
+      datum: doc.datum || null,
+      typ: doc.typ?.substring(0, 50) || null,
+      organ: doc.organ?.substring(0, 100) || null,
+      intressent_id: doc.intressent_id || null,
+      hangar_id: doc.hangar_id || null,
+      document_url_text: doc.dokument_url_text || null,
+      document_url_html: doc.dokument_url_html || null,
+      dokumentstatus: doc.dokumentstatus || null,
+      publicerad: doc.publicerad || null,
+      rm: doc.rm || null,
+      summary: null,
+      content_preview: null,
+      metadata: { 
+        fetched_at: new Date().toISOString(),
+        source: 'riksdag_api'
+      },
+      updated_at: new Date().toISOString()
+    }))
+    
+    try {
+      const { data, error } = await supabase
+        .from('document_data')
+        .upsert(documentsToStore, { 
+          onConflict: 'document_id',
+          ignoreDuplicates: false 
+        })
+        .select('id')
+      
+      if (error) {
+        console.error('Batch insert error:', error)
+      } else {
+        const batchStored = data?.length || 0
+        stored += batchStored
+        console.log(`Stored batch: ${batchStored}/${batch.length} documents`)
+      }
+    } catch (error) {
+      console.error('Database error in batch:', error)
+    }
+    
+    // Small delay between batches
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  
+  return stored
+}
+
+async function fetchMembers(): Promise<RiksdagMember[]> {
+  const url = `${BASE_URL}/personlista/?utformat=json`
+  
+  try {
+    const data = await fetchWithRetry(url)
+    const members = data.personlista?.person || []
+    console.log(`Fetched ${members.length} members`)
+    return members.filter((member: RiksdagMember) => {
+      // Filter active members
+      return member.tilltalsnamn && member.efternamn && member.parti
+    })
+  } catch (error) {
+    console.error('Error fetching members:', error)
+    return []
+  }
+}
+
+async function storeMembers(members: RiksdagMember[]): Promise<number> {
+  if (members.length === 0) return 0
+  
+  const membersToStore = members.map(member => ({
+    member_id: member.intressent_id,
+    first_name: member.tilltalsnamn?.substring(0, 100) || '',
+    last_name: member.efternamn?.substring(0, 100) || '',
+    party: member.parti?.substring(0, 10) || '',
+    constituency: member.valkrets?.substring(0, 100) || null,
+    gender: member.kon?.substring(0, 10) || null,
+    birth_year: member.fodd_ar ? parseInt(member.fodd_ar) : null,
+    image_urls: member.bild_url_192 ? { url_192: member.bild_url_192 } : null,
+    is_active: true,
+    updated_at: new Date().toISOString()
+  }))
+  
+  try {
+    const { data, error } = await supabase
+      .from('member_data')
+      .upsert(membersToStore, { 
+        onConflict: 'member_id',
+        ignoreDuplicates: false 
+      })
+      .select('id')
+    
+    if (error) {
+      console.error('Members insert error:', error)
+      return 0
+    }
+    
+    return data?.length || 0
+  } catch (error) {
+    console.error('Database error storing members:', error)
+    return 0
+  }
+}
+
+async function fetchRecentSpeeches(): Promise<RiksdagSpeech[]> {
+  const currentYear = new Date().getFullYear()
+  const url = `${BASE_URL}/anforandelista/?utformat=json&rm=${currentYear}%2F${(currentYear + 1).toString().slice(-2)}&sz=500`
+  
+  try {
+    const data = await fetchWithRetry(url)
+    const speeches = data.anforandelista?.anforande || []
+    console.log(`Fetched ${speeches.length} recent speeches`)
+    return speeches
+  } catch (error) {
+    console.error('Error fetching speeches:', error)
+    return []
+  }
+}
+
+async function storeSpeeches(speeches: RiksdagSpeech[]): Promise<number> {
+  if (speeches.length === 0) return 0
+  
+  const speechesToStore = speeches.map(speech => ({
+    speech_id: speech.anforande_id,
+    anforande_id: speech.anforande_id,
+    intressent_id: speech.intressent_id || null,
+    namn: speech.namn?.substring(0, 200) || null,
+    party: speech.parti?.substring(0, 10) || null,
+    anforandedatum: speech.anforandedatum || null,
+    anforandetext: speech.anforandetext || null,
+    rel_dok_id: speech.rel_dok_id || null,
+    rel_dok_titel: speech.rel_dok_titel?.substring(0, 500) || null,
+    word_count: speech.anforandetext ? speech.anforandetext.split(/\s+/).length : null,
+    updated_at: new Date().toISOString()
+  }))
+  
+  try {
+    const { data, error } = await supabase
+      .from('speech_data')
+      .upsert(speechesToStore, { 
+        onConflict: 'speech_id',
+        ignoreDuplicates: false 
+      })
+      .select('id')
+    
+    if (error) {
+      console.error('Speeches insert error:', error)
+      return 0
+    }
+    
+    return data?.length || 0
+  } catch (error) {
+    console.error('Database error storing speeches:', error)
+    return 0
+  }
+}
+
+async function fetchRecentVotes(): Promise<RiksdagVote[]> {
+  const currentYear = new Date().getFullYear()
+  const url = `${BASE_URL}/voteringlista/?utformat=json&rm=${currentYear}%2F${(currentYear + 1).toString().slice(-2)}&sz=500&gruppering=votering_id`
+  
+  try {
+    const data = await fetchWithRetry(url)
+    const votes = data.voteringlista?.votering || []
+    console.log(`Fetched ${votes.length} recent votes`)
+    return votes
+  } catch (error) {
+    console.error('Error fetching votes:', error)
+    return []
+  }
+}
+
+async function storeVotes(votes: RiksdagVote[]): Promise<number> {
+  if (votes.length === 0) return 0
+  
+  // Group votes by votering_id
+  const voteGroups = new Map<string, RiksdagVote[]>()
+  votes.forEach(vote => {
+    const key = vote.votering_id
+    if (!voteGroups.has(key)) {
+      voteGroups.set(key, [])
+    }
+    voteGroups.get(key)!.push(vote)
+  })
+  
+  const votesToStore = Array.from(voteGroups.entries()).map(([voteId, voteList]) => {
+    const firstVote = voteList[0]
+    
+    // Calculate statistics
+    const stats = {
+      ja: voteList.filter(v => v.rost === 'Ja').length,
+      nej: voteList.filter(v => v.rost === 'Nej').length,
+      avstar: voteList.filter(v => v.rost === 'Avstår').length,
+      franvarande: voteList.filter(v => v.rost === 'Frånvarande').length
+    }
+    
+    // Party breakdown
+    const partyBreakdown: { [key: string]: any } = {}
+    voteList.forEach(vote => {
+      if (!partyBreakdown[vote.parti]) {
+        partyBreakdown[vote.parti] = { ja: 0, nej: 0, avstar: 0, franvarande: 0 }
+      }
+      
+      switch (vote.rost) {
+        case 'Ja': partyBreakdown[vote.parti].ja++; break
+        case 'Nej': partyBreakdown[vote.parti].nej++; break
+        case 'Avstår': partyBreakdown[vote.parti].avstar++; break
+        case 'Frånvarande': partyBreakdown[vote.parti].franvarande++; break
+      }
+    })
+    
+    return {
+      vote_id: voteId,
+      hangar_id: firstVote.hangar_id || null,
+      rm: firstVote.rm || null,
+      beteckning: firstVote.beteckning?.substring(0, 100) || null,
+      punkt: firstVote.punkt?.substring(0, 200) || null,
+      systemdatum: firstVote.systemdatum || null,
+      vote_statistics: stats,
+      party_breakdown: partyBreakdown,
+      vote_results: voteList.map(v => ({
+        intressent_id: v.intressent_id,
+        namn: v.namn,
+        parti: v.parti,
+        rost: v.rost
+      })),
+      updated_at: new Date().toISOString()
+    }
+  })
+  
+  try {
+    const { data, error } = await supabase
+      .from('vote_data')
+      .upsert(votesToStore, { 
+        onConflict: 'vote_id',
+        ignoreDuplicates: false 
+      })
+      .select('id')
+    
+    if (error) {
+      console.error('Votes insert error:', error)
+      return 0
+    }
+    
+    return data?.length || 0
+  } catch (error) {
+    console.error('Database error storing votes:', error)
+    return 0
+  }
+}
+
+async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+  const today = new Date()
+  const twoWeeksFromNow = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
+  
+  const fromDate = today.toISOString().split('T')[0]
+  const toDate = twoWeeksFromNow.toISOString().split('T')[0]
+  
+  const url = `${BASE_URL}/kalender/?utformat=json&from=${fromDate}&tom=${toDate}&sz=200`
+  
+  try {
+    const data = await fetchWithRetry(url)
+    const events = data.kalenderlista?.kalender || []
+    console.log(`Fetched ${events.length} calendar events`)
+    return events
+  } catch (error) {
+    console.error('Error fetching calendar events:', error)
+    return []
+  }
+}
+
+async function storeCalendarEvents(events: CalendarEvent[]): Promise<number> {
+  if (events.length === 0) return 0
+  
+  const eventsToStore = events.map(event => ({
+    event_id: event.id,
+    datum: event.datum || null,
+    tid: event.tid || null,
+    plats: event.plats?.substring(0, 200) || null,
+    aktivitet: event.aktivitet?.substring(0, 300) || null,
+    typ: event.typ?.substring(0, 100) || null,
+    organ: event.organ?.substring(0, 100) || null,
+    summary: event.summary?.substring(0, 500) || null,
+    status: event.status || null,
+    metadata: {
+      fetched_at: new Date().toISOString(),
+      source: 'riksdag_api'
+    },
+    updated_at: new Date().toISOString()
+  }))
+  
+  try {
+    const { data, error } = await supabase
+      .from('calendar_data')
+      .upsert(eventsToStore, { 
+        onConflict: 'event_id',
+        ignoreDuplicates: false 
+      })
+      .select('id')
+    
+    if (error) {
+      console.error('Calendar events insert error:', error)
+      return 0
+    }
+    
+    return data?.length || 0
+  } catch (error) {
+    console.error('Database error storing calendar events:', error)
+    return 0
+  }
+}
+
+async function updateSyncStatus(syncType: string, status: string, stats?: any, errorMessage?: string) {
+  const syncData = {
+    sync_type: syncType,
+    status,
+    started_at: new Date().toISOString(),
+    stats: stats || null,
+    error_message: errorMessage || null
+  }
+  
+  if (status === 'completed' || status === 'failed') {
+    syncData.completed_at = new Date().toISOString()
+  }
+  
+  await supabase.from('automated_sync_status').insert(syncData)
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+  
+  try {
+    const body = await req.json().catch(() => ({}))
+    const manualTrigger = body.manual_trigger || false
+    const triggeredBy = body.triggered_by || 'cron'
+    
+    console.log(`🚀 Starting comprehensive data sync (triggered by: ${triggeredBy})`)
+    
+    await updateSyncStatus('comprehensive', 'running')
+    
+    const startTime = Date.now()
+    const stats = {
+      documents_stored: 0,
+      members_stored: 0,
+      speeches_stored: 0,
+      votes_stored: 0,
+      calendar_events_stored: 0,
+      years_processed: 0
+    }
+    
+    // Fetch documents from 2022 onwards
+    const currentYear = new Date().getFullYear()
+    const startYear = 2022
+    
+    console.log(`📄 Fetching documents from ${startYear} to ${currentYear}`)
+    
+    for (let year = startYear; year <= currentYear; year++) {
+      try {
+        console.log(`Processing year ${year}...`)
+        const documents = await fetchDocumentsFromYear(year)
+        
+        if (documents.length > 0) {
+          const stored = await storeDocuments(documents)
+          stats.documents_stored += stored
+          console.log(`✅ Year ${year}: ${stored}/${documents.length} documents stored`)
+        }
+        
+        stats.years_processed++
+        
+        // Small delay between years to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } catch (error) {
+        console.error(`Error processing year ${year}:`, error)
+      }
+    }
+    
+    // Fetch and store members
+    console.log(`👥 Fetching members...`)
+    try {
+      const members = await fetchMembers()
+      stats.members_stored = await storeMembers(members)
+      console.log(`✅ Members: ${stats.members_stored} stored`)
+    } catch (error) {
+      console.error('Error processing members:', error)
+    }
+    
+    // Fetch and store recent speeches
+    console.log(`🎤 Fetching recent speeches...`)
+    try {
+      const speeches = await fetchRecentSpeeches()
+      stats.speeches_stored = await storeSpeeches(speeches)
+      console.log(`✅ Speeches: ${stats.speeches_stored} stored`)
+    } catch (error) {
+      console.error('Error processing speeches:', error)
+    }
+    
+    // Fetch and store recent votes
+    console.log(`🗳️ Fetching recent votes...`)
+    try {
+      const votes = await fetchRecentVotes()
+      stats.votes_stored = await storeVotes(votes)
+      console.log(`✅ Votes: ${stats.votes_stored} stored`)
+    } catch (error) {
+      console.error('Error processing votes:', error)
+    }
+    
+    // Fetch and store calendar events
+    console.log(`📅 Fetching calendar events...`)
+    try {
+      const events = await fetchCalendarEvents()
+      stats.calendar_events_stored = await storeCalendarEvents(events)
+      console.log(`✅ Calendar events: ${stats.calendar_events_stored} stored`)
+    } catch (error) {
+      console.error('Error processing calendar events:', error)
+    }
+    
+    const duration = Date.now() - startTime
+    stats.sync_duration_ms = duration
+    
+    await updateSyncStatus('comprehensive', 'completed', stats)
+    
+    console.log(`🎉 Comprehensive sync completed in ${duration}ms`)
+    console.log('Final stats:', stats)
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Comprehensive data sync completed successfully',
+      stats,
+      duration: `${duration}ms`,
+      triggered_by: triggeredBy
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+    
+  } catch (error) {
+    console.error('💥 Comprehensive sync failed:', error)
+    
+    await updateSyncStatus('comprehensive', 'failed', null, error.message)
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      message: 'Comprehensive data sync failed'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+})

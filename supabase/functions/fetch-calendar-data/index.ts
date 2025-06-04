@@ -1,263 +1,206 @@
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
-interface RiksdagCalendarEvent {
+const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+interface CalendarEvent {
   id: string;
   datum: string;
-  titel: string;
+  tid: string;
+  plats: string;
+  aktivitet: string;
   typ: string;
-  org: string;
-  akt?: string;
-  tid?: string;
-  plats?: string;
-  beskrivning?: string;
-  status?: string;
+  organ: string;
+  summary: string;
+  status: string;
+  sekretess?: string;
+  url?: string;
 }
 
-interface RiksdagCalendarResponse {
-  kalender?: {
-    händelse: RiksdagCalendarEvent[] | RiksdagCalendarEvent;
-  };
-  kalenderlista?: {
-    kalender?: RiksdagCalendarEvent[] | RiksdagCalendarEvent;
-  };
+const BASE_URL = 'https://data.riksdagen.se'
+
+async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      console.log(`Fetching: ${url} (attempt ${i + 1}/${maxRetries + 1})`)
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Response is not JSON:', contentType)
+        return { kalenderlista: { kalender: [] } }
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error(`Fetch attempt ${i + 1} failed:`, error)
+      if (i === maxRetries) throw error
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+    }
+  }
 }
 
-const isValidJsonResponse = (text: string): boolean => {
-  if (!text || text.trim().length === 0) return false;
-  if (text.trim().startsWith('<')) return false; // HTML response
-  try {
-    JSON.parse(text);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const extractEvents = (data: RiksdagCalendarResponse): RiksdagCalendarEvent[] => {
-  // Try different response structures
-  if (data.kalender?.händelse) {
-    return Array.isArray(data.kalender.händelse) 
-      ? data.kalender.händelse 
-      : [data.kalender.händelse];
-  }
+async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+  const today = new Date()
+  const threeMonthsFromNow = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
   
-  if (data.kalenderlista?.kalender) {
-    return Array.isArray(data.kalenderlista.kalender) 
-      ? data.kalenderlista.kalender 
-      : [data.kalenderlista.kalender];
-  }
+  const fromDate = today.toISOString().split('T')[0]
+  const toDate = threeMonthsFromNow.toISOString().split('T')[0]
   
-  return [];
-};
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+  const url = `${BASE_URL}/kalender/?utformat=json&from=${fromDate}&tom=${toDate}&sz=500`
+  
   try {
-    console.log('Starting improved calendar data sync...');
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    let totalProcessed = 0;
-    let errors = 0;
-    const startTime = Date.now();
-
-    // Updated API endpoints with better parameter combinations
-    const apiEndpoints = [
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=100',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&sort=datum&sortorder=desc',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&sort=datum&sortorder=asc',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&typ=sammanträde',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&org=kamm',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=50&from=2024-11-01',
-      'https://data.riksdagen.se/kalender/?utformat=json&sz=30'
-    ];
-
-    console.log(`Attempting to fetch from ${apiEndpoints.length} different endpoints...`);
-
-    for (const url of apiEndpoints) {
-      try {
-        console.log(`Fetching calendar data from: ${url}`);
-        
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (compatible; Riksdag-Calendar-Sync/3.0)',
-            'Cache-Control': 'no-cache'
-          }
-        });
-
-        console.log(`Response status for ${url}: ${response.status}`);
-
-        if (!response.ok) {
-          console.log(`HTTP error ${response.status} for URL: ${url}`);
-          errors++;
-          continue;
-        }
-
-        const responseText = await response.text();
-        console.log(`Response length: ${responseText.length} characters`);
-
-        if (!isValidJsonResponse(responseText)) {
-          console.log(`Invalid JSON response from: ${url} (likely HTML error page)`);
-          console.log(`Response preview: ${responseText.substring(0, 200)}...`);
-          errors++;
-          continue;
-        }
-
-        let data: RiksdagCalendarResponse;
-        try {
-          data = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error(`JSON parse error for ${url}:`, parseError);
-          errors++;
-          continue;
-        }
-
-        const events = extractEvents(data);
-        console.log(`Found ${events.length} events from ${url}`);
-
-        if (events.length === 0) {
-          console.log(`No events to process from: ${url}`);
-          continue;
-        }
-
-        // Process events in smaller batches
-        const batchSize = 10;
-        for (let i = 0; i < events.length; i += batchSize) {
-          const batch = events.slice(i, i + batchSize);
-          
-          try {
-            const calendarData = batch.map(event => {
-              // Generate unique event ID with better fallback
-              const eventId = event.id || 
-                `${event.datum || new Date().toISOString().split('T')[0]}-${event.org || 'unknown'}-${event.titel?.substring(0, 20).replace(/\s+/g, '-') || 'event'}-${Math.random().toString(36).substr(2, 6)}`;
-              
-              return {
-                event_id: eventId,
-                datum: event.datum || null,
-                tid: event.tid || null,
-                plats: event.plats || null,
-                aktivitet: event.akt || null,
-                typ: event.typ || null,
-                organ: event.org || null,
-                summary: event.titel || null,
-                description: event.beskrivning || null,
-                status: event.status || null,
-                url: null,
-                sekretess: null,
-                participants: null,
-                related_documents: null,
-                metadata: {
-                  source_url: url,
-                  synced_at: new Date().toISOString(),
-                  original_id: event.id || null,
-                  api_response_type: data.kalender ? 'kalender' : 'kalenderlista'
-                }
-              };
-            });
-
-            const { error } = await supabase
-              .from('calendar_data')
-              .upsert(calendarData, { 
-                onConflict: 'event_id',
-                ignoreDuplicates: false 
-              });
-
-            if (error) {
-              console.error('Error inserting calendar batch:', error);
-              errors += batch.length;
-            } else {
-              totalProcessed += batch.length;
-              console.log(`Successfully processed batch of ${batch.length} events (total: ${totalProcessed})`);
-            }
-          } catch (batchError) {
-            console.error('Error processing batch:', batchError);
-            errors += batch.length;
-          }
-        }
-
-        // Add delay between endpoints to be respectful
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-      } catch (urlError) {
-        console.error(`Error fetching from ${url}:`, urlError);
-        errors++;
-        continue;
-      }
-    }
-
-    const syncDuration = Date.now() - startTime;
-
-    console.log(`Calendar sync completed: ${totalProcessed} events processed, ${errors} errors, ${syncDuration}ms`);
-
-    // Log the sync operation
-    const { error: logError } = await supabase
-      .from('data_sync_log')
-      .insert({
-        sync_type: 'calendar_data',
-        status: totalProcessed > 0 ? (errors > 0 ? 'partial_success' : 'success') : 'failed',
-        calendar_events_processed: totalProcessed,
-        errors_count: errors,
-        sync_duration_ms: syncDuration,
-        error_details: errors > 0 ? { 
-          message: `${errors} endpoint/batch failures during sync`,
-          total_attempted: totalProcessed + errors,
-          endpoints_tried: apiEndpoints.length
-        } : null
-      });
-
-    if (logError) {
-      console.error('Error logging sync operation:', logError);
-    }
-
-    const success = totalProcessed > 0;
-    const statusCode = success ? 200 : (errors > 0 ? 207 : 404);
-
-    return new Response(
-      JSON.stringify({
-        success,
-        message: success 
-          ? `Calendar data sync completed successfully. ${totalProcessed} events processed with ${errors} errors.`
-          : 'No calendar data could be retrieved from any endpoint.',
-        stats: {
-          events_processed: totalProcessed,
-          errors: errors,
-          duration_ms: syncDuration,
-          endpoints_tried: apiEndpoints.length
-        }
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: statusCode
-      }
-    );
-
-  } catch (error) {
-    console.error('Fatal error in calendar sync:', error);
+    const data = await fetchWithRetry(url)
+    const events = data.kalenderlista?.kalender || []
+    console.log(`Fetched ${events.length} calendar events`)
     
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message,
-        message: 'Fatal error occurred during calendar sync',
-        timestamp: new Date().toISOString()
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    // Filter and validate events
+    return events.filter((event: CalendarEvent) => {
+      return event.id && event.datum && event.summary
+    })
+  } catch (error) {
+    console.error('Error fetching calendar events:', error)
+    return []
   }
-});
+}
+
+async function storeCalendarEvents(events: CalendarEvent[]): Promise<number> {
+  if (events.length === 0) return 0
+  
+  const eventsToStore = events.map(event => ({
+    event_id: event.id,
+    datum: event.datum || null,
+    tid: event.tid || null,
+    plats: event.plats?.substring(0, 200) || null,
+    aktivitet: event.aktivitet?.substring(0, 300) || null,
+    typ: event.typ?.substring(0, 100) || null,
+    organ: event.organ?.substring(0, 100) || null,
+    summary: event.summary?.substring(0, 500) || null,
+    status: event.status || null,
+    sekretess: event.sekretess || null,
+    url: event.url || null,
+    metadata: {
+      fetched_at: new Date().toISOString(),
+      source: 'riksdag_calendar_api',
+      sync_type: 'calendar_backup'
+    },
+    updated_at: new Date().toISOString()
+  }))
+  
+  let stored = 0
+  const batchSize = 50
+  
+  for (let i = 0; i < eventsToStore.length; i += batchSize) {
+    const batch = eventsToStore.slice(i, i + batchSize)
+    
+    try {
+      const { data, error } = await supabase
+        .from('calendar_data')
+        .upsert(batch, { 
+          onConflict: 'event_id',
+          ignoreDuplicates: false 
+        })
+        .select('id')
+      
+      if (error) {
+        console.error('Calendar batch insert error:', error)
+      } else {
+        const batchStored = data?.length || 0
+        stored += batchStored
+        console.log(`Stored calendar batch: ${batchStored}/${batch.length} events`)
+      }
+    } catch (error) {
+      console.error('Database error in calendar batch:', error)
+    }
+    
+    // Small delay between batches
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  
+  return stored
+}
+
+async function updateSyncStatus(syncType: string, status: string, stats?: any, errorMessage?: string) {
+  const syncData = {
+    sync_type: syncType,
+    status,
+    started_at: new Date().toISOString(),
+    stats: stats || null,
+    error_message: errorMessage || null
+  }
+  
+  if (status === 'completed' || status === 'failed') {
+    syncData.completed_at = new Date().toISOString()
+  }
+  
+  await supabase.from('automated_sync_status').insert(syncData)
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+  
+  try {
+    const body = await req.json().catch(() => ({}))
+    const manualTrigger = body.manual_trigger || false
+    const testMode = body.test_mode || false
+    const triggeredBy = body.triggered_by || 'cron'
+    
+    console.log(`📅 Starting calendar data sync (triggered by: ${triggeredBy}, test mode: ${testMode})`)
+    
+    await updateSyncStatus('calendar_backup', 'running')
+    
+    const startTime = Date.now()
+    
+    // Fetch calendar events
+    const events = await fetchCalendarEvents()
+    const stored = await storeCalendarEvents(events)
+    
+    const duration = Date.now() - startTime
+    const stats = {
+      calendar_events_fetched: events.length,
+      calendar_events_stored: stored,
+      sync_duration_ms: duration,
+      test_mode: testMode
+    }
+    
+    await updateSyncStatus('calendar_backup', 'completed', stats)
+    
+    console.log(`✅ Calendar sync completed in ${duration}ms`)
+    console.log('Calendar stats:', stats)
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Calendar data sync completed successfully',
+      stats,
+      duration: `${duration}ms`,
+      triggered_by: triggeredBy
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+    
+  } catch (error) {
+    console.error('💥 Calendar sync failed:', error)
+    
+    await updateSyncStatus('calendar_backup', 'failed', null, error.message)
+    
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message,
+      message: 'Calendar data sync failed'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+})
