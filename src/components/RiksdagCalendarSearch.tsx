@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -273,9 +272,9 @@ const RiksdagCalendarSearch = () => {
         return [
           'BEGIN:VEVENT',
           `DTSTART:${eventDate.toISOString().replace(/[-:]/g, '').split('.')[0]}Z`,
-          `SUMMARY:${event.summary || event.aktivitet || 'Händelse'}`,
+          `SUMMARY:${event.summary || 'Händelse'}`,
           `DESCRIPTION:${event.description || ''}`,
-          `LOCATION:${event.plats || ''}`,
+          `LOCATION:${event.location || ''}`,
           `UID:${event.event_id || event.id}`,
           'END:VEVENT'
         ];
@@ -485,23 +484,23 @@ const RiksdagCalendarSearch = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900">
-                            {event.summary || event.aktivitet || 'Utan titel'}
+                            {event.summary || 'Utan titel'}
                           </h3>
                           <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
                             <div className="flex items-center space-x-1">
                               <Calendar className="w-4 h-4" />
                               <span>{formatEventDate(event.datum)}</span>
                             </div>
-                            {event.tid && (
+                            {event.start_time && (
                               <div className="flex items-center space-x-1">
                                 <Clock className="w-4 h-4" />
-                                <span>{formatEventTime(event.tid)}</span>
+                                <span>{formatEventTime(event.start_time)}</span>
                               </div>
                             )}
-                            {event.plats && (
+                            {event.location && (
                               <div className="flex items-center space-x-1">
                                 <MapPin className="w-4 h-4" />
-                                <span>{event.plats}</span>
+                                <span>{event.location}</span>
                               </div>
                             )}
                           </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -184,9 +183,9 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
                   <div
                     key={event.id || index}
                     className={`text-xs p-1 rounded truncate ${getEventColor(event)}`}
-                    title={event.summary || event.aktivitet || 'Händelse'}
+                    title={event.summary || 'Händelse'}
                   >
-                    {event.summary || event.aktivitet || 'Händelse'}
+                    {event.summary || 'Händelse'}
                   </div>
                 ))}
                 {dayEvents.length > 3 && (
@@ -223,8 +222,8 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
                     key={event.id || index}
                     className={`text-xs p-2 rounded ${getEventColor(event)}`}
                   >
-                    <div className="font-medium truncate">{event.summary || event.aktivitet || 'Händelse'}</div>
-                    {event.tid && <div className="opacity-75">{formatEventTime(event.tid)}</div>}
+                    <div className="font-medium truncate">{event.summary || 'Händelse'}</div>
+                    {event.start_time && <div className="opacity-75">{formatEventTime(event.start_time)}</div>}
                   </div>
                 ))}
               </div>
@@ -253,22 +252,22 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
               <Card key={event.id || index}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{event.summary || event.aktivitet || 'Händelse'}</CardTitle>
+                    <CardTitle className="text-base">{event.summary || 'Händelse'}</CardTitle>
                     {event.organ && <Badge className={getEventColor(event)}>{event.organ}</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm text-gray-600">
-                    {event.tid && (
+                    {event.start_time && (
                       <div className="flex items-center space-x-2">
                         <Clock className="w-4 h-4" />
-                        <span>{formatEventTime(event.tid)}</span>
+                        <span>{formatEventTime(event.start_time)}</span>
                       </div>
                     )}
-                    {event.plats && (
+                    {event.location && (
                       <div className="flex items-center space-x-2">
                         <MapPin className="w-4 h-4" />
-                        <span>{event.plats}</span>
+                        <span>{event.location}</span>
                       </div>
                     )}
                     {event.description && (

@@ -1,506 +1,356 @@
-
-import { Member } from '../types/member';
-import { partyInfo } from '../data/mockMembers';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Avatar, AvatarImage, AvatarFallback } from './ui/avatar';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import DocumentViewer from './DocumentViewer';
-import RecentSpeeches from './RecentSpeeches';
-import MemberNewsField from './MemberNewsField';
-import MemberLanguageAnalysis from './MemberLanguageAnalysis';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Separator } from './ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { 
+  User, 
   MapPin, 
-  Mail, 
-  Phone, 
   Calendar, 
-  Briefcase, 
   Users, 
+  FileText, 
   MessageSquare, 
-  Vote, 
-  FileText,
-  Star,
-  Clock,
+  Vote,
   ExternalLink,
-  X,
-  BarChart3,
-  Building,
-  Brain
+  Phone,
+  Mail,
+  Building
 } from 'lucide-react';
+import MemberNewsField from './MemberNewsField';
 
-interface MemberProfileProps {
-  member: Member;
-  onClose: () => void;
+interface Assignment {
+  organ: string;
+  roll_kod: string;
+  from: string;
+  tom?: string;
+  status: string;
 }
 
-const MemberProfile = ({ member, onClose }: MemberProfileProps) => {
-  const party = partyInfo[member.party];
-
-  const getDocumentTypeLabel = (type: string) => {
-    const typeMap: { [key: string]: string } = {
-      'mot': 'Motion',
-      'prop': 'Proposition',
-      'ip': 'Interpellation',
-      'fr': 'Skriftlig fråga',
-      'frs': 'Svar på skriftlig fråga',
-      'bet': 'Betänkande',
-      'prot': 'Protokoll',
-      'kam-ip': 'Interpellationsdebatt',
-      'kam-sf': 'Statsministerns frågestund',
-      'rskr': 'Riksdagsskrivelse',
-      'votering': 'Votering',
-      'sou': 'Statens offentliga utredning',
-      'ds': 'Departementsserien',
-      'dir': 'Kommittédirektiv',
-      'yttr': 'Yttrande',
-      'fpm': 'Faktapromemoria'
+interface MemberProfileProps {
+  memberId: string;
+  memberData?: {
+    id: string;
+    member_id: string;
+    first_name: string;
+    last_name: string;
+    party: string;
+    constituency?: string;
+    birth_year?: number;
+    gender?: string;
+    riksdag_status?: string;
+    is_active?: boolean;
+    assignments?: Assignment[];
+    image_urls?: {
+      '80'?: string;
+      '192'?: string;
+      max?: string;
     };
-    return typeMap[type] || type;
+    activity_data?: {
+      total_speeches?: number;
+      total_votes?: number;
+      committee_memberships?: number;
+    };
   };
+}
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('sv-SE', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return dateString;
+const MemberProfile = ({ memberId, memberData }: MemberProfileProps) => {
+  const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    if (memberId) {
+      console.log(`Loading profile for member ID: ${memberId}`);
     }
-  };
+  }, [memberId]);
 
-  const formatDateTime = (dateTimeString: string) => {
-    try {
-      return new Date(dateTimeString).toLocaleDateString('sv-SE', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateTimeString;
-    }
-  };
+  if (!memberData) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <p className="text-gray-500">
+            Ingen ledamotdata tillgänglig för detta ID.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const getAssignmentStatus = (assignment: any) => {
-    const currentDate = new Date();
-    const endDate = assignment.tom ? new Date(assignment.tom) : null;
-    
-    if (!endDate || endDate > currentDate) {
+  const getAssignmentStatus = (assignment: Assignment) => {
+    if (assignment.status === 'aktiv') {
       return 'Aktiv';
-    }
-    return 'Tidigare';
-  };
-
-  const getAssignmentStatusColor = (status: string) => {
-    switch (status) {
-      case 'Aktiv':
-        return 'bg-green-100 text-green-800';
-      case 'Tidigare':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-blue-100 text-blue-800';
+    } else if (assignment.status === 'avliden') {
+      return 'Avled';
+    } else {
+      return 'Inaktiv';
     }
   };
 
-  // Konvertera dokument till RiksdagDocument format för DocumentViewer
-  const convertToRiksdagDocument = (doc: any) => ({
-    id: doc.id,
-    titel: doc.title,
-    undertitel: '',
-    typ: doc.type,
-    datum: doc.date,
-    beteckning: doc.beteckning || '',
-    organ: '',
-    dokument_url_html: doc.url || '',
-    dokument_url_text: ''
-  });
-
-  // Filtrera dokument för motioner och förslag
-  const motionsAndProposals = member.documents?.filter(doc => 
-    ['mot', 'prop', 'ip', 'fr'].includes(doc.type)
-  ) || [];
-
-  // Hitta svar på skriftliga frågor
-  const getAnswersForQuestion = (questionId: string) => {
-    return member.documents?.filter(doc => 
-      doc.type === 'frs' && doc.title.includes(questionId)
-    ) || [];
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('sv-SE', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (error) {
+      console.error("Fel vid formatering av datum:", error);
+      return "Okänt datum";
+    }
   };
 
-  // Separera aktiva och tidigare uppdrag
-  const currentDate = new Date();
-  const activeAssignments = member.assignments?.filter(assignment => {
-    const endDate = assignment.tom ? new Date(assignment.tom) : null;
-    return !endDate || endDate > currentDate;
-  }) || [];
+  const memberHeaderSection = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-4">
+          <Avatar>
+            {memberData.image_urls?.max ? (
+              <AvatarImage src={memberData.image_urls.max} alt={`${memberData.first_name} ${memberData.last_name}`} />
+            ) : (
+              <AvatarFallback>{memberData.first_name[0]}{memberData.last_name[0]}</AvatarFallback>
+            )}
+          </Avatar>
+          <span>
+            {memberData.first_name} {memberData.last_name}
+          </span>
+          <Badge variant="secondary">{memberData.party}</Badge>
+        </CardTitle>
+        <CardDescription>
+          {memberData.constituency ? `Valdistrikt: ${memberData.constituency}` : 'Information saknas'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <User className="w-4 h-4 text-gray-500" />
+            <span>
+              Född: {memberData.birth_year ? memberData.birth_year : 'Okänt'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-4 h-4 text-gray-500" />
+            <span>
+              {memberData.constituency ? memberData.constituency : 'Okänt valkrets'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-4 h-4 text-gray-500" />
+            <span>
+              Status: {memberData.riksdag_status ? memberData.riksdag_status : 'Okänd'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Users className="w-4 h-4 text-gray-500" />
+            <span>
+              Kön: {memberData.gender ? memberData.gender : 'Okänt'}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
-  const formerAssignments = member.assignments?.filter(assignment => {
-    const endDate = assignment.tom ? new Date(assignment.tom) : null;
-    return endDate && endDate <= currentDate;
-  }) || [];
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b p-6 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Avatar className="w-20 h-20">
-              <AvatarImage src={member.imageUrl} alt={`${member.firstName} ${member.lastName}`} />
-              <AvatarFallback className="text-xl">
-                {member.firstName.charAt(0)}{member.lastName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
+  const overviewContent = (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <FileText className="w-5 h-5" />
+            <span>Översikt</span>
+          </CardTitle>
+          <CardDescription>
+            Information om ledamotens bakgrund och engagemang.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {member.firstName} {member.lastName}
-              </h2>
-              <div className="flex items-center space-x-2 mt-1">
-                <Badge className={`${party?.color || 'bg-gray-500'} text-white`}>
-                  {party?.fullName || member.party}
-                </Badge>
-                <div className="flex items-center space-x-1">
-                  <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                  <span className="text-sm text-gray-600">Aktivitetspoäng: {member.activityScore.toFixed(1)}</span>
-                </div>
+              <h3 className="text-sm font-medium text-gray-900">
+                Personlig Information
+              </h3>
+              <Separator className="my-2" />
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  <strong>Namn:</strong> {memberData.first_name} {memberData.last_name}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Parti:</strong> {memberData.party}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Födelseår:</strong> {memberData.birth_year ? memberData.birth_year : 'Okänt'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Kön:</strong> {memberData.gender ? memberData.gender : 'Okänt'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Valdistrikt:</strong> {memberData.constituency ? memberData.constituency : 'Okänt'}
+                </p>
               </div>
-              <div className="mt-2 text-sm text-gray-600">
-                {activeAssignments.length} aktiva uppdrag • 
-                {member.speeches.length} anföranden • 
-                {member.votes.length} röster • 
-                {member.motions || 0} motioner • 
-                {member.interpellations || 0} interpellationer • 
-                {member.writtenQuestions || 0} skriftliga frågor
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">
+                Kontaktinformation
+              </h3>
+              <Separator className="my-2" />
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  <Building className="w-4 h-4 inline-block mr-1" />
+                  Riksdagen
+                </p>
+                <p className="text-sm text-gray-600">
+                  <Phone className="w-4 h-4 inline-block mr-1" />
+                  <a href="tel:08-692 20 00">08-692 20 00</a>
+                </p>
+                <p className="text-sm text-gray-600">
+                  <Mail className="w-4 h-4 inline-block mr-1" />
+                  <a href="mailto:riksdagsinformation@riksdagen.se">riksdagsinformation@riksdagen.se</a>
+                </p>
+                <p className="text-sm text-gray-600">
+                  <ExternalLink className="w-4 h-4 inline-block mr-1" />
+                  <a href="https://www.riksdagen.se/" target="_blank" rel="noopener noreferrer">www.riksdagen.se</a>
+                </p>
               </div>
             </div>
           </div>
-          <Button variant="ghost" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="p-6 space-y-6">
-          {/* Grundläggande information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Users className="w-5 h-5" />
-                <span>Grundläggande information</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <MapPin className="w-4 h-4 text-gray-500" />
-                <span className="text-sm">
-                  <strong>Valkrets:</strong> {member.constituency}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-sm">
-                  <strong>Födelseår:</strong> {member.birthYear}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Briefcase className="w-4 h-4 text-gray-500" />
-                <span className="text-sm">
-                  <strong>Yrke:</strong> {member.profession}
-                </span>
-              </div>
-              {member.email && (
-                <div className="flex items-center space-x-2">
-                  <Mail className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>E-post:</strong> {member.email}
-                  </span>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <MessageSquare className="w-5 h-5" />
+            <span>Engagemang</span>
+          </CardTitle>
+          <CardDescription>
+            Ledamotens aktivitet och deltagande i riksdagen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">
+                {memberData.activity_data?.total_speeches || 0}
+              </p>
+              <p className="text-sm text-gray-500">
+                Anföranden
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">
+                {memberData.activity_data?.total_votes || 0}
+              </p>
+              <p className="text-sm text-gray-500">
+                Voter
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-orange-600">
+                {memberData.activity_data?.committee_memberships || 0}
+              </p>
+              <p className="text-sm text-gray-500">
+                Utskottsuppdrag
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const assignmentsContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <FileText className="w-5 h-5" />
+          <span>Utskott och Uppdrag</span>
+        </CardTitle>
+        <CardDescription>
+          En lista över ledamotens nuvarande och tidigare uppdrag.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {memberData.assignments && memberData.assignments.length > 0 ? (
+          <div className="space-y-3">
+            {memberData.assignments.map((assignment, index) => (
+              <div key={index} className="border rounded-lg p-4">
+                <h4 className="font-medium text-gray-900">
+                  {assignment.organ}
+                </h4>
+                <div className="text-sm text-gray-600">
+                  <strong>Roll:</strong> {assignment.roll_kod}
                 </div>
-              )}
-              {member.phone && (
-                <div className="flex items-center space-x-2">
-                  <Phone className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm">
-                    <strong>Telefon:</strong> {member.phone}
-                  </span>
+                <div className="text-sm text-gray-600">
+                  <strong>Från:</strong> {formatDate(assignment.from)}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Språkanalys */}
-          <MemberLanguageAnalysis 
-            memberId={member.id}
-            memberName={`${member.firstName} ${member.lastName}`}
-          />
-
-          {/* Nyhetsflöde - uppdaterat med memberId */}
-          <MemberNewsField 
-            memberName={`${member.firstName} ${member.lastName}`} 
-            memberId={member.id}
-          />
-
-          {/* Aktuella uppdrag */}
-          {activeAssignments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Building className="w-5 h-5" />
-                  <span>Aktuella uppdrag ({activeAssignments.length})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Organ</TableHead>
-                      <TableHead>Roll</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Från</TableHead>
-                      <TableHead>Till</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeAssignments.map((assignment, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{assignment.uppgift || assignment.organ_kod}</TableCell>
-                        <TableCell>{assignment.roll}</TableCell>
-                        <TableCell>
-                          <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
-                            {getAssignmentStatus(assignment)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDateTime(assignment.from)}</TableCell>
-                        <TableCell>{assignment.tom ? formatDateTime(assignment.tom) : 'Pågående'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Tidigare uppdrag */}
-          {formerAssignments.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="w-5 h-5" />
-                  <span>Tidigare uppdrag ({formerAssignments.length})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Organ</TableHead>
-                      <TableHead>Roll</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Från</TableHead>
-                      <TableHead>Till</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {formerAssignments.slice(0, 10).map((assignment, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{assignment.uppgift || assignment.organ_kod}</TableCell>
-                        <TableCell>{assignment.roll}</TableCell>
-                        <TableCell>
-                          <Badge className={getAssignmentStatusColor(getAssignmentStatus(assignment))}>
-                            {getAssignmentStatus(assignment)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatDateTime(assignment.from)}</TableCell>
-                        <TableCell>{formatDateTime(assignment.tom)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {formerAssignments.length > 10 && (
-                  <p className="text-sm text-gray-500 mt-2">
-                    Visar 10 av {formerAssignments.length} tidigare uppdrag
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Förbättrad aktivitetsstatistik med klickbara anföranden */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="w-5 h-5" />
-                <span>Aktivitetsstatistik</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-blue-600">{member.motions || 0}</div>
-                  <div className="text-sm text-blue-800">Motioner</div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-green-600">{member.interpellations || 0}</div>
-                  <div className="text-sm text-green-800">Interpellationer</div>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-orange-600">{member.writtenQuestions || 0}</div>
-                  <div className="text-sm text-orange-800">Skriftliga frågor</div>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    <RecentSpeeches 
-                      speeches={member.speeches} 
-                      memberName={`${member.firstName} ${member.lastName}`}
-                    />
+                {assignment.tom && (
+                  <div className="text-sm text-gray-600">
+                    <strong>Till:</strong> {formatDate(assignment.tom)}
                   </div>
-                  <div className="text-sm text-purple-800">Anföranden</div>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-red-600">{member.votes.length}</div>
-                  <div className="text-sm text-red-800">Röster</div>
-                </div>
-                <div className="bg-indigo-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-indigo-600">{activeAssignments.length}</div>
-                  <div className="text-sm text-indigo-800">Aktiva uppdrag</div>
+                )}
+                <div className="text-sm text-gray-600">
+                  <strong>Status:</strong> {getAssignmentStatus(assignment)}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500">
+            Inga uppdrag registrerade.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 
-          {/* Alla dokument med DocumentViewer */}
-          {member.documents && member.documents.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="w-5 h-5" />
-                  <span>Alla dokument ({member.documents.length})</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Titel</TableHead>
-                      <TableHead>Typ</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Beteckning</TableHead>
-                      <TableHead>Svar</TableHead>
-                      <TableHead>Åtgärder</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.documents.map((doc) => {
-                      const answers = doc.type === 'fr' ? getAnswersForQuestion(doc.beteckning || doc.id) : [];
-                      return (
-                        <TableRow key={doc.id}>
-                          <TableCell className="font-medium">
-                            <div className="max-w-sm">
-                              <p className="truncate">{doc.title}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              className={
-                                doc.type === 'mot' ? 'bg-blue-100 text-blue-800' :
-                                doc.type === 'prop' ? 'bg-green-100 text-green-800' :
-                                doc.type === 'ip' ? 'bg-orange-100 text-orange-800' :
-                                doc.type === 'fr' ? 'bg-purple-100 text-purple-800' :
-                                doc.type === 'frs' ? 'bg-purple-200 text-purple-900' :
-                                doc.type === 'sou' ? 'bg-yellow-100 text-yellow-800' :
-                                doc.type === 'ds' ? 'bg-cyan-100 text-cyan-800' :
-                                'bg-gray-100 text-gray-800'
-                              }
-                            >
-                              {getDocumentTypeLabel(doc.type)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{formatDate(doc.date)}</TableCell>
-                          <TableCell className="font-mono text-sm">{doc.beteckning}</TableCell>
-                          <TableCell>
-                            {answers.length > 0 && (
-                              <div className="space-y-1">
-                                {answers.map((answer) => (
-                                  <div key={answer.id} className="flex items-center space-x-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      Svar: {answer.beteckning}
-                                    </Badge>
-                                    <DocumentViewer document={convertToRiksdagDocument(answer)} />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <DocumentViewer document={convertToRiksdagDocument(doc)} />
-                              {doc.url && (
-                                <Button variant="ghost" size="sm" asChild>
-                                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="w-3 h-3" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+  const activityContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Vote className="w-5 h-5" />
+          <span>Aktivitet</span>
+        </CardTitle>
+        <CardDescription>
+          Detaljerad statistik över ledamotens aktivitet i riksdagen.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-gray-500">
+          Denna sektion kommer att visa detaljerad information om ledamotens
+          aktivitet, inklusive anföranden och voteringar.
+        </p>
+      </CardContent>
+    </Card>
+  );
 
-          {/* Röstningar */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Vote className="w-5 h-5" />
-                <span>Röstningar ({member.votes.length})</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {member.votes.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Proposition</TableHead>
-                      <TableHead>Debatt</TableHead>
-                      <TableHead>Datum</TableHead>
-                      <TableHead>Röst</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {member.votes.map((vote) => (
-                      <TableRow key={vote.id}>
-                        <TableCell className="font-medium">{vote.proposition}</TableCell>
-                        <TableCell>{vote.debate}</TableCell>
-                        <TableCell>{vote.date}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            className={
-                              vote.vote === 'Ja' ? 'bg-green-100 text-green-800' :
-                              vote.vote === 'Nej' ? 'bg-red-100 text-red-800' :
-                              vote.vote === 'Avstår' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            }
-                          >
-                            {vote.vote}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-gray-500 text-center py-4">Inga röstningar registrerade</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+  return (
+    <div className="space-y-6">
+      {memberHeaderSection}
+
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Översikt</TabsTrigger>
+          <TabsTrigger value="assignments">Uppdrag</TabsTrigger>
+          <TabsTrigger value="activity">Aktivitet</TabsTrigger>
+          <TabsTrigger value="news">Nyheter</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {overviewContent}
+        </TabsContent>
+
+        <TabsContent value="assignments" className="space-y-6">
+          {assignmentsContent}
+        </TabsContent>
+
+        <TabsContent value="activity" className="space-y-6">
+          {activityContent}
+        </TabsContent>
+
+        <TabsContent value="news" className="space-y-6">
+          <MemberNewsField 
+            memberId={memberId} 
+            memberName={memberData ? `${memberData.first_name} ${memberData.last_name}` : ''}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
