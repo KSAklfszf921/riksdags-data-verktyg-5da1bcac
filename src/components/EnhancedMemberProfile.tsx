@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import MemberNewsField from './MemberNewsField';
 import { 
   MapPin, 
   Mail, 
@@ -23,7 +24,8 @@ import {
   FileText,
   MessageSquare,
   HelpCircle,
-  Vote
+  Vote,
+  Newspaper
 } from 'lucide-react';
 
 interface EnhancedMemberProfileProps {
@@ -199,6 +201,23 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
                   }
                 </span>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Senaste nyheterna - kompakt version med fokus på 5 senaste */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Newspaper className="w-5 h-5" />
+                <span>Senaste nyheterna</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MemberNewsField 
+                memberName={`${member.first_name} ${member.last_name}`}
+                memberId={member.member_id}
+                maxItems={5}
+              />
             </CardContent>
           </Card>
 
