@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -11,7 +12,7 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from './ui/pagination';
-import { FileText, ExternalLink, Loader2 } from 'lucide-react';
+import { FileText, ExternalLink, Loader2, Calendar } from 'lucide-react';
 import { RiksdagDocument, DocumentSearchParams } from '../services/riksdagApi';
 import { useDocumentTypes } from '../hooks/useDocumentTypes';
 import DocumentViewer from './DocumentViewer';
@@ -26,30 +27,93 @@ interface DocumentResultsTableProps {
   onPageChange: (page: number) => void;
 }
 
-// Function to detect if a document is a calendar entry
+// Enhanced function to detect calendar entries
 const isCalendarEntry = (document: RiksdagDocument): boolean => {
   const title = document.titel?.toLowerCase() || '';
   const subtitle = document.undertitel?.toLowerCase() || '';
+  const combined = `${title} ${subtitle}`.toLowerCase();
   
-  // Common patterns for calendar entries
+  // Enhanced patterns for calendar entries
   const calendarPatterns = [
-    /sammanträde.*\d{4}-\d{2}-\d{2}/,  // "sammanträde" followed by date
-    /utskottsmöte/,                     // "utskottsmöte"
-    /kammakt.*\d{4}-\d{2}-\d{2}/,       // "kammakt" followed by date
-    /debatt.*med.*anledning/,           // "debatt med anledning"
+    // Meeting patterns
+    /sammanträde.*\d{4}-\d{2}-\d{2}/,           // "sammanträde" followed by date
+    /utskottsmöte/,                             // "utskottsmöte"
+    /utskottets sammanträde/,                   // "utskottets sammanträde"
+    /socialutskottets sammanträde/,             // "socialutskottets sammanträde"
+    /näringsutskottets sammanträde/,            // "näringsutskottets sammanträde"
+    /.*utskottets? sammanträde/,                // any committee meeting
+    
+    // Debate patterns
+    /debatt.*med.*anledning/,                   // "debatt med anledning"
+    /debatt.*av.*avlämnande/,                   // "debatt av ... avlämnande"
+    /vårpropositionens avlämnande/,             // "vårpropositionens avlämnande"
+    /budgetpropositionens avlämnande/,          // "budgetpropositionens avlämnande"
+    
+    // Activity type patterns
+    /kammakt.*\d{4}-\d{2}-\d{2}/,               // "kammakt" followed by date
+    /kammaraktivitet/,                          // "kammaraktivitet"
+    
+    // Time patterns
     /\d{4}-\d{2}-\d{2}.*kl\.\s*\d{1,2}:\d{2}/, // date followed by time
-    /^\s*\d{4}-\d{2}-\d{2}\s*$/, // Just a date
+    /kl\.\s*\d{1,2}:\d{2}/,                     // time pattern "kl. XX:XX"
+    
+    // Day patterns
+    /måndag.*\d{4}-\d{2}-\d{2}/,                // weekday with date
+    /tisdag.*\d{4}-\d{2}-\d{2}/,
+    /onsdag.*\d{4}-\d{2}-\d{2}/,
+    /torsdag.*\d{4}-\d{2}-\d{2}/,
+    /fredag.*\d{4}-\d{2}-\d{2}/,
+    /lördag.*\d{4}-\d{2}-\d{2}/,
+    /söndag.*\d{4}-\d{2}-\d{2}/,
+    
+    // Short date-only entries
+    /^\s*\d{4}-\d{2}-\d{2}\s*$/,               // Just a date
+    
+    // Additional meeting types
+    /partigruppsmöte/,                          // "partigruppsmöte"
+    /gruppledarmöte/,                           // "gruppledarmöte"
+    /presidiemöte/,                             // "presidiemöte"
+    /konstitutionsutskottet/,                   // committee names
+    /finansutskott/,
+    /försvarsutskott/,
+    /justitieutskott/,
+    /kulturutskott/,
+    /miljö.*och.*jordbruksutskott/,
+    /näringsutskott/,
+    /socialutskott/,
+    /trafikutskott/,
+    /utbildningsutskott/,
+    /utrikesutskott/,
+    
+    // Event indicators
+    /hearing/,                                  // "hearing"
+    /öppet möte/,                              // "öppet möte"
+    /studiebesök/,                             // "studiebesök"
+    /konferens/,                               // "konferens"
   ];
   
   // Check if title or subtitle matches calendar patterns
   const matchesPattern = calendarPatterns.some(pattern => 
-    pattern.test(title) || pattern.test(subtitle)
+    pattern.test(title) || pattern.test(subtitle) || pattern.test(combined)
   );
   
   // Additional check for very short titles that are just dates or similar
-  const isShortDateLike = title.length < 20 && /\d{4}-\d{2}-\d{2}/.test(title);
+  const isShortDateLike = (title.length < 30 && /\d{4}-\d{2}-\d{2}/.test(title)) ||
+                          (subtitle && subtitle.length < 30 && /\d{4}-\d{2}-\d{2}/.test(subtitle));
   
-  return matchesPattern || isShortDateLike;
+  // Check for typical calendar entry structure (short title + date info)
+  const hasCalendarStructure = title.length < 100 && (
+    /kl\.\s*\d{1,2}:\d{2}/.test(combined) ||
+    /\d{4}-\d{2}-\d{2}/.test(combined)
+  );
+  
+  // Check document type - some types are more likely to be calendar entries
+  const calendarDocTypes = ['prot', 'kammakt'];
+  const isCalendarDocType = calendarDocTypes.includes(document.typ) && (
+    title.length < 50 || matchesPattern
+  );
+  
+  return matchesPattern || isShortDateLike || (hasCalendarStructure && title.length < 80) || isCalendarDocType;
 };
 
 const DocumentResultsTable = ({
@@ -163,13 +227,16 @@ const DocumentResultsTable = ({
               Laddar dokument...
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div>
                 Visar {filteredDocuments.length > 0 ? startIndex : 0}-{endIndex} av {filteredCount} dokument
               </div>
               {calendarEntriesFiltered > 0 && (
-                <div className="text-sm text-orange-600">
-                  {calendarEntriesFiltered} kalenderinslag filtrerades bort (visas i Kalenderhändelser)
+                <div className="flex items-center space-x-2 text-sm bg-blue-50 text-blue-700 p-2 rounded-lg border border-blue-200">
+                  <Calendar className="w-4 h-4" />
+                  <span>
+                    <strong>{calendarEntriesFiltered}</strong> kalenderinslag filtrerades bort och visas istället i <a href="/kalender" className="underline font-medium hover:text-blue-800">Kalenderhändelser</a>
+                  </span>
                 </div>
               )}
             </div>

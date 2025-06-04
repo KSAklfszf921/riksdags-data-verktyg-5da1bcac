@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp } from "lucide-react";
+import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp, Filter } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { useResponsive } from "../hooks/use-responsive";
 import EnhancedCalendar from '../components/EnhancedCalendar';
@@ -129,6 +128,28 @@ const Kalender = () => {
           icon={<Calendar className="w-6 h-6 text-white" />}
         />
 
+        {/* Filter Info Card */}
+        <Card className="mb-6 border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-blue-800">
+              <Filter className="w-5 h-5" />
+              <span>Automatisk filtrering</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-blue-700 mb-2">
+              Kalenderinslag som <strong>utskottsmöten</strong>, <strong>sammanträden</strong> och <strong>debatter</strong> 
+              filtreras automatiskt bort från dokumentsökningen och visas istället här.
+            </p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">Socialutskottets sammanträde</Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">Debatt med anledning av avlämnande</Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">Kammakt aktiviteter</Badge>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">Utskottsmöten</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Data Status Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -197,17 +218,25 @@ const Kalender = () => {
           </Alert>
         )}
 
-        {/* Calendar Note */}
+        {/* Calendar Information */}
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg">Om kalenderhändelser</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">
+            <p className="text-gray-600 mb-3">
               Den här sidan visar riksdagens kalenderhändelser, inklusive sammanträden, utskottsmöten och 
-              andra aktiviteter. Kalenderinslag filtreras automatiskt bort från dokumentsökningen och visas 
-              istället här för bättre organisation.
+              andra aktiviteter som automatiskt filtreras bort från dokumentsökningen.
             </p>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p><strong>Exempel på kalenderinslag som visas här:</strong></p>
+              <ul className="ml-4 space-y-1">
+                <li>• Socialutskottets sammanträde torsdag 2026-06-11 kl. 10:00</li>
+                <li>• Debatt med anledning av vårpropositionens avlämnande</li>
+                <li>• Kammakt aktiviteter och utskottsmöten</li>
+                <li>• Hearings, konferenser och studiebesök</li>
+              </ul>
+            </div>
           </CardContent>
         </Card>
 
