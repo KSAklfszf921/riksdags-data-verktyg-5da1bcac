@@ -2,27 +2,32 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Database, Users, BarChart3, Settings } from "lucide-react";
+import { Shield, Database, Users, BarChart3, Settings, Zap } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import MasterSyncTool from "../components/MasterSyncTool";
 import DataValidationDashboard from "../components/DataValidationDashboard";
 import DataQualityDashboard from "../components/DataQualityDashboard";
 import DatabaseInitializer from "../components/DatabaseInitializer";
+import EnhancedAdminDashboard from "../components/EnhancedAdminDashboard";
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState("sync");
+  const [activeTab, setActiveTab] = useState("enhanced");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader
           title="Admin Dashboard"
-          description="Systemadministration och datahantering"
+          description="Enhanced system administration and data management"
           icon={<Shield className="w-6 h-6 text-white" />}
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="enhanced" className="flex items-center space-x-2">
+              <Zap className="w-4 h-4" />
+              <span>Enhanced</span>
+            </TabsTrigger>
             <TabsTrigger value="sync" className="flex items-center space-x-2">
               <Database className="w-4 h-4" />
               <span>Data Sync</span>
@@ -44,6 +49,10 @@ const Admin = () => {
               <span>Settings</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="enhanced">
+            <EnhancedAdminDashboard />
+          </TabsContent>
 
           <TabsContent value="sync">
             <Card>

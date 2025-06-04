@@ -1,6 +1,6 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 interface SyncStatus {
   id: string;
@@ -9,7 +9,7 @@ interface SyncStatus {
   started_at: string;
   completed_at?: string;
   error_message?: string;
-  stats?: Record<string, any>;
+  stats?: Json;
 }
 
 interface SyncMonitorState {
@@ -46,8 +46,9 @@ export const useSyncMonitor = () => {
       // Type assertion to ensure proper typing
       const typedData = (data || []).map(item => ({
         ...item,
-        status: item.status as 'pending' | 'running' | 'completed' | 'failed'
-      }));
+        status: item.status as 'pending' | 'running' | 'completed' | 'failed',
+        stats: item.stats as Json
+      })) as SyncStatus[];
 
       const activeSyncs = typedData.filter(sync => sync.status === 'running');
       const recentSyncs = typedData.slice(0, 10);
