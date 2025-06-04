@@ -34,6 +34,8 @@ interface SyncProgress {
   errors: string[];
   retryCount: number;
   estimatedTimeRemaining?: number;
+  startTime?: Date;
+  endTime?: Date;
 }
 
 interface SyncMetrics {
