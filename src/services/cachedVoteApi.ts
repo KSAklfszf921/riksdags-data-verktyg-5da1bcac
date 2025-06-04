@@ -169,7 +169,25 @@ export const fetchVotesByParty = async (party: string): Promise<CachedVoteData[]
     throw new Error(`Failed to fetch votes by party: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
 };
 
 export const fetchVotesByDateRange = async (fromDate: string, toDate: string): Promise<CachedVoteData[]> => {
@@ -187,7 +205,25 @@ export const fetchVotesByDateRange = async (fromDate: string, toDate: string): P
     throw new Error(`Failed to fetch votes by date range: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    id: item.id,
+    vote_id: item.vote_id,
+    dok_id: item.dok_id,
+    rm: item.rm,
+    hangar_id: item.hangar_id,
+    beteckning: item.beteckning,
+    avser: item.avser,
+    votering: item.votering,
+    systemdatum: item.systemdatum,
+    punkt: item.punkt,
+    vote_results: item.vote_results,
+    party_breakdown: item.party_breakdown,
+    constituency_breakdown: item.constituency_breakdown,
+    metadata: item.metadata,
+    vote_statistics: item.metadata || {},
+    created_at: item.created_at,
+    updated_at: item.updated_at
+  })) || [];
 };
 
 export const fetchVoteDetails = async (voteId: string): Promise<CachedVoteData | null> => {
@@ -204,7 +240,27 @@ export const fetchVoteDetails = async (voteId: string): Promise<CachedVoteData |
     return null;
   }
 
-  return data;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    vote_id: data.vote_id,
+    dok_id: data.dok_id,
+    rm: data.rm,
+    hangar_id: data.hangar_id,
+    beteckning: data.beteckning,
+    avser: data.avser,
+    votering: data.votering,
+    systemdatum: data.systemdatum,
+    punkt: data.punkt,
+    vote_results: data.vote_results,
+    party_breakdown: data.party_breakdown,
+    constituency_breakdown: data.constituency_breakdown,
+    metadata: data.metadata,
+    vote_statistics: data.metadata || {},
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
 };
 
 export const getVoteDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
@@ -229,7 +285,6 @@ export const getVoteDataFreshness = async (): Promise<{ lastUpdated: string | nu
   return { lastUpdated, isStale };
 };
 
-// Utility functions for working with vote data
 export const extractVoteResults = (voteResults: Json): any[] => {
   if (voteResults && typeof voteResults === 'object' && !Array.isArray(voteResults)) {
     const results = (voteResults as any)?.votering_resultat_lista?.votering_resultat;

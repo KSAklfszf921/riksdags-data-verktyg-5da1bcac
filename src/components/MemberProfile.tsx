@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { User, Calendar, MapPin, Phone, Mail, ExternalLink, X } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 interface MemberData {
   id: string;
@@ -18,9 +19,9 @@ interface MemberData {
   gender?: string;
   riksdag_status?: string;
   current_committees?: string[];
-  assignments?: any[];
-  activity_data?: any;
-  image_urls?: any;
+  assignments?: Json;
+  activity_data?: Json;
+  image_urls?: Json;
   is_active?: boolean;
   created_at: string;
   updated_at: string;
@@ -69,8 +70,9 @@ const MemberProfile = ({ memberId, onClose }: MemberProfileProps) => {
   };
 
   const getProfileImage = () => {
-    if (member?.image_urls) {
-      return member.image_urls.max || member.image_urls['192'] || member.image_urls['80'] || null;
+    if (member?.image_urls && typeof member.image_urls === 'object') {
+      const imageUrls = member.image_urls as any;
+      return imageUrls.max || imageUrls['192'] || imageUrls['80'] || null;
     }
     return null;
   };
@@ -80,6 +82,20 @@ const MemberProfile = ({ memberId, onClose }: MemberProfileProps) => {
       return new Date().getFullYear() - member.birth_year;
     }
     return null;
+  };
+
+  const getAssignments = () => {
+    if (member?.assignments && typeof member.assignments === 'object') {
+      return Array.isArray(member.assignments) ? member.assignments : [];
+    }
+    return [];
+  };
+
+  const getActivityData = () => {
+    if (member?.activity_data && typeof member.activity_data === 'object') {
+      return member.activity_data as any;
+    }
+    return {};
   };
 
   if (loading) {
@@ -194,14 +210,14 @@ const MemberProfile = ({ memberId, onClose }: MemberProfileProps) => {
           )}
 
           {/* Activity Data */}
-          {member.activity_data && (
+          {Object.keys(getActivityData()).length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Aktivitetsstatistik</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  {Object.entries(member.activity_data as any).map(([key, value]) => (
+                  {Object.entries(getActivityData()).map(([key, value]) => (
                     <div key={key} className="text-center">
                       <div className="font-semibold text-lg text-blue-600">
                         {typeof value === 'number' ? value : String(value)}

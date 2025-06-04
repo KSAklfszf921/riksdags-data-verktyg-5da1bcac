@@ -238,20 +238,20 @@ export class SupabaseDataService {
 
   // Data Status Methods
   static async getDataStatus() {
-    const tables = ['party_data', 'member_data', 'document_data', 'speech_data', 'vote_data', 'calendar_data'];
+    const validTables = ['party_data', 'member_data', 'document_data', 'speech_data', 'vote_data', 'calendar_data'];
     const status = [];
 
-    for (const table of tables) {
+    for (const table of validTables) {
       try {
         const { count, error } = await supabase
-          .from(table)
+          .from(table as any)
           .select('*', { count: 'exact', head: true });
 
         if (error) throw error;
 
         // Get latest update
         const { data: latestData } = await supabase
-          .from(table)
+          .from(table as any)
           .select('updated_at')
           .order('updated_at', { ascending: false })
           .limit(1);
