@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useDataQualityMetrics, useMemberDataMigration } from '@/hooks/useEnhancedMemberProfiles';
-import { CheckCircle, AlertTriangle, Users, Image, Mail, Database, RefreshCw } from "lucide-react";
+import { CheckCircle, AlertTriangle, Users, Image, Mail, Database, RefreshCw, Info } from "lucide-react";
 import { toast } from "sonner";
 
 const DataQualityDashboard: React.FC = () => {
@@ -54,77 +54,116 @@ const DataQualityDashboard: React.FC = () => {
     );
   }
 
+  // Check if enhanced_member_profiles table is empty
+  const isEnhancedTableEmpty = metrics.totalMembers === 0;
+
   const qualityColor = metrics.averageCompleteness >= 80 ? 'green' : 
                      metrics.averageCompleteness >= 60 ? 'yellow' : 'red';
 
   return (
     <div className="space-y-6">
-      {/* Main metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Members</p>
-                <div className="text-2xl font-bold">{metrics.totalMembers}</div>
-              </div>
-              <Users className="w-8 h-8 text-blue-600" />
-            </div>
+      {/* Enhanced profiles migration notice */}
+      {isEnhancedTableEmpty && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-blue-800">
+              <Info className="w-5 h-5" />
+              <span>Enhanced Member Profiles Not Set Up</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-blue-700 mb-4">
+              The enhanced member profiles system is not yet populated with data. Run the migration below to transfer existing member data to the new enhanced system for improved data quality tracking.
+            </p>
+            <Button 
+              onClick={handleMigration}
+              disabled={migrationStatus.running}
+              className="flex items-center space-x-2"
+            >
+              {migrationStatus.running ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Migrating...</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4" />
+                  <span>Set Up Enhanced Profiles</span>
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
+      )}
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Avg Completeness</p>
-                <div className="text-2xl font-bold">{metrics.averageCompleteness}%</div>
-                <Progress value={metrics.averageCompleteness} className="mt-2" />
+      {/* Main metrics - only show if we have data */}
+      {!isEnhancedTableEmpty && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Total Members</p>
+                  <div className="text-2xl font-bold">{metrics.totalMembers}</div>
+                </div>
+                <Users className="w-8 h-8 text-blue-600" />
               </div>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                qualityColor === 'green' ? 'bg-green-100 text-green-600' :
-                qualityColor === 'yellow' ? 'bg-yellow-100 text-yellow-600' :
-                'bg-red-100 text-red-600'
-              }`}>
-                {qualityColor === 'green' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Missing Images</p>
-                <div className="text-2xl font-bold">{metrics.missingImageCount}</div>
-                <Badge variant={metrics.missingImageCount > 0 ? "destructive" : "secondary"} className="mt-2">
-                  {((metrics.missingImageCount / metrics.totalMembers) * 100).toFixed(1)}%
-                </Badge>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Avg Completeness</p>
+                  <div className="text-2xl font-bold">{metrics.averageCompleteness}%</div>
+                  <Progress value={metrics.averageCompleteness} className="mt-2" />
+                </div>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  qualityColor === 'green' ? 'bg-green-100 text-green-600' :
+                  qualityColor === 'yellow' ? 'bg-yellow-100 text-yellow-600' :
+                  'bg-red-100 text-red-600'
+                }`}>
+                  {qualityColor === 'green' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                </div>
               </div>
-              <Image className="w-8 h-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Missing Contact</p>
-                <div className="text-2xl font-bold">{metrics.missingContactCount}</div>
-                <Badge variant={metrics.missingContactCount > 0 ? "destructive" : "secondary"} className="mt-2">
-                  {((metrics.missingContactCount / metrics.totalMembers) * 100).toFixed(1)}%
-                </Badge>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Missing Images</p>
+                  <div className="text-2xl font-bold">{metrics.missingImageCount}</div>
+                  <Badge variant={metrics.missingImageCount > 0 ? "destructive" : "secondary"} className="mt-2">
+                    {((metrics.missingImageCount / metrics.totalMembers) * 100).toFixed(1)}%
+                  </Badge>
+                </div>
+                <Image className="w-8 h-8 text-purple-600" />
               </div>
-              <Mail className="w-8 h-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
-      {/* Data Quality Issues */}
-      {metrics.membersWithIssues > 0 && (
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Missing Contact</p>
+                  <div className="text-2xl font-bold">{metrics.missingContactCount}</div>
+                  <Badge variant={metrics.missingContactCount > 0 ? "destructive" : "secondary"} className="mt-2">
+                    {((metrics.missingContactCount / metrics.totalMembers) * 100).toFixed(1)}%
+                  </Badge>
+                </div>
+                <Mail className="w-8 h-8 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Data Quality Issues - only show if we have data and issues */}
+      {!isEnhancedTableEmpty && metrics.membersWithIssues > 0 && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-yellow-800">
@@ -150,7 +189,10 @@ const DataQualityDashboard: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Migrate existing member data to the enhanced member profiles system for improved data quality and performance.
+            {isEnhancedTableEmpty 
+              ? "Set up the enhanced member profiles system for improved data quality and performance."
+              : "Migrate additional member data to the enhanced member profiles system."
+            }
           </p>
           
           <div className="flex items-center space-x-4">
@@ -167,7 +209,7 @@ const DataQualityDashboard: React.FC = () => {
               ) : (
                 <>
                   <Database className="w-4 h-4" />
-                  <span>Run Migration</span>
+                  <span>{isEnhancedTableEmpty ? 'Set Up System' : 'Run Migration'}</span>
                 </>
               )}
             </Button>
@@ -211,8 +253,8 @@ const DataQualityDashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Last Sync Info */}
-      {metrics.lastSyncTime && (
+      {/* Last Sync Info - only show if we have data */}
+      {!isEnhancedTableEmpty && metrics.lastSyncTime && (
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

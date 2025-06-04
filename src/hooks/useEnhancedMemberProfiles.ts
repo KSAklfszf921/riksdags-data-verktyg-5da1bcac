@@ -1,6 +1,10 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+
+// Use the database type for enhanced member profiles
+type DatabaseEnhancedMemberProfile = Database['public']['Tables']['enhanced_member_profiles']['Row'];
 
 export interface EnhancedMemberProfile {
   id: string;
@@ -48,6 +52,47 @@ export interface DataQualityMetrics {
   missingContactCount: number;
   lastSyncTime: string | null;
 }
+
+// Helper function to safely convert database row to our interface
+const convertDatabaseRowToProfile = (row: DatabaseEnhancedMemberProfile): EnhancedMemberProfile => {
+  return {
+    id: row.id,
+    member_id: row.member_id,
+    first_name: row.first_name,
+    last_name: row.last_name,
+    full_name: row.full_name || `${row.first_name} ${row.last_name}`,
+    party: row.party,
+    constituency: row.constituency,
+    birth_year: row.birth_year,
+    birth_date: row.birth_date,
+    gender: row.gender,
+    profession: row.profession,
+    education: row.education,
+    email: row.email,
+    phone: row.phone,
+    website_url: row.website_url,
+    social_media: (row.social_media as Record<string, any>) || {},
+    image_urls: (row.image_urls as Record<string, string>) || {},
+    primary_image_url: row.primary_image_url,
+    is_active: row.is_active ?? false,
+    riksdag_status: row.riksdag_status || 'Riksdagsledamot',
+    status_history: (row.status_history as any[]) || [],
+    current_committees: row.current_committees,
+    assignments: (row.assignments as any[]) || [],
+    committee_history: (row.committee_history as any[]) || [],
+    activity_summary: (row.activity_summary as Record<string, any>) || {},
+    yearly_activity: (row.yearly_activity as Record<string, any>) || {},
+    latest_activity_date: row.latest_activity_date,
+    data_completeness_score: row.data_completeness_score || 0,
+    missing_fields: row.missing_fields,
+    data_quality_issues: (row.data_quality_issues as any[]) || [],
+    last_sync_at: row.last_sync_at || row.created_at || new Date().toISOString(),
+    sync_source: row.sync_source || 'riksdag_api',
+    sync_version: row.sync_version || '1.0',
+    created_at: row.created_at || new Date().toISOString(),
+    updated_at: row.updated_at || new Date().toISOString(),
+  };
+};
 
 export const useEnhancedMemberProfiles = (
   page: number = 1,
@@ -110,10 +155,12 @@ export const useEnhancedMemberProfiles = (
           throw queryError;
         }
 
+        const convertedMembers = (data || []).map(convertDatabaseRowToProfile);
+
         if (page === 1) {
-          setMembers(data || []);
+          setMembers(convertedMembers);
         } else {
-          setMembers(prev => [...prev, ...(data || [])]);
+          setMembers(prev => [...prev, ...convertedMembers]);
         }
 
         setTotalCount(count || 0);
@@ -160,7 +207,7 @@ export const useDataQualityMetrics = () => {
 
         const totalMembers = data?.length || 0;
         const averageCompleteness = totalMembers > 0 
-          ? Math.round(data.reduce((sum, member) => sum + member.data_completeness_score, 0) / totalMembers)
+          ? Math.round(data.reduce((sum, member) => sum + (member.data_completeness_score || 0), 0) / totalMembers)
           : 0;
         
         const membersWithIssues = data?.filter(member => 
@@ -172,7 +219,7 @@ export const useDataQualityMetrics = () => {
 
         const lastSyncTimes = data?.map(member => member.last_sync_at).filter(Boolean) || [];
         const lastSyncTime = lastSyncTimes.length > 0 
-          ? new Date(Math.max(...lastSyncTimes.map(time => new Date(time).getTime()))).toISOString()
+          ? new Date(Math.max(...lastSyncTimes.map(time => new Date(time!).getTime()))).toISOString()
           : null;
 
         setMetrics({

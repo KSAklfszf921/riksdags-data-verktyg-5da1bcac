@@ -1,7 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { CachedMemberData } from '../services/cachedPartyApi';
+
+type DatabaseEnhancedMemberProfile = Database['public']['Tables']['enhanced_member_profiles']['Row'];
+type DatabaseMemberData = Database['public']['Tables']['member_data']['Row'];
 
 export interface EnhancedMember extends CachedMemberData {
   yearly_stats: {
@@ -24,6 +28,111 @@ export interface EnhancedMember extends CachedMemberData {
   missing_fields?: string[];
   primary_image_url?: string;
 }
+
+// Helper function to safely parse yearly activity data
+const parseYearlyActivity = (yearlyActivity: any): EnhancedMember['yearly_stats'] => {
+  if (!yearlyActivity || typeof yearlyActivity !== 'object') {
+    return {};
+  }
+
+  const result: EnhancedMember['yearly_stats'] = {};
+  
+  for (const [year, data] of Object.entries(yearlyActivity)) {
+    if (data && typeof data === 'object') {
+      result[year] = {
+        motions: (data as any).motions || 0,
+        interpellations: (data as any).interpellations || 0,
+        written_questions: (data as any).written_questions || 0,
+        speeches: (data as any).speeches || 0,
+        total_documents: (data as any).total_documents || 0,
+      };
+    }
+  }
+  
+  return result;
+};
+
+// Helper function to convert enhanced member profile to EnhancedMember
+const convertEnhancedProfileToMember = (profile: DatabaseEnhancedMemberProfile): EnhancedMember => {
+  const yearlyStats = parseYearlyActivity(profile.yearly_activity);
+  const currentYear = new Date().getFullYear();
+  const currentYearStats = yearlyStats[currentYear] || {
+    motions: 0,
+    interpellations: 0,
+    written_questions: 0,
+    speeches: 0,
+    total_documents: 0
+  };
+
+  return {
+    id: profile.id,
+    member_id: profile.member_id,
+    first_name: profile.first_name,
+    last_name: profile.last_name,
+    party: profile.party,
+    constituency: profile.constituency,
+    gender: profile.gender,
+    birth_year: profile.birth_year,
+    is_active: profile.is_active || false,
+    riksdag_status: profile.riksdag_status || 'Riksdagsledamot',
+    current_committees: profile.current_committees,
+    committee_assignments: (profile.committee_history as any) || [],
+    image_urls: (profile.image_urls as Record<string, string>) || {},
+    primary_image_url: profile.primary_image_url,
+    assignments: (profile.assignments as any) || [],
+    activity_data: (profile.activity_summary as any) || {},
+    yearly_stats: yearlyStats,
+    current_year_stats: currentYearStats,
+    data_completeness_score: profile.data_completeness_score || 0,
+    missing_fields: profile.missing_fields || [],
+    created_at: profile.created_at || new Date().toISOString(),
+    updated_at: profile.updated_at || new Date().toISOString()
+  };
+};
+
+// Helper function to convert legacy member data to EnhancedMember
+const convertLegacyMemberToEnhanced = (member: DatabaseMemberData): EnhancedMember => {
+  const activityData = member.activity_data as any;
+  const yearlyStats = parseYearlyActivity(activityData?.yearly_stats);
+  
+  const currentYear = new Date().getFullYear();
+  const currentYearStats = yearlyStats[currentYear] || {
+    motions: 0,
+    interpellations: 0,
+    written_questions: 0,
+    speeches: 0,
+    total_documents: 0
+  };
+
+  return {
+    id: member.id,
+    member_id: member.member_id,
+    first_name: member.first_name,
+    last_name: member.last_name,
+    party: member.party,
+    constituency: member.constituency,
+    gender: member.gender,
+    birth_year: member.birth_year,
+    is_active: member.is_active || false,
+    riksdag_status: member.riksdag_status || 'Riksdagsledamot',
+    current_committees: member.current_committees,
+    committee_assignments: (member.committee_assignments as any) || [],
+    image_urls: (member.image_urls as Record<string, string>) || {},
+    primary_image_url: member.image_urls ? 
+      (member.image_urls as any)?.max || 
+      (member.image_urls as any)?.['192'] || 
+      (member.image_urls as any)?.['80'] : 
+      undefined,
+    assignments: (member.assignments as any) || [],
+    activity_data: activityData || {},
+    yearly_stats: yearlyStats,
+    current_year_stats: currentYearStats,
+    data_completeness_score: 0, // Default for legacy data
+    missing_fields: [],
+    created_at: member.created_at,
+    updated_at: member.updated_at
+  };
+};
 
 export const useEnhancedMembers = (
   page: number = 1,
@@ -69,42 +178,7 @@ export const useEnhancedMembers = (
 
         // If enhanced profiles are available, use them
         if (enhancedData && enhancedData.length > 0) {
-          const enhancedMembers: EnhancedMember[] = enhancedData.map(profile => {
-            const yearlyStats = profile.yearly_activity || {};
-            const currentYear = new Date().getFullYear();
-            const currentYearStats = yearlyStats[currentYear] || {
-              motions: 0,
-              interpellations: 0,
-              written_questions: 0,
-              speeches: 0,
-              total_documents: 0
-            };
-
-            return {
-              id: profile.id,
-              member_id: profile.member_id,
-              first_name: profile.first_name,
-              last_name: profile.last_name,
-              party: profile.party,
-              constituency: profile.constituency,
-              gender: profile.gender,
-              birth_year: profile.birth_year,
-              is_active: profile.is_active,
-              riksdag_status: profile.riksdag_status,
-              current_committees: profile.current_committees,
-              committee_assignments: profile.committee_history,
-              image_urls: profile.image_urls,
-              primary_image_url: profile.primary_image_url,
-              assignments: profile.assignments,
-              activity_data: profile.activity_summary,
-              yearly_stats: yearlyStats,
-              current_year_stats: currentYearStats,
-              data_completeness_score: profile.data_completeness_score,
-              missing_fields: profile.missing_fields,
-              created_at: profile.created_at,
-              updated_at: profile.updated_at
-            };
-          });
+          const enhancedMembers = enhancedData.map(convertEnhancedProfileToMember);
 
           if (page === 1) {
             setMembers(enhancedMembers);
@@ -141,27 +215,7 @@ export const useEnhancedMembers = (
             throw fallbackError;
           }
 
-          const enhancedMembers: EnhancedMember[] = (fallbackData || []).map(member => {
-            const activityData = member.activity_data as any;
-            const yearlyStats = activityData?.yearly_stats || {};
-            
-            const currentYear = new Date().getFullYear();
-            const currentYearStats = yearlyStats[currentYear] || {
-              motions: 0,
-              interpellations: 0,
-              written_questions: 0,
-              speeches: 0,
-              total_documents: 0
-            };
-
-            return {
-              ...member,
-              yearly_stats: yearlyStats,
-              current_year_stats: currentYearStats,
-              data_completeness_score: 0, // Default for legacy data
-              missing_fields: []
-            };
-          });
+          const enhancedMembers = (fallbackData || []).map(convertLegacyMemberToEnhanced);
 
           if (page === 1) {
             setMembers(enhancedMembers);
@@ -223,40 +277,7 @@ export const useEnhancedMemberDetails = (memberId: string) => {
           .single();
 
         if (enhancedData && !enhancedError) {
-          const yearlyStats = enhancedData.yearly_activity || {};
-          const currentYear = new Date().getFullYear();
-          const currentYearStats = yearlyStats[currentYear] || {
-            motions: 0,
-            interpellations: 0,
-            written_questions: 0,
-            speeches: 0,
-            total_documents: 0
-          };
-
-          setMember({
-            id: enhancedData.id,
-            member_id: enhancedData.member_id,
-            first_name: enhancedData.first_name,
-            last_name: enhancedData.last_name,
-            party: enhancedData.party,
-            constituency: enhancedData.constituency,
-            gender: enhancedData.gender,
-            birth_year: enhancedData.birth_year,
-            is_active: enhancedData.is_active,
-            riksdag_status: enhancedData.riksdag_status,
-            current_committees: enhancedData.current_committees,
-            committee_assignments: enhancedData.committee_history,
-            image_urls: enhancedData.image_urls,
-            primary_image_url: enhancedData.primary_image_url,
-            assignments: enhancedData.assignments,
-            activity_data: enhancedData.activity_summary,
-            yearly_stats: yearlyStats,
-            current_year_stats: currentYearStats,
-            data_completeness_score: enhancedData.data_completeness_score,
-            missing_fields: enhancedData.missing_fields,
-            created_at: enhancedData.created_at,
-            updated_at: enhancedData.updated_at
-          });
+          setMember(convertEnhancedProfileToMember(enhancedData));
         } else {
           // Fall back to member_data
           const { data, error: queryError } = await supabase
@@ -270,25 +291,7 @@ export const useEnhancedMemberDetails = (memberId: string) => {
           }
 
           if (data) {
-            const activityData = data.activity_data as any;
-            const yearlyStats = activityData?.yearly_stats || {};
-            
-            const currentYear = new Date().getFullYear();
-            const currentYearStats = yearlyStats[currentYear] || {
-              motions: 0,
-              interpellations: 0,
-              written_questions: 0,
-              speeches: 0,
-              total_documents: 0
-            };
-
-            setMember({
-              ...data,
-              yearly_stats: yearlyStats,
-              current_year_stats: currentYearStats,
-              data_completeness_score: 0,
-              missing_fields: []
-            });
+            setMember(convertLegacyMemberToEnhanced(data));
           }
         }
 
