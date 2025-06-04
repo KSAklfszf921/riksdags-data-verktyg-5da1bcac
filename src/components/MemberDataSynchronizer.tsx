@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllMembers, fetchMemberDetails, RiksdagMember, RiksdagMemberDetails } from '@/services/riksdagApi';
 import { toast } from "sonner";
-import { RefreshCw, Database, Users, CheckCircle, AlertCircle, Image, UserCheck } from "lucide-react";
+import { RefreshCw, Database, Users, CheckCircle, AlertTriangle, Image, UserCheck } from "lucide-react";
 
 interface SyncStats {
   totalMembers: number;

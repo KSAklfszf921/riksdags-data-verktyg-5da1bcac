@@ -89,9 +89,12 @@ export const useEnhancedMembers = (
 
           return {
             ...member,
+            // Properly cast Json types to expected types
+            status_history: Array.isArray(member.status_history) ? member.status_history : [],
+            assignments: Array.isArray(member.assignments) ? member.assignments : [],
             yearly_stats: yearlyStats,
             current_year_stats: currentYearStats
-          };
+          } as EnhancedMember;
         });
 
         if (page === 1) {
@@ -169,9 +172,12 @@ export const useEnhancedMemberDetails = (memberId: string) => {
 
           setMember({
             ...data,
+            // Properly cast Json types to expected types
+            status_history: Array.isArray(data.status_history) ? data.status_history : [],
+            assignments: Array.isArray(data.assignments) ? data.assignments : [],
             yearly_stats: yearlyStats,
             current_year_stats: currentYearStats
-          });
+          } as EnhancedMember);
         }
 
         setError(null);
