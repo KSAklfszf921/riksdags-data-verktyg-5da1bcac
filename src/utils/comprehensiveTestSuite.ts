@@ -191,7 +191,7 @@ export class ComprehensiveTestSuite extends EnhancedTester {
   }
 
   printResults(): void {
-    console.log(`\n📊 ${this.name} Results:`);
+    console.log(`\n📊 ${this.testSuiteName} Results:`);
     console.log(`Total tests: ${this.results.length}`);
     console.log(`Passed: ${this.results.filter(r => r.success).length}`);
     console.log(`Failed: ${this.results.filter(r => !r.success).length}`);
