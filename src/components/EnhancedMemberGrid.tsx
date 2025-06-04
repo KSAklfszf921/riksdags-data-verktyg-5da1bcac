@@ -3,13 +3,15 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity, Users, Camera, Rss } from "lucide-react";
+import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Users, Rss } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { EnhancedMember } from '@/hooks/useEnhancedMembers';
 import MemberProfile from './MemberProfile';
+import MemberImageHandler from './MemberImageHandler';
+import CommitteeDisplay from './CommitteeDisplay';
+import ActivityIndicator from './ActivityIndicator';
 
 interface EnhancedMemberGridProps {
   members: EnhancedMember[];
@@ -41,33 +43,6 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     return new Date().getFullYear() - birthYear;
   };
 
-  const getActivityLevel = (member: EnhancedMember) => {
-    const totalDocs = member.current_year_stats?.total_documents || 0;
-    if (totalDocs > 50) return 'Hög';
-    if (totalDocs > 20) return 'Medel';
-    if (totalDocs > 0) return 'Låg';
-    return 'Okänd';
-  };
-
-  const getActivityColor = (level: string) => {
-    switch (level) {
-      case 'Hög': return 'text-green-600 bg-green-100 dark:bg-green-900/20';
-      case 'Medel': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20';
-      case 'Låg': return 'text-red-600 bg-red-100 dark:bg-red-900/20';
-      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/20';
-    }
-  };
-
-  // Enhanced image URL extraction with fallbacks
-  const getImageUrl = (member: EnhancedMember) => {
-    if (!member.image_urls || typeof member.image_urls !== 'object') {
-      // Fallback to placeholder image
-      return `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
-    }
-    const urls = member.image_urls as Record<string, string>;
-    return urls['192'] || urls['128'] || urls['80'] || `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
-  };
-
   // Convert enhanced member to legacy member format for MemberProfile
   const convertToLegacyMember = (enhancedMember: EnhancedMember) => {
     const activityData = enhancedMember.activity_data as any;
@@ -79,7 +54,12 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
       lastName: enhancedMember.last_name,
       party: enhancedMember.party,
       constituency: enhancedMember.constituency || '',
-      imageUrl: getImageUrl(enhancedMember),
+      imageUrl: enhancedMember.image_urls ? 
+        (enhancedMember.image_urls as any)['192'] || 
+        (enhancedMember.image_urls as any)['128'] || 
+        (enhancedMember.image_urls as any)['80'] || 
+        `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face` :
+        `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`,
       email: `${enhancedMember.first_name.toLowerCase()}.${enhancedMember.last_name.toLowerCase()}@riksdagen.se`,
       birthYear: enhancedMember.birth_year || 1970,
       profession: 'Riksdagsledamot',
@@ -146,9 +126,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
 
   const MemberCard = ({ member }: { member: EnhancedMember }) => {
     const age = getAge(member.birth_year);
-    const activityLevel = getActivityLevel(member);
     const isFavorite = favorites.includes(member.member_id);
-    const imageUrl = getImageUrl(member);
 
     const handleCardClick = () => {
       if (onMemberSelect) {
@@ -174,36 +152,36 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4 flex-1 min-w-0">
-                <div className="relative">
-                  <Avatar className="h-12 w-12 flex-shrink-0">
-                    <AvatarImage 
-                      src={imageUrl} 
-                      alt={`${member.first_name} ${member.last_name}`}
-                    />
-                    <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
-                      {member.first_name[0]}{member.last_name[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <Camera className="absolute -bottom-1 -right-1 w-4 h-4 text-blue-500 bg-white rounded-full p-0.5" />
+                <div className="relative flex-shrink-0">
+                  <MemberImageHandler
+                    imageUrls={member.image_urls}
+                    firstName={member.first_name}
+                    lastName={member.last_name}
+                    size="md"
+                  />
+                  <div className="absolute -bottom-1 -right-1">
+                    <Rss className="w-3 h-3 text-orange-500 bg-white rounded-full p-0.5" />
+                  </div>
                 </div>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 mb-1">
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
                       {member.first_name} {member.last_name}
                     </h3>
                     {!member.is_active && (
                       <Badge variant="outline" className="text-xs">Inaktiv</Badge>
                     )}
-                    <Rss className="w-3 h-3 text-orange-500" />
                   </div>
                   
-                  <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    <span className="font-medium">{member.party}</span>
+                  <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                    <Badge variant="outline" className="text-xs">
+                      {member.party}
+                    </Badge>
                     {member.constituency && (
                       <span className="flex items-center space-x-1">
                         <MapPin className="w-3 h-3" />
-                        <span>{member.constituency}</span>
+                        <span className="truncate">{member.constituency}</span>
                       </span>
                     )}
                     {age && (
@@ -213,14 +191,23 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
                       </span>
                     )}
                   </div>
+                  
+                  <div className="mt-2 flex items-center space-x-2">
+                    <CommitteeDisplay 
+                      committees={member.current_committees}
+                      assignments={member.assignments as any}
+                      variant="compact"
+                      maxDisplay={3}
+                    />
+                  </div>
                 </div>
               </div>
               
               <div className="flex items-center space-x-2 flex-shrink-0">
-                <Badge className={cn("text-xs", getActivityColor(activityLevel))}>
-                  <Activity className="w-3 h-3 mr-1" />
-                  {activityLevel}
-                </Badge>
+                <ActivityIndicator 
+                  stats={member.current_year_stats}
+                  variant="compact"
+                />
                 
                 {onToggleFavorite && (
                   <Button
@@ -260,18 +247,14 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
         <CardContent className="p-4">
           <div className="flex flex-col items-center text-center space-y-3">
             <div className="relative">
-              <Avatar className="h-16 w-16">
-                <AvatarImage 
-                  src={imageUrl} 
-                  alt={`${member.first_name} ${member.last_name}`}
-                />
-                <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-lg">
-                  {member.first_name[0]}{member.last_name[0]}
-                </AvatarFallback>
-              </Avatar>
+              <MemberImageHandler
+                imageUrls={member.image_urls}
+                firstName={member.first_name}
+                lastName={member.last_name}
+                size="lg"
+              />
               
-              <div className="absolute -bottom-1 -right-1 flex space-x-1">
-                <Camera className="w-4 h-4 text-blue-500 bg-white rounded-full p-0.5" />
+              <div className="absolute -bottom-1 -right-1">
                 <Rss className="w-4 h-4 text-orange-500 bg-white rounded-full p-0.5" />
               </div>
               
@@ -290,12 +273,12 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
               )}
             </div>
             
-            <div className="space-y-1 min-h-0 flex-1">
+            <div className="space-y-2 min-h-0 flex-1 w-full">
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight">
                 {member.first_name} {member.last_name}
               </h3>
               
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Badge variant="outline" className="text-xs">
                   {member.party}
                 </Badge>
@@ -307,14 +290,23 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
                   </p>
                 )}
                 
-                <div className="flex items-center justify-center space-x-2 text-xs">
+                <div className="flex flex-col items-center space-y-1">
                   {age && (
-                    <span className="text-gray-600 dark:text-gray-400">{age} år</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400">{age} år</span>
                   )}
-                  <Badge className={cn("text-xs", getActivityColor(activityLevel))}>
-                    {activityLevel}
-                  </Badge>
+                  
+                  <ActivityIndicator 
+                    stats={member.current_year_stats}
+                    variant="compact"
+                  />
                 </div>
+                
+                <CommitteeDisplay 
+                  committees={member.current_committees}
+                  assignments={member.assignments as any}
+                  variant="compact"
+                  maxDisplay={2}
+                />
               </div>
             </div>
             

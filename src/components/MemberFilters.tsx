@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Filter, X, Search, Users, MapPin, Calendar, RotateCcw } from "lucide-react";
+import { Filter, X, Search, Users, MapPin, Calendar, RotateCcw, Activity } from "lucide-react";
 import { cn } from '@/lib/utils';
 
 export interface MemberFilter {
@@ -91,6 +91,32 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
     { value: 'constituency', label: 'Valkrets' },
     { value: 'activity', label: 'Aktivitet' }
   ];
+
+  // Committee name mapping for better display
+  const COMMITTEE_MAPPING: { [key: string]: string } = {
+    'AU': 'Arbetsmarknadsutskottet',
+    'CU': 'Civilutskottet',
+    'FiU': 'Finansutskottet',
+    'FöU': 'Försvarsutskottet',
+    'JuU': 'Justitieutskottet',
+    'KU': 'Konstitutionsutskottet',
+    'KrU': 'Kulturutskottet',
+    'MjU': 'Miljö- och jordbruksutskottet',
+    'NU': 'Näringsutskottet',
+    'SkU': 'Skatteutskottet',
+    'SfU': 'Socialförsäkringsutskottet',
+    'SoU': 'Socialutskottet',
+    'TU': 'Trafikutskottet',
+    'UbU': 'Utbildningsutskottet',
+    'UU': 'Utrikesutskottet',
+    'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
+    'EUN': 'EU-nämnden',
+    'SäU': 'Säkerhetsutskottet'
+  };
+
+  const getCommitteeDisplayName = (code: string) => {
+    return COMMITTEE_MAPPING[code] || code;
+  };
 
   if (compact && !isExpanded) {
     return (
@@ -177,7 +203,7 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
             <span>Sök ledamot</span>
           </label>
           <Input
-            placeholder="Sök på namn..."
+            placeholder="Sök på namn, parti eller valkrets..."
             value={filters.search}
             onChange={(e) => updateFilter('search', e.target.value)}
           />
@@ -186,7 +212,10 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
         {/* Sort */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Sortera efter</label>
+            <label className="text-sm font-medium flex items-center space-x-1">
+              <Activity className="w-4 h-4" />
+              <span>Sortera efter</span>
+            </label>
             <Select value={filters.sortBy} onValueChange={(value) => updateFilter('sortBy', value)}>
               <SelectTrigger>
                 <SelectValue />
@@ -315,7 +344,10 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
         {/* Committees */}
         {availableCommittees.length > 0 && (
           <div className="space-y-2">
-            <label className="text-sm font-medium">Utskott</label>
+            <label className="text-sm font-medium flex items-center space-x-1">
+              <Users className="w-4 h-4" />
+              <span>Utskott</span>
+            </label>
             <Select onValueChange={(value) => toggleArrayFilter('committee', value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Välj utskott..." />
@@ -323,7 +355,7 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
               <SelectContent>
                 {availableCommittees.map(committee => (
                   <SelectItem key={committee} value={committee}>
-                    {committee}
+                    {getCommitteeDisplayName(committee)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -337,7 +369,7 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
                     className="cursor-pointer"
                     onClick={() => toggleArrayFilter('committee', committee)}
                   >
-                    {committee}
+                    {getCommitteeDisplayName(committee)}
                     <X className="w-3 h-3 ml-1" />
                   </Badge>
                 ))}
