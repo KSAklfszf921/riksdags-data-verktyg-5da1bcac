@@ -1,164 +1,205 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { EdgeFunctionTester } from './edgeFunctionTester';
-import { TestResult } from './testUtils';
 
-interface SyncStats {
-  total_records?: number;
-  processed_records?: number;
-  [key: string]: any;
+export interface SyncProgressTest {
+  name: string;
+  status: 'pending' | 'running' | 'passed' | 'failed';
+  message: string;
+  duration?: number;
+  error?: string;
 }
 
-export class SyncProgressTester extends EdgeFunctionTester {
-  
-  async testSyncProgress(syncType: string): Promise<TestResult> {
-    return this.runTest(`${syncType} Sync Progress Monitor`, async () => {
-      console.log(`Monitoring progress for ${syncType} sync...`);
+export class SyncProgressTester {
+  private tests: SyncProgressTest[] = [];
+
+  async runAllTests(): Promise<SyncProgressTest[]> {
+    this.tests = [];
+    
+    await this.testDatabaseConnection();
+    await this.testEnhancedMemberProfiles();
+    await this.testCalendarData();
+    await this.testDocumentData();
+    await this.testVoteData();
+    await this.testPartyData();
+    await this.testSyncStatus();
+    
+    return this.tests;
+  }
+
+  private async testDatabaseConnection(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { error } = await supabase
+        .from('enhanced_member_profiles')
+        .select('id')
+        .limit(1);
       
+      if (error) {
+        this.addTest('Database Connection', 'failed', `Connection failed: ${error.message}`, Date.now() - startTime);
+      } else {
+        this.addTest('Database Connection', 'passed', 'Database connection successful', Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Database Connection', 'failed', `Connection error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testEnhancedMemberProfiles(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error, count } = await supabase
+        .from('enhanced_member_profiles')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        this.addTest('Enhanced Member Profiles', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else if (count === 0) {
+        this.addTest('Enhanced Member Profiles', 'failed', 'No member data found - sync may be needed', Date.now() - startTime);
+      } else {
+        this.addTest('Enhanced Member Profiles', 'passed', `Found ${count} member profiles`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Enhanced Member Profiles', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testCalendarData(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error, count } = await supabase
+        .from('calendar_data')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        this.addTest('Calendar Data', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else if (count === 0) {
+        this.addTest('Calendar Data', 'failed', 'No calendar data found - sync may be needed', Date.now() - startTime);
+      } else {
+        this.addTest('Calendar Data', 'passed', `Found ${count} calendar events`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Calendar Data', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testDocumentData(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error, count } = await supabase
+        .from('document_data')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        this.addTest('Document Data', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else if (count === 0) {
+        this.addTest('Document Data', 'failed', 'No document data found - sync may be needed', Date.now() - startTime);
+      } else {
+        this.addTest('Document Data', 'passed', `Found ${count} documents`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Document Data', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testVoteData(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error, count } = await supabase
+        .from('vote_data')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        this.addTest('Vote Data', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else if (count === 0) {
+        this.addTest('Vote Data', 'failed', 'No vote data found - sync may be needed', Date.now() - startTime);
+      } else {
+        this.addTest('Vote Data', 'passed', `Found ${count} votes`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Vote Data', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testPartyData(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
+      const { data, error, count } = await supabase
+        .from('party_data')
+        .select('*', { count: 'exact', head: true });
+      
+      if (error) {
+        this.addTest('Party Data', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else if (count === 0) {
+        this.addTest('Party Data', 'failed', 'No party data found - sync may be needed', Date.now() - startTime);
+      } else {
+        this.addTest('Party Data', 'passed', `Found ${count} parties`, Date.now() - startTime);
+      }
+    } catch (error) {
+      this.addTest('Party Data', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private async testSyncStatus(): Promise<void> {
+    const startTime = Date.now();
+    
+    try {
       const { data, error } = await supabase
         .from('automated_sync_status')
         .select('*')
-        .eq('sync_type', syncType)
         .order('started_at', { ascending: false })
-        .limit(1);
-
+        .limit(5);
+      
       if (error) {
-        throw new Error(`Error fetching sync status: ${error.message}`);
-      }
-
-      if (!data || data.length === 0) {
-        return {
-          status: 'no_records',
-          message: `No ${syncType} sync records found`,
-          timestamp: new Date().toISOString()
-        };
-      }
-
-      const syncRecord = data[0];
-      
-      // Calculate progress if possible
-      let progress = 0;
-      if (syncRecord.status === 'completed') {
-        progress = 100;
-      } else if (syncRecord.stats) {
-        // Try to estimate progress based on stats with proper type casting
-        const stats = syncRecord.stats as SyncStats;
-        if (stats && typeof stats === 'object' && stats.total_records && stats.processed_records) {
-          progress = Math.round((stats.processed_records / stats.total_records) * 100);
-        } else {
-          // Fallback to time-based estimation
-          const startTime = new Date(syncRecord.started_at).getTime();
-          const currentTime = new Date().getTime();
-          // Most syncs complete in ~10 minutes
-          const elapsedFraction = Math.min(1, (currentTime - startTime) / (10 * 60 * 1000));
-          progress = Math.round(elapsedFraction * 100);
-        }
-      }
-      
-      return {
-        status: syncRecord.status,
-        progress,
-        started_at: syncRecord.started_at,
-        completed_at: syncRecord.completed_at,
-        stats: syncRecord.stats || {},
-        error_message: syncRecord.error_message,
-        elapsed_ms: syncRecord.completed_at 
-          ? new Date(syncRecord.completed_at).getTime() - new Date(syncRecord.started_at).getTime() 
-          : new Date().getTime() - new Date(syncRecord.started_at).getTime()
-      };
-    });
-  }
-
-  async monitorAllSyncs(): Promise<Record<string, TestResult>> {
-    console.log('Monitoring all sync operations...');
-    
-    const syncTypes = ['comprehensive', 'calendar', 'party', 'toplists'];
-    const results: Record<string, TestResult> = {};
-    
-    for (const syncType of syncTypes) {
-      results[syncType] = await this.testSyncProgress(syncType);
-    }
-    
-    return results;
-  }
-
-  async summarizeSystemStatus(): Promise<TestResult> {
-    return this.runTest('System Status Summary', async () => {
-      console.log('Generating system status summary...');
-      
-      // Get counts from all tables
-      const tablesWithCounts = await Promise.all([
-        supabase.from('document_data').select('*', { count: 'exact', head: true }),
-        supabase.from('member_data').select('*', { count: 'exact', head: true }),
-        supabase.from('calendar_data').select('*', { count: 'exact', head: true }),
-        supabase.from('speech_data').select('*', { count: 'exact', head: true }),
-        supabase.from('vote_data').select('*', { count: 'exact', head: true }),
-        supabase.from('party_data').select('*', { count: 'exact', head: true })
-      ]);
-      
-      // Get latest sync status for each type
-      const { data: syncData, error: syncError } = await supabase
-        .from('automated_sync_status')
-        .select('*')
-        .order('started_at', { ascending: false })
-        .limit(20);
+        this.addTest('Sync Status', 'failed', `Query failed: ${error.message}`, Date.now() - startTime);
+      } else {
+        const activeSyncs = data?.filter(sync => sync.status === 'running') || [];
+        const recentSyncs = data?.filter(sync => sync.status === 'completed') || [];
         
-      if (syncError) {
-        throw new Error(`Error fetching sync status: ${syncError.message}`);
-      }
-      
-      // Group by sync_type and get the latest for each
-      const latestSyncs: Record<string, any> = {};
-      if (syncData) {
-        for (const record of syncData) {
-          if (!latestSyncs[record.sync_type] || 
-              new Date(record.started_at) > new Date(latestSyncs[record.sync_type].started_at)) {
-            latestSyncs[record.sync_type] = record;
-          }
+        if (activeSyncs.length > 0) {
+          this.addTest('Sync Status', 'passed', `${activeSyncs.length} active syncs, ${recentSyncs.length} recent completions`, Date.now() - startTime);
+        } else if (recentSyncs.length > 0) {
+          this.addTest('Sync Status', 'passed', `No active syncs, ${recentSyncs.length} recent completions`, Date.now() - startTime);
+        } else {
+          this.addTest('Sync Status', 'failed', 'No sync activity found - sync system may need initialization', Date.now() - startTime);
         }
       }
-      
-      return {
-        timestamp: new Date().toISOString(),
-        table_counts: {
-          documents: tablesWithCounts[0].count || 0,
-          members: tablesWithCounts[1].count || 0,
-          calendar_events: tablesWithCounts[2].count || 0,
-          speeches: tablesWithCounts[3].count || 0,
-          votes: tablesWithCounts[4].count || 0,
-          parties: tablesWithCounts[5].count || 0,
-        },
-        latest_syncs: latestSyncs,
-        system_health: this.calculateSystemHealth(tablesWithCounts, latestSyncs)
-      };
+    } catch (error) {
+      this.addTest('Sync Status', 'failed', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
+    }
+  }
+
+  private addTest(name: string, status: 'passed' | 'failed', message: string, duration: number): void {
+    this.tests.push({
+      name,
+      status,
+      message,
+      duration,
+      error: status === 'failed' ? message : undefined
     });
   }
-  
-  private calculateSystemHealth(
-    tablesWithCounts: Array<{ count: number | null }>,
-    latestSyncs: Record<string, any>
-  ): { status: string, score: number } {
-    // Simple algorithm to determine system health based on:
-    // 1. Presence of data in tables
-    // 2. Recent successful syncs
-    // 3. No failed syncs
+
+  getResults(): SyncProgressTest[] {
+    return this.tests;
+  }
+
+  getSummary(): { total: number; passed: number; failed: number; successRate: number } {
+    const total = this.tests.length;
+    const passed = this.tests.filter(t => t.status === 'passed').length;
+    const failed = total - passed;
     
-    const hasData = tablesWithCounts.every(result => (result.count || 0) > 0);
-    const hasRecentSyncs = Object.values(latestSyncs).some(sync => {
-      const syncTime = new Date(sync.started_at).getTime();
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      return syncTime > oneDayAgo;
-    });
-    const hasFailedSyncs = Object.values(latestSyncs).some(sync => sync.status === 'failed');
-    
-    if (!hasData) {
-      return { status: 'critical', score: 0 };
-    } else if (hasFailedSyncs) {
-      return { status: 'warning', score: 50 };
-    } else if (hasRecentSyncs) {
-      return { status: 'healthy', score: 100 };
-    } else {
-      return { status: 'moderate', score: 75 };
-    }
+    return {
+      total,
+      passed,
+      failed,
+      successRate: total > 0 ? (passed / total) * 100 : 0
+    };
   }
 }
+
+export default SyncProgressTester;
