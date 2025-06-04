@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Filter, Search, Star, Grid, List, Smartphone, AlertTriangle } from "lucide-react";
+import { Users, Filter, Search, Star, Grid, List, AlertTriangle, Trash2 } from "lucide-react";
 import { useEnhancedMembers } from '@/hooks/useEnhancedMembers';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useResponsive } from '@/hooks/use-responsive';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import EnhancedMemberGrid from './EnhancedMemberGrid';
 import MemberFilters, { MemberFilter } from './MemberFilters';
 import EnhancedMemberProfile from './EnhancedMemberProfile';
@@ -23,6 +25,7 @@ const EnhancedMembersPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'mobile'>('grid');
   const [showFilters, setShowFilters] = useState(!isMobile);
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
+  const [cleanupInProgress, setCleanupInProgress] = useState(false);
   
   const [filters, setFilters] = useState<MemberFilter>({
     search: '',
@@ -39,23 +42,76 @@ const EnhancedMembersPage: React.FC = () => {
   // Load members with enhanced data
   const { members, loading, error } = useEnhancedMembers(1, 1000, 'current');
 
-  // Check if data needs synchronization (many empty first_name fields indicate incomplete data)
-  const needsSync = useMemo(() => {
-    if (members.length === 0) return false;
+  // Check data quality and identify incomplete profiles
+  const dataQualityAnalysis = useMemo(() => {
+    if (members.length === 0) return { needsSync: false, incompleteProfiles: [] };
+    
+    const incompleteProfiles = members.filter(member => {
+      const hasNoImage = !member.primary_image_url && 
+                        (!member.image_urls || Object.keys(member.image_urls).length === 0);
+      const hasNoName = !member.first_name || member.first_name.trim() === '';
+      const hasNoBasicData = !member.constituency || !member.party;
+      const hasLowCompleteness = (member.data_completeness_score || 0) < 30;
+      
+      return hasNoImage || hasNoName || hasNoBasicData || hasLowCompleteness;
+    });
+    
     const emptyNames = members.filter(m => !m.first_name || m.first_name.trim() === '').length;
-    return (emptyNames / members.length) > 0.1; // More than 10% have empty names
+    const needsSync = (emptyNames / members.length) > 0.1; // More than 10% have empty names
+    
+    return { needsSync, incompleteProfiles };
   }, [members]);
 
-  // Extract available filter options
+  // Enhanced filter options with validation
   const filterOptions = useMemo(() => {
-    const parties = [...new Set(members.map(m => m.party))].sort();
+    const parties = [...new Set(members.filter(m => m.party).map(m => m.party))].sort();
     const constituencies = [...new Set(members.filter(m => m.constituency).map(m => m.constituency!))].sort();
     const committees = [...new Set(members.flatMap(m => m.current_committees || []))].sort();
     
     return { parties, constituencies, committees };
   }, [members]);
 
-  // Apply filters
+  // Clean up incomplete member profiles
+  const handleCleanupIncompleteProfiles = useCallback(async () => {
+    if (dataQualityAnalysis.incompleteProfiles.length === 0) {
+      toast.info('Inga ofullständiga profiler hittades');
+      return;
+    }
+
+    setCleanupInProgress(true);
+    try {
+      const memberIds = dataQualityAnalysis.incompleteProfiles.map(p => p.member_id);
+      
+      // Delete from enhanced_member_profiles
+      const { error: enhancedError } = await supabase
+        .from('enhanced_member_profiles')
+        .delete()
+        .in('member_id', memberIds);
+
+      if (enhancedError) throw enhancedError;
+
+      // Also delete from member_data for complete cleanup
+      const { error: memberError } = await supabase
+        .from('member_data')
+        .delete()
+        .in('member_id', memberIds);
+
+      if (memberError) throw memberError;
+
+      toast.success(`${memberIds.length} ofullständiga profiler har tagits bort. Kör datasynkronisering för att hämta uppdaterad data.`);
+      
+      // Refresh the page to reload data
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error cleaning up incomplete profiles:', error);
+      toast.error('Fel vid rensning av ofullständiga profiler');
+    } finally {
+      setCleanupInProgress(false);
+    }
+  }, [dataQualityAnalysis.incompleteProfiles]);
+
+  // Apply filters with enhanced validation
   const filteredMembers = useMemo(() => {
     let filtered = [...members];
 
@@ -77,7 +133,7 @@ const EnhancedMembersPage: React.FC = () => {
 
     // Party filter
     if (filters.party.length > 0) {
-      filtered = filtered.filter(member => filters.party.includes(member.party));
+      filtered = filtered.filter(member => member.party && filters.party.includes(member.party));
     }
 
     // Gender filter
@@ -114,7 +170,7 @@ const EnhancedMembersPage: React.FC = () => {
       filtered = filtered.filter(member => member.is_active);
     }
 
-    // Apply sorting
+    // Apply sorting with enhanced logic
     filtered.sort((a, b) => {
       let comparison = 0;
       
@@ -184,8 +240,8 @@ const EnhancedMembersPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Data quality notice - now points to admin panel */}
-      {needsSync && (
+      {/* Enhanced data quality notice */}
+      {dataQualityAnalysis.needsSync && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -196,30 +252,48 @@ const EnhancedMembersPage: React.FC = () => {
                     Ofullständig medlemsdata upptäckt
                   </h3>
                   <p className="text-xs text-orange-600 dark:text-orange-300">
-                    Många ledamöter saknar namn och annan viktig information. Använd admin-panelen för datasynkronisering.
+                    {dataQualityAnalysis.incompleteProfiles.length} ledamöter har ofullständiga profiler. 
+                    Använd rensningsfunktionen eller admin-panelen för datasynkronisering.
                   </p>
                 </div>
               </div>
-              <Button 
-                onClick={() => window.location.href = '/admin'}
-                variant="outline"
-                size="sm"
-                className="border-orange-300 text-orange-700 hover:bg-orange-100"
-              >
-                Gå till Admin-panel
-              </Button>
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={handleCleanupIncompleteProfiles}
+                  disabled={cleanupInProgress}
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {cleanupInProgress ? 'Rensar...' : 'Rensa ofullständiga'}
+                </Button>
+                <Button 
+                  onClick={() => window.location.href = '/admin'}
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                >
+                  Admin-panel
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Header with tabs */}
+      {/* Header with enhanced tabs */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <Users className="w-6 h-6" />
               <span>Riksdagsledamöter</span>
+              {dataQualityAnalysis.incompleteProfiles.length > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {dataQualityAnalysis.incompleteProfiles.length} ofullständiga
+                </Badge>
+              )}
             </CardTitle>
             
             <div className="flex items-center space-x-2">
@@ -342,7 +416,7 @@ const EnhancedMembersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Member profile modal */}
+      {/* Enhanced member profile modal */}
       {selectedMember && (
         <EnhancedMemberProfile 
           member={selectedMember} 

@@ -8,6 +8,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import DocumentViewer from './DocumentViewer';
 import MemberNewsField from './MemberNewsField';
 import { 
   MapPin, 
@@ -25,7 +26,8 @@ import {
   MessageSquare,
   HelpCircle,
   Vote,
-  Newspaper
+  Newspaper,
+  ExternalLink
 } from 'lucide-react';
 
 interface EnhancedMemberProfileProps {
@@ -118,6 +120,27 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
                        (currentYearStats.written_questions * 1) + 
                        (currentYearStats.speeches * 0.5);
 
+  // Create enhanced document viewer props
+  const createDocumentViewerProps = (type: string, count: number) => {
+    if (count === 0) return null;
+    
+    return {
+      document: {
+        id: `${member.member_id}-${type}`,
+        titel: `${type === 'motions' ? 'Motioner' : 
+                type === 'interpellations' ? 'Interpellationer' : 
+                type === 'written_questions' ? 'Skriftliga frågor' : 'Anföranden'} från ${member.first_name} ${member.last_name}`,
+        undertitel: '',
+        typ: type,
+        datum: new Date().toISOString().split('T')[0],
+        beteckning: '',
+        organ: '',
+        dokument_url_html: `https://data.riksdagen.se/dokumentlista/?avd=dokument&rm=${new Date().getFullYear()}&iid=${member.member_id}&typ=${type}`,
+        dokument_url_text: ''
+      }
+    };
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-6xl w-full max-h-[95vh] overflow-y-auto">
@@ -204,7 +227,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
             </CardContent>
           </Card>
 
-          {/* Senaste nyheterna - kompakt version med fokus på 5 senaste */}
+          {/* Senaste nyheterna */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -221,7 +244,7 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
             </CardContent>
           </Card>
 
-          {/* Årlig aktivitetsstatistik med år-väljare */}
+          {/* Aktivitetsstatistik med dokumentlänkar */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -244,41 +267,90 @@ const EnhancedMemberProfile = ({ member, onClose }: EnhancedMemberProfileProps) 
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-blue-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-blue-600 flex items-center justify-center space-x-1">
                     <FileText className="w-5 h-5" />
                     <span>{selectedYearStats.motions}</span>
                   </div>
-                  <div className="text-sm text-blue-800">Motioner</div>
+                  <div className="text-sm text-blue-800 mb-2">Motioner</div>
+                  {selectedYearStats.motions > 0 && (
+                    <div className="flex space-x-1 justify-center">
+                      <DocumentViewer {...createDocumentViewerProps('motions', selectedYearStats.motions)!} />
+                      <Button variant="ghost" size="sm" asChild>
+                        <a 
+                          href={`https://data.riksdagen.se/dokumentlista/?avd=dokument&rm=${selectedYear}&iid=${member.member_id}&typ=mot`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                
                 <div className="bg-green-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-green-600 flex items-center justify-center space-x-1">
                     <MessageSquare className="w-5 h-5" />
                     <span>{selectedYearStats.interpellations}</span>
                   </div>
-                  <div className="text-sm text-green-800">Interpellationer</div>
+                  <div className="text-sm text-green-800 mb-2">Interpellationer</div>
+                  {selectedYearStats.interpellations > 0 && (
+                    <div className="flex space-x-1 justify-center">
+                      <DocumentViewer {...createDocumentViewerProps('interpellations', selectedYearStats.interpellations)!} />
+                      <Button variant="ghost" size="sm" asChild>
+                        <a 
+                          href={`https://data.riksdagen.se/dokumentlista/?avd=dokument&rm=${selectedYear}&iid=${member.member_id}&typ=ip`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                
                 <div className="bg-orange-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-orange-600 flex items-center justify-center space-x-1">
                     <HelpCircle className="w-5 h-5" />
                     <span>{selectedYearStats.written_questions}</span>
                   </div>
-                  <div className="text-sm text-orange-800">Skriftliga frågor</div>
+                  <div className="text-sm text-orange-800 mb-2">Skriftliga frågor</div>
+                  {selectedYearStats.written_questions > 0 && (
+                    <div className="flex space-x-1 justify-center">
+                      <DocumentViewer {...createDocumentViewerProps('written_questions', selectedYearStats.written_questions)!} />
+                      <Button variant="ghost" size="sm" asChild>
+                        <a 
+                          href={`https://data.riksdagen.se/dokumentlista/?avd=dokument&rm=${selectedYear}&iid=${member.member_id}&typ=fr`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center">
-                  <div className="text-2xl font-bold text-purple-600 flex items-center justify-center space-x-1">
-                    <Vote className="w-5 h-5" />
-                    <span>{selectedYearStats.speeches || 0}</span>
-                  </div>
-                  <div className="text-sm text-purple-800">Anföranden</div>
-                </div>
+                
                 <div className="bg-indigo-50 p-4 rounded-lg text-center">
                   <div className="text-2xl font-bold text-indigo-600 flex items-center justify-center space-x-1">
                     <BarChart3 className="w-5 h-5" />
                     <span>{selectedYearStats.total_documents}</span>
                   </div>
-                  <div className="text-sm text-indigo-800">Totalt dokument</div>
+                  <div className="text-sm text-indigo-800 mb-2">Totalt dokument</div>
+                  {selectedYearStats.total_documents > 0 && (
+                    <Button variant="ghost" size="sm" asChild>
+                      <a 
+                        href={`https://data.riksdagen.se/dokumentlista/?avd=dokument&rm=${selectedYear}&iid=${member.member_id}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
