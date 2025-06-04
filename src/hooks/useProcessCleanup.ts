@@ -1,32 +1,25 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 interface CleanupResult {
-  hangingProcesses: number;
   cleanedUp: number;
+  hangingProcesses: number;
   errors: string[];
 }
 
 export const useProcessCleanup = () => {
   const [isCleaningUp, setIsCleaningUp] = useState(false);
-  const { toast } = useToast();
 
   const cleanupHangingProcesses = useCallback(async (): Promise<CleanupResult> => {
     setIsCleaningUp(true);
-    const result: CleanupResult = {
-      hangingProcesses: 0,
-      cleanedUp: 0,
-      errors: []
-    };
+    console.log('🧹 Starting cleanup of hanging processes...');
 
     try {
-      console.log('🧹 Starting cleanup of hanging processes...');
-
-      // Find processes running for more than 30 minutes
+      // Define what constitutes a "hanging" process (older than 30 minutes)
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       
+      // Find hanging processes
       const { data: hangingProcesses, error: fetchError } = await supabase
         .from('automated_sync_status')
         .select('*')
@@ -34,99 +27,58 @@ export const useProcessCleanup = () => {
         .lt('started_at', thirtyMinutesAgo);
 
       if (fetchError) {
-        result.errors.push(`Error fetching hanging processes: ${fetchError.message}`);
-        return result;
+        throw new Error(`Failed to fetch hanging processes: ${fetchError.message}`);
       }
 
-      result.hangingProcesses = hangingProcesses?.length || 0;
+      const hangingCount = hangingProcesses?.length || 0;
+      console.log(`🔍 Found ${hangingCount} hanging processes`);
 
-      if (result.hangingProcesses === 0) {
+      if (hangingCount === 0) {
         console.log('✅ No hanging processes found');
-        return result;
+        return {
+          cleanedUp: 0,
+          hangingProcesses: 0,
+          errors: []
+        };
       }
 
-      console.log(`🔍 Found ${result.hangingProcesses} hanging processes`);
-
-      // Mark hanging processes as failed with timeout error
+      // Update hanging processes to failed status
       const { error: updateError } = await supabase
         .from('automated_sync_status')
         .update({
           status: 'failed',
           completed_at: new Date().toISOString(),
-          error_message: 'Process terminated due to timeout (30+ minutes)'
+          error_message: 'Process marked as hanging and cleaned up'
         })
-        .in('id', hangingProcesses.map(p => p.id));
+        .eq('status', 'running')
+        .lt('started_at', thirtyMinutesAgo);
 
       if (updateError) {
-        result.errors.push(`Error updating hanging processes: ${updateError.message}`);
-        return result;
+        throw new Error(`Failed to cleanup hanging processes: ${updateError.message}`);
       }
 
-      result.cleanedUp = result.hangingProcesses;
-      console.log(`✅ Cleaned up ${result.cleanedUp} hanging processes`);
-
-      toast({
-        title: "Cleanup Complete",
-        description: `Cleaned up ${result.cleanedUp} hanging processes`,
-      });
+      console.log(`✅ Cleaned up ${hangingCount} hanging processes`);
+      
+      return {
+        cleanedUp: hangingCount,
+        hangingProcesses: hangingCount,
+        errors: []
+      };
 
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      result.errors.push(errorMsg);
-      console.error('❌ Cleanup failed:', error);
-      
-      toast({
-        title: "Cleanup Failed",
-        description: errorMsg,
-        variant: "destructive"
-      });
+      console.error('❌ Process cleanup failed:', error);
+      return {
+        cleanedUp: 0,
+        hangingProcesses: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown cleanup error']
+      };
     } finally {
       setIsCleaningUp(false);
     }
-
-    return result;
-  }, [toast]);
-
-  const abortRunningProcess = useCallback(async (processId: string): Promise<boolean> => {
-    try {
-      console.log(`🛑 Aborting process ${processId}...`);
-
-      const { error } = await supabase
-        .from('automated_sync_status')
-        .update({
-          status: 'failed',
-          completed_at: new Date().toISOString(),
-          error_message: 'Process aborted by user'
-        })
-        .eq('id', processId)
-        .eq('status', 'running');
-
-      if (error) {
-        console.error('❌ Failed to abort process:', error);
-        toast({
-          title: "Abort Failed",
-          description: error.message,
-          variant: "destructive"
-        });
-        return false;
-      }
-
-      console.log('✅ Process aborted successfully');
-      toast({
-        title: "Process Aborted",
-        description: "Process has been successfully terminated",
-      });
-
-      return true;
-    } catch (error) {
-      console.error('❌ Error aborting process:', error);
-      return false;
-    }
-  }, [toast]);
+  }, []);
 
   return {
     cleanupHangingProcesses,
-    abortRunningProcess,
     isCleaningUp
   };
 };
