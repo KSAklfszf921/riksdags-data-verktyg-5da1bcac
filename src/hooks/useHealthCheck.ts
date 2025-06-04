@@ -69,20 +69,28 @@ export const useHealthCheck = () => {
 
       result.metrics.recentFailures = recentFailures?.length || 0;
 
-      // Check data freshness
-      const tables = ['member_data', 'document_data', 'vote_data', 'calendar_data'];
-      for (const table of tables) {
+      // Check data freshness - use correct column names for each table
+      const dataChecks = [
+        { table: 'member_data', key: 'members', dateColumn: 'updated_at' },
+        { table: 'document_data', key: 'documents', dateColumn: 'updated_at' },
+        { table: 'vote_data', key: 'votes', dateColumn: 'updated_at' },
+        { table: 'calendar_data', key: 'calendar', dateColumn: 'updated_at' }
+      ];
+
+      for (const check of dataChecks) {
         try {
           const { data } = await supabase
-            .from(table)
-            .select('updated_at')
-            .order('updated_at', { ascending: false })
+            .from(check.table as any)
+            .select(check.dateColumn)
+            .order(check.dateColumn, { ascending: false })
             .limit(1);
 
-          const key = table.replace('_data', '') as keyof typeof result.metrics.dataFreshness;
-          result.metrics.dataFreshness[key] = data?.[0]?.updated_at || null;
+          const key = check.key as keyof typeof result.metrics.dataFreshness;
+          result.metrics.dataFreshness[key] = data?.[0]?.[check.dateColumn] || null;
         } catch (error) {
-          console.warn(`Could not check freshness for ${table}:`, error);
+          console.warn(`Could not check freshness for ${check.table}:`, error);
+          const key = check.key as keyof typeof result.metrics.dataFreshness;
+          result.metrics.dataFreshness[key] = null;
         }
       }
 
@@ -116,7 +124,7 @@ export const useHealthCheck = () => {
         scoreDeduction += 15;
       }
 
-      // Check data staleness
+      // Check data staleness and existence
       const now = new Date();
       Object.entries(result.metrics.dataFreshness).forEach(([key, lastUpdate]) => {
         if (lastUpdate) {

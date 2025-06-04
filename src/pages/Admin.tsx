@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +13,7 @@ import AdminSecurityPanel from "../components/AdminSecurityPanel";
 import SecurityAuditLog from "../components/SecurityAuditLog";
 import SecurityIncidentResponse from "../components/SecurityIncidentResponse";
 import SystemHealthMonitor from "../components/SystemHealthMonitor";
+import EnhancedMemberDataSync from "../components/EnhancedMemberDataSync";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("health");
@@ -58,7 +60,10 @@ const Admin = () => {
           </TabsList>
 
           <TabsContent value="health">
-            <SystemHealthMonitor />
+            <div className="space-y-6">
+              <SystemHealthMonitor />
+              <EnhancedMemberDataSync />
+            </div>
           </TabsContent>
 
           <TabsContent value="master">

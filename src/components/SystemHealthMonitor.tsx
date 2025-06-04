@@ -7,21 +7,22 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { useHealthCheck } from '@/hooks/useHealthCheck';
 import { useProcessCleanup } from '@/hooks/useProcessCleanup';
+import { useDataInitializer } from '@/hooks/useDataInitializer';
 import { 
   Heart, 
   AlertTriangle, 
   CheckCircle, 
   RefreshCw, 
   Trash2,
-  Activity,
-  Clock,
   Database,
-  TrendingUp
+  Download,
+  Play
 } from "lucide-react";
 
 const SystemHealthMonitor: React.FC = () => {
   const { healthData, performHealthCheck, isChecking } = useHealthCheck();
   const { cleanupHangingProcesses, isCleaningUp } = useProcessCleanup();
+  const { initializeAllData, initializeMemberData, initializeVoteData, isInitializing, progress } = useDataInitializer();
 
   const getHealthColor = (status: string) => {
     switch (status) {
@@ -62,6 +63,10 @@ const SystemHealthMonitor: React.FC = () => {
     const diffDays = Math.round(diffHours / 24);
     return `${diffDays}d sedan`;
   };
+
+  const hasDataIssues = healthData?.issues.some(issue => 
+    issue.includes('No') && issue.includes('data found')
+  );
 
   return (
     <div className="space-y-6">
@@ -189,6 +194,69 @@ const SystemHealthMonitor: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Data Initialization Panel */}
+      {hasDataIssues && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-orange-800">
+              <Download className="w-5 h-5" />
+              <span>Datainitialisering krävs</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-orange-700 mb-4">
+              Systemet har identifierat saknad data. Använd knapparna nedan för att initiera datasynkronisering.
+            </div>
+
+            {isInitializing && (
+              <div className="space-y-3">
+                <div className="text-sm font-medium">{progress.currentStep}</div>
+                <Progress value={(progress.completed / progress.total) * 100} className="h-2" />
+                <div className="text-xs text-gray-600">
+                  {progress.completed} av {progress.total} steg slutförda
+                </div>
+                {progress.errors.length > 0 && (
+                  <div className="text-xs text-red-600">
+                    {progress.errors.length} fel uppstod under initialiseringen
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Button 
+                onClick={initializeAllData}
+                disabled={isInitializing}
+                className="flex items-center space-x-2"
+              >
+                <Play className={`w-4 h-4 ${isInitializing ? 'animate-spin' : ''}`} />
+                <span>Initiera all data</span>
+              </Button>
+
+              <Button 
+                onClick={initializeMemberData}
+                disabled={isInitializing}
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <Database className="w-4 h-4" />
+                <span>Medlemsdata</span>
+              </Button>
+
+              <Button 
+                onClick={initializeVoteData}
+                disabled={isInitializing}
+                variant="outline"
+                className="flex items-center space-x-2"
+              >
+                <Database className="w-4 h-4" />
+                <span>Röstningsdata</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
