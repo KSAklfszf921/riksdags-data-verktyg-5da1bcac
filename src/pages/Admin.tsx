@@ -2,60 +2,55 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Database, Users, BarChart3, Settings, Zap, Vote } from "lucide-react";
+import { Shield, Database, Users, BarChart3, Settings, Zap, Vote, Activity, TestTube, Server } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
-import MasterSyncTool from "../components/MasterSyncTool";
-import DataValidationDashboard from "../components/DataValidationDashboard";
-import DataQualityDashboard from "../components/DataQualityDashboard";
-import DatabaseInitializer from "../components/DatabaseInitializer";
 import EnhancedAdminDashboard from "../components/EnhancedAdminDashboard";
 import EnhancedVotingTool from "../components/EnhancedVotingTool";
+import ProcessMonitor from "../components/ProcessMonitor";
+import SystemPerformanceDashboard from "../components/SystemPerformanceDashboard";
+import ApiTestingDashboard from "../components/ApiTestingDashboard";
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState("enhanced");
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader
           title="Admin Dashboard"
-          description="Enhanced system administration and data management"
+          description="Komplett systemadministration och övervakning"
           icon={<Shield className="w-6 h-6 text-white" />}
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="enhanced" className="flex items-center space-x-2">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="dashboard" className="flex items-center space-x-2">
               <Zap className="w-4 h-4" />
-              <span>Enhanced</span>
+              <span>Dashboard</span>
             </TabsTrigger>
             <TabsTrigger value="voting" className="flex items-center space-x-2">
               <Vote className="w-4 h-4" />
               <span>Voteringar</span>
             </TabsTrigger>
-            <TabsTrigger value="sync" className="flex items-center space-x-2">
-              <Database className="w-4 h-4" />
-              <span>Data Sync</span>
+            <TabsTrigger value="monitor" className="flex items-center space-x-2">
+              <Activity className="w-4 h-4" />
+              <span>Processmonitor</span>
             </TabsTrigger>
-            <TabsTrigger value="quality" className="flex items-center space-x-2">
-              <BarChart3 className="w-4 h-4" />
-              <span>Data Quality</span>
+            <TabsTrigger value="performance" className="flex items-center space-x-2">
+              <Server className="w-4 h-4" />
+              <span>Prestanda</span>
             </TabsTrigger>
-            <TabsTrigger value="validation" className="flex items-center space-x-2">
-              <Shield className="w-4 h-4" />
-              <span>Validation</span>
-            </TabsTrigger>
-            <TabsTrigger value="database" className="flex items-center space-x-2">
-              <Database className="w-4 h-4" />
-              <span>Database</span>
+            <TabsTrigger value="testing" className="flex items-center space-x-2">
+              <TestTube className="w-4 h-4" />
+              <span>API-tester</span>
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center space-x-2">
               <Settings className="w-4 h-4" />
-              <span>Settings</span>
+              <span>Inställningar</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="enhanced">
+          <TabsContent value="dashboard">
             <EnhancedAdminDashboard />
           </TabsContent>
 
@@ -63,72 +58,16 @@ const Admin = () => {
             <EnhancedVotingTool />
           </TabsContent>
 
-          <TabsContent value="sync">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Database className="w-5 h-5" />
-                  <span>Master Data Synchronization</span>
-                </CardTitle>
-                <CardDescription>
-                  Synchronize all data from Riksdag API including members, documents, speeches, and votes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <MasterSyncTool />
-              </CardContent>
-            </Card>
+          <TabsContent value="monitor">
+            <ProcessMonitor />
           </TabsContent>
 
-          <TabsContent value="quality">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <BarChart3 className="w-5 h-5" />
-                  <span>Data Quality Monitoring</span>
-                </CardTitle>
-                <CardDescription>
-                  Monitor and improve data completeness, accuracy, and consistency
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DataQualityDashboard />
-              </CardContent>
-            </Card>
+          <TabsContent value="performance">
+            <SystemPerformanceDashboard />
           </TabsContent>
 
-          <TabsContent value="validation">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Shield className="w-5 h-5" />
-                  <span>Data Validation</span>
-                </CardTitle>
-                <CardDescription>
-                  Run comprehensive validation tests on all data sources
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DataValidationDashboard />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="database">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Database className="w-5 h-5" />
-                  <span>Database Management</span>
-                </CardTitle>
-                <CardDescription>
-                  Initialize and manage database schema and indexes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DatabaseInitializer />
-              </CardContent>
-            </Card>
+          <TabsContent value="testing">
+            <ApiTestingDashboard />
           </TabsContent>
 
           <TabsContent value="settings">
@@ -136,16 +75,94 @@ const Admin = () => {
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <Settings className="w-5 h-5" />
-                  <span>System Settings</span>
+                  <span>Systeminställningar</span>
                 </CardTitle>
                 <CardDescription>
-                  Configure system-wide settings and preferences
+                  Konfigurera systemomfattande inställningar och preferenser
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>System settings panel coming soon...</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Datasynkronisering</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Automatisk synkronisering</span>
+                          <input type="checkbox" className="rounded" defaultChecked />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Synkroniseringsintervall</span>
+                          <select className="border rounded px-2 py-1 text-sm">
+                            <option>Varje timme</option>
+                            <option>Var 6:e timme</option>
+                            <option>Dagligen</option>
+                          </select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Systemövervakning</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Aktivera e-postaviseringar</span>
+                          <input type="checkbox" className="rounded" />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Loggnivå</span>
+                          <select className="border rounded px-2 py-1 text-sm">
+                            <option>Info</option>
+                            <option>Varning</option>
+                            <option>Fel</option>
+                            <option>Debug</option>
+                          </select>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Säkerhetsåtgärder</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Aktivera API-begränsning</span>
+                          <input type="checkbox" className="rounded" defaultChecked />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Max förfrågningar per minut</span>
+                          <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="100" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Prestanda</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Cache-storlek (MB)</span>
+                          <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="512" />
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Aktivera komprimering</span>
+                          <input type="checkbox" className="rounded" defaultChecked />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>

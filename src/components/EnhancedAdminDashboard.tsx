@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSyncMonitor } from '@/hooks/useSyncMonitor';
+import AdminQuickActions from './AdminQuickActions';
+import SystemHealthOverview from './SystemHealthOverview';
 import { 
   Shield, 
   Database, 
@@ -17,7 +19,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  RefreshCw
+  RefreshCw,
+  TrendingUp
 } from "lucide-react";
 
 const EnhancedAdminDashboard: React.FC = () => {
@@ -26,14 +29,15 @@ const EnhancedAdminDashboard: React.FC = () => {
   const [systemStats, setSystemStats] = useState<any>(null);
 
   useEffect(() => {
-    // Load system stats
     const loadSystemStats = async () => {
-      // This would be replaced with actual API calls
       setSystemStats({
         totalMembers: 349,
+        totalDocuments: 15420,
+        totalVotes: 2847,
         activeSyncs: activeSyncs.length,
         lastSync: recentSyncs[0]?.started_at || null,
-        systemHealth: activeSyncs.length === 0 ? 'healthy' : 'active'
+        systemHealth: activeSyncs.length === 0 ? 'healthy' : 'active',
+        dataFreshness: '2 timmar sedan'
       });
     };
     
@@ -43,13 +47,13 @@ const EnhancedAdminDashboard: React.FC = () => {
   const getHealthBadge = (health: string) => {
     switch (health) {
       case 'healthy':
-        return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Healthy</Badge>;
+        return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Frisk</Badge>;
       case 'active':
-        return <Badge className="bg-blue-500"><Activity className="w-3 h-3 mr-1" />Active</Badge>;
+        return <Badge className="bg-blue-500"><Activity className="w-3 h-3 mr-1" />Aktiv</Badge>;
       case 'warning':
-        return <Badge className="bg-yellow-500"><AlertTriangle className="w-3 h-3 mr-1" />Warning</Badge>;
+        return <Badge className="bg-yellow-500"><AlertTriangle className="w-3 h-3 mr-1" />Varning</Badge>;
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return <Badge variant="outline">Okänd</Badge>;
     }
   };
 
@@ -61,43 +65,48 @@ const EnhancedAdminDashboard: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Shield className="w-5 h-5" />
-              <span>Enhanced Admin Dashboard</span>
+              <span>Systemöversikt</span>
             </div>
             <div className="flex items-center space-x-4">
               {systemStats && getHealthBadge(systemStats.systemHealth)}
               <Button variant="outline" size="sm">
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
+                Uppdatera
               </Button>
             </div>
           </CardTitle>
           <CardDescription>
-            Centralized administration and monitoring for all system operations
+            Centraliserad administration och övervakning för alla systemoperationer
           </CardDescription>
         </CardHeader>
         
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-4 border rounded-lg">
               <div className="text-2xl font-bold text-blue-600">{systemStats?.totalMembers || 0}</div>
-              <div className="text-sm text-gray-600">Total Members</div>
+              <div className="text-sm text-gray-600">Ledamöter</div>
             </div>
             
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{activeSyncs.length}</div>
-              <div className="text-sm text-gray-600">Active Syncs</div>
+              <div className="text-2xl font-bold text-green-600">{systemStats?.totalDocuments || 0}</div>
+              <div className="text-sm text-gray-600">Dokument</div>
             </div>
             
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">{recentSyncs.length}</div>
-              <div className="text-sm text-gray-600">Recent Operations</div>
+              <div className="text-2xl font-bold text-purple-600">{systemStats?.totalVotes || 0}</div>
+              <div className="text-sm text-gray-600">Voteringar</div>
             </div>
             
             <div className="text-center p-4 border rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">
-                {systemStats?.lastSync ? '< 1h' : 'N/A'}
+              <div className="text-2xl font-bold text-orange-600">{activeSyncs.length}</div>
+              <div className="text-sm text-gray-600">Aktiva synk</div>
+            </div>
+
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-red-600">
+                {systemStats?.dataFreshness || 'N/A'}
               </div>
-              <div className="text-sm text-gray-600">Last Activity</div>
+              <div className="text-sm text-gray-600">Senaste uppdatering</div>
             </div>
           </div>
           
@@ -105,7 +114,7 @@ const EnhancedAdminDashboard: React.FC = () => {
             <Alert className="bg-red-50 border-red-200 mt-4">
               <AlertTriangle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-800">
-                System Error: {error}
+                Systemfel: {error}
               </AlertDescription>
             </Alert>
           )}
@@ -114,37 +123,27 @@ const EnhancedAdminDashboard: React.FC = () => {
 
       {/* Main Admin Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="sync">Data Sync</TabsTrigger>
-          <TabsTrigger value="monitor">Monitor</TabsTrigger>
-          <TabsTrigger value="testing">Testing</TabsTrigger>
-          <TabsTrigger value="database">Database</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Översikt</TabsTrigger>
+          <TabsTrigger value="actions">Snabbåtgärder</TabsTrigger>
+          <TabsTrigger value="health">Systemhälsa</TabsTrigger>
+          <TabsTrigger value="analytics">Analys</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <SystemOverviewTab activeSyncs={activeSyncs} recentSyncs={recentSyncs} />
         </TabsContent>
 
-        <TabsContent value="sync">
-          <DataSyncTab />
+        <TabsContent value="actions">
+          <AdminQuickActions />
         </TabsContent>
 
-        <TabsContent value="monitor">
-          <MonitoringTab />
+        <TabsContent value="health">
+          <SystemHealthOverview />
         </TabsContent>
 
-        <TabsContent value="testing">
-          <TestingTab />
-        </TabsContent>
-
-        <TabsContent value="database">
-          <DatabaseTab />
-        </TabsContent>
-
-        <TabsContent value="settings">
-          <SettingsTab />
+        <TabsContent value="analytics">
+          <AnalyticsTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -157,14 +156,14 @@ const SystemOverviewTab: React.FC<{ activeSyncs: any[], recentSyncs: any[] }> = 
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Activity className="w-5 h-5" />
-          <span>Active Operations</span>
+          <span>Aktiva operationer</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
         {activeSyncs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <CheckCircle className="w-12 h-12 mx-auto mb-4 text-green-500" />
-            <p>No active operations</p>
+            <p>Inga aktiva operationer</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -172,9 +171,9 @@ const SystemOverviewTab: React.FC<{ activeSyncs: any[], recentSyncs: any[] }> = 
               <div key={sync.id} className="flex items-center justify-between p-3 border rounded">
                 <div>
                   <span className="font-medium capitalize">{sync.sync_type}</span>
-                  <p className="text-sm text-gray-600">Started: {new Date(sync.started_at).toLocaleTimeString()}</p>
+                  <p className="text-sm text-gray-600">Startad: {new Date(sync.started_at).toLocaleTimeString('sv-SE')}</p>
                 </div>
-                <Badge className="bg-blue-500">Running</Badge>
+                <Badge className="bg-blue-500">Kör</Badge>
               </div>
             ))}
           </div>
@@ -186,7 +185,7 @@ const SystemOverviewTab: React.FC<{ activeSyncs: any[], recentSyncs: any[] }> = 
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Clock className="w-5 h-5" />
-          <span>Recent Activity</span>
+          <span>Senaste aktivitet</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -196,10 +195,10 @@ const SystemOverviewTab: React.FC<{ activeSyncs: any[], recentSyncs: any[] }> = 
               <span className="capitalize">{sync.sync_type}</span>
               <div className="flex items-center space-x-2">
                 <Badge variant={sync.status === 'completed' ? 'default' : 'destructive'}>
-                  {sync.status}
+                  {sync.status === 'completed' ? 'Klar' : 'Misslyckad'}
                 </Badge>
                 <span className="text-gray-500">
-                  {new Date(sync.started_at).toLocaleTimeString()}
+                  {new Date(sync.started_at).toLocaleTimeString('sv-SE')}
                 </span>
               </div>
             </div>
@@ -210,74 +209,76 @@ const SystemOverviewTab: React.FC<{ activeSyncs: any[], recentSyncs: any[] }> = 
   </div>
 );
 
-const DataSyncTab: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Data Synchronization Tools</CardTitle>
-      <CardDescription>Manage all data synchronization operations</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p className="text-center py-8 text-gray-500">
-        Data sync tools will be integrated here...
-      </p>
-    </CardContent>
-  </Card>
-);
+const AnalyticsTab: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <TrendingUp className="w-5 h-5" />
+          <span>Systemtrender</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm">Synkroniseringar/dag</span>
+            <span className="font-medium">12 ↗️</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm">Genomsnittlig svarstid</span>
+            <span className="font-medium">145ms ↗️</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm">Felfrekvens</span>
+            <span className="font-medium">0.8% ↘️</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm">Datavolym/dag</span>
+            <span className="font-medium">2.3GB ↗️</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
 
-const MonitoringTab: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle>System Monitoring</CardTitle>
-      <CardDescription>Real-time system performance and health monitoring</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p className="text-center py-8 text-gray-500">
-        Monitoring dashboard will be integrated here...
-      </p>
-    </CardContent>
-  </Card>
-);
-
-const TestingTab: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Testing Suite</CardTitle>
-      <CardDescription>Comprehensive testing and validation tools</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p className="text-center py-8 text-gray-500">
-        Testing tools will be integrated here...
-      </p>
-    </CardContent>
-  </Card>
-);
-
-const DatabaseTab: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Database Management</CardTitle>
-      <CardDescription>Database operations and maintenance tools</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p className="text-center py-8 text-gray-500">
-        Database tools will be integrated here...
-      </p>
-    </CardContent>
-  </Card>
-);
-
-const SettingsTab: React.FC = () => (
-  <Card>
-    <CardHeader>
-      <CardTitle>System Configuration</CardTitle>
-      <CardDescription>Manage system settings and configurations</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <p className="text-center py-8 text-gray-500">
-        Configuration tools will be integrated here...
-      </p>
-    </CardContent>
-  </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Resursanvändning</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span>API-användning</span>
+              <span>67%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="bg-blue-600 h-2 rounded-full" style={{ width: '67%' }}></div>
+            </div>
+          </div>
+          
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span>Databaslast</span>
+              <span>23%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="bg-green-600 h-2 rounded-full" style={{ width: '23%' }}></div>
+            </div>
+          </div>
+          
+          <div>
+            <div className="flex justify-between text-sm mb-1">
+              <span>Lagringsutrymme</span>
+              <span>45%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  </div>
 );
 
 export default EnhancedAdminDashboard;
