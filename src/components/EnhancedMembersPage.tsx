@@ -91,14 +91,11 @@ const EnhancedMembersPage: React.FC = () => {
     }
 
     // Age filter
-    if (member.birth_year) {
-      const age = new Date().getFullYear() - member.birth_year;
-      filtered = filtered.filter(member => {
-        if (!member.birth_year) return true;
-        const memberAge = new Date().getFullYear() - member.birth_year;
-        return memberAge >= filters.ageRange[0] && memberAge <= filters.ageRange[1];
-      });
-    }
+    filtered = filtered.filter(member => {
+      if (!member.birth_year) return true;
+      const memberAge = new Date().getFullYear() - member.birth_year;
+      return memberAge >= filters.ageRange[0] && memberAge <= filters.ageRange[1];
+    });
 
     // Active status filter
     if (filters.activeOnly) {
