@@ -1,315 +1,335 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useDataQualityMetrics, useMemberDataMigration } from '@/hooks/useEnhancedMemberProfiles';
-import { CheckCircle, AlertTriangle, Users, Image, Mail, Database, RefreshCw, Info } from "lucide-react";
-import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  Shield, 
+  AlertTriangle, 
+  CheckCircle, 
+  TrendingUp,
+  Database,
+  RefreshCw,
+  Users,
+  FileText
+} from "lucide-react";
+import { supabase } from '@/integrations/supabase/client';
+
+interface DataQualityIssue {
+  id: string;
+  type: 'missing_data' | 'invalid_format' | 'duplicate' | 'outdated';
+  severity: 'high' | 'medium' | 'low';
+  table: string;
+  description: string;
+  count: number;
+  resolved: boolean;
+}
+
+interface QualityMetrics {
+  overallScore: number;
+  totalRecords: number;
+  validRecords: number;
+  issuesCount: number;
+  lastCheck: string;
+}
 
 const DataQualityDashboard: React.FC = () => {
-  const { metrics, loading, error } = useDataQualityMetrics();
-  const { migrationStatus, runMigration } = useMemberDataMigration();
-  const [refreshing, setRefreshing] = useState(false);
+  const [metrics, setMetrics] = useState<QualityMetrics>({
+    overallScore: 0,
+    totalRecords: 0,
+    validRecords: 0,
+    issuesCount: 0,
+    lastCheck: ''
+  });
+  const [issues, setIssues] = useState<DataQualityIssue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRunningCheck, setIsRunningCheck] = useState(false);
 
-  const handleMigration = async () => {
+  useEffect(() => {
+    runQualityCheck();
+  }, []);
+
+  const runQualityCheck = async () => {
+    setIsRunningCheck(true);
+    setLoading(true);
+
     try {
-      const migratedCount = await runMigration();
-      toast.success(`Migration completed! ${migratedCount} members migrated to enhanced profiles.`);
-      // Refresh the page to show updated metrics
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      // Check member data quality
+      const { data: members } = await supabase
+        .from('enhanced_member_profiles')
+        .select('*');
+
+      // Check document data quality
+      const { data: documents } = await supabase
+        .from('document_data')
+        .select('*');
+
+      // Analyze data quality
+      const qualityIssues: DataQualityIssue[] = [];
+      let totalRecords = 0;
+      let validRecords = 0;
+
+      if (members) {
+        totalRecords += members.length;
+        
+        // Check for missing essential data
+        const membersWithMissingData = members.filter(m => 
+          !m.first_name || !m.last_name || !m.party || !m.constituency
+        );
+        
+        if (membersWithMissingData.length > 0) {
+          qualityIssues.push({
+            id: 'members_missing_data',
+            type: 'missing_data',
+            severity: 'high',
+            table: 'enhanced_member_profiles',
+            description: 'Ledamöter saknar grundläggande information',
+            count: membersWithMissingData.length,
+            resolved: false
+          });
+        }
+
+        // Check for low data completeness scores
+        const membersWithLowScores = members.filter(m => 
+          (m.data_completeness_score || 0) < 70
+        );
+        
+        if (membersWithLowScores.length > 0) {
+          qualityIssues.push({
+            id: 'members_low_completeness',
+            type: 'missing_data',
+            severity: 'medium',
+            table: 'enhanced_member_profiles',
+            description: 'Ledamöter med låg datakompletthetspoäng',
+            count: membersWithLowScores.length,
+            resolved: false
+          });
+        }
+
+        validRecords += members.filter(m => 
+          m.first_name && m.last_name && m.party && (m.data_completeness_score || 0) >= 70
+        ).length;
+      }
+
+      if (documents) {
+        totalRecords += documents.length;
+        
+        // Check for missing content
+        const documentsWithoutContent = documents.filter(d => 
+          !d.content_preview || d.content_preview.length < 100
+        );
+        
+        if (documentsWithoutContent.length > 0) {
+          qualityIssues.push({
+            id: 'documents_missing_content',
+            type: 'missing_data',
+            severity: 'medium',
+            table: 'document_data',
+            description: 'Dokument saknar innehåll eller har för kort innehåll',
+            count: documentsWithoutContent.length,
+            resolved: false
+          });
+        }
+
+        // Check for missing metadata
+        const documentsWithoutMetadata = documents.filter(d => 
+          !d.titel || !d.datum || !d.typ
+        );
+        
+        if (documentsWithoutMetadata.length > 0) {
+          qualityIssues.push({
+            id: 'documents_missing_metadata',
+            type: 'missing_data',
+            severity: 'high',
+            table: 'document_data',
+            description: 'Dokument saknar viktiga metadata',
+            count: documentsWithoutMetadata.length,
+            resolved: false
+          });
+        }
+
+        validRecords += documents.filter(d => 
+          d.content_preview && d.content_preview.length >= 100 && d.titel && d.datum
+        ).length;
+      }
+
+      const overallScore = totalRecords > 0 ? Math.round((validRecords / totalRecords) * 100) : 0;
+
+      setMetrics({
+        overallScore,
+        totalRecords,
+        validRecords,
+        issuesCount: qualityIssues.length,
+        lastCheck: new Date().toLocaleString('sv-SE')
+      });
+
+      setIssues(qualityIssues);
+
     } catch (error) {
-      toast.error('Migration failed. Please check the logs.');
-      console.error('Migration error:', error);
+      console.error('Error running quality check:', error);
+    } finally {
+      setLoading(false);
+      setIsRunningCheck(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    // Force reload by triggering a re-render
-    setTimeout(() => {
-      window.location.reload();
-    }, 500);
+  const getSeverityBadge = (severity: string) => {
+    switch (severity) {
+      case 'high':
+        return <Badge className="bg-red-500">Hög</Badge>;
+      case 'medium':
+        return <Badge className="bg-yellow-500">Medel</Badge>;
+      case 'low':
+        return <Badge className="bg-blue-500">Låg</Badge>;
+      default:
+        return <Badge variant="outline">Okänd</Badge>;
+    }
   };
 
-  if (loading) {
+  const getScoreBadge = (score: number) => {
+    if (score >= 90) return <Badge className="bg-green-500">Utmärkt</Badge>;
+    if (score >= 75) return <Badge className="bg-blue-500">Bra</Badge>;
+    if (score >= 60) return <Badge className="bg-yellow-500">Medel</Badge>;
+    return <Badge className="bg-red-500">Behöver förbättring</Badge>;
+  };
+
+  if (loading && !isRunningCheck) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-2">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Loading data quality metrics...</span>
-          </div>
+        <CardContent className="flex items-center justify-center py-8">
+          <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+          <span>Laddar datakvalitetsanalys...</span>
         </CardContent>
       </Card>
     );
   }
-
-  if (error || !metrics) {
-    return (
-      <Card className="border-red-200 bg-red-50">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-2 text-red-600">
-            <AlertTriangle className="w-5 h-5" />
-            <span>{error || 'Could not load data quality metrics'}</span>
-          </div>
-          <div className="mt-4">
-            <Button 
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center space-x-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>Retry</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Check if enhanced_member_profiles table is empty or has very few records
-  const isEnhancedTableEmpty = metrics.totalMembers === 0;
-  const hasLowDataCount = metrics.totalMembers > 0 && metrics.totalMembers < 50; // Threshold for "needs migration"
-
-  const qualityColor = metrics.averageCompleteness >= 80 ? 'green' : 
-                     metrics.averageCompleteness >= 60 ? 'yellow' : 'red';
 
   return (
     <div className="space-y-6">
-      {/* Enhanced profiles migration notice */}
-      {(isEnhancedTableEmpty || hasLowDataCount) && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-blue-800">
-              <Info className="w-5 h-5" />
-              <span>
-                {isEnhancedTableEmpty 
-                  ? 'Enhanced Member Profiles Not Set Up' 
-                  : 'Enhanced Member Profiles Need Data Migration'
-                }
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-blue-700 mb-4">
-              {isEnhancedTableEmpty 
-                ? 'The enhanced member profiles system is not yet populated with data. Run the migration below to transfer existing member data to the new enhanced system for improved data quality tracking.'
-                : `Only ${metrics.totalMembers} enhanced member profiles found. Run the migration to ensure all member data is properly transferred to the enhanced system.`
-              }
-            </p>
-            <Button 
-              onClick={handleMigration}
-              disabled={migrationStatus.running}
-              className="flex items-center space-x-2"
-            >
-              {migrationStatus.running ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Migrating...</span>
-                </>
-              ) : (
-                <>
-                  <Database className="w-4 h-4" />
-                  <span>
-                    {isEnhancedTableEmpty ? 'Set Up Enhanced Profiles' : 'Complete Migration'}
-                  </span>
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Main metrics - always show if we have data */}
-      {!isEnhancedTableEmpty && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Members</p>
-                  <div className="text-2xl font-bold">{metrics.totalMembers}</div>
-                  {hasLowDataCount && (
-                    <Badge variant="outline" className="mt-2 text-xs">
-                      Migration needed
-                    </Badge>
-                  )}
-                </div>
-                <Users className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Avg Completeness</p>
-                  <div className="text-2xl font-bold">{metrics.averageCompleteness}%</div>
-                  <Progress value={metrics.averageCompleteness} className="mt-2" />
-                </div>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  qualityColor === 'green' ? 'bg-green-100 text-green-600' :
-                  qualityColor === 'yellow' ? 'bg-yellow-100 text-yellow-600' :
-                  'bg-red-100 text-red-600'
-                }`}>
-                  {qualityColor === 'green' ? <CheckCircle className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Missing Images</p>
-                  <div className="text-2xl font-bold">{metrics.missingImageCount}</div>
-                  <Badge variant={metrics.missingImageCount > 0 ? "destructive" : "secondary"} className="mt-2">
-                    {((metrics.missingImageCount / metrics.totalMembers) * 100).toFixed(1)}%
-                  </Badge>
-                </div>
-                <Image className="w-8 h-8 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Missing Contact</p>
-                  <div className="text-2xl font-bold">{metrics.missingContactCount}</div>
-                  <Badge variant={metrics.missingContactCount > 0 ? "destructive" : "secondary"} className="mt-2">
-                    {((metrics.missingContactCount / metrics.totalMembers) * 100).toFixed(1)}%
-                  </Badge>
-                </div>
-                <Mail className="w-8 h-8 text-orange-600" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Data Quality Issues - only show if we have data and issues */}
-      {!isEnhancedTableEmpty && metrics.membersWithIssues > 0 && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-yellow-800">
-              <AlertTriangle className="w-5 h-5" />
-              <span>Data Quality Issues Detected</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-yellow-700">
-              {metrics.membersWithIssues} members have data quality issues that need attention.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Migration Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Database className="w-5 h-5" />
-            <span>Data Migration</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5" />
+              <span>Datakvalitetsdashboard</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              {getScoreBadge(metrics.overallScore)}
+              <Button
+                onClick={runQualityCheck}
+                disabled={isRunningCheck}
+                variant="outline"
+                size="sm"
+              >
+                {isRunningCheck ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                    Kontrollerar...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Kör kontroll
+                  </>
+                )}
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {isEnhancedTableEmpty 
-              ? "Set up the enhanced member profiles system for improved data quality and performance."
-              : hasLowDataCount
-              ? "Complete the migration to ensure all member data is in the enhanced system."
-              : "The enhanced member profiles system is set up and contains member data."
-            }
-          </p>
-          
-          <div className="flex items-center space-x-4">
-            <Button 
-              onClick={handleMigration}
-              disabled={migrationStatus.running}
-              variant={isEnhancedTableEmpty || hasLowDataCount ? "default" : "outline"}
-              className="flex items-center space-x-2"
-            >
-              {migrationStatus.running ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Migrating...</span>
-                </>
-              ) : (
-                <>
-                  <Database className="w-4 h-4" />
-                  <span>
-                    {isEnhancedTableEmpty 
-                      ? 'Set Up System' 
-                      : hasLowDataCount 
-                      ? 'Complete Migration' 
-                      : 'Re-run Migration'
-                    }
-                  </span>
-                </>
-              )}
-            </Button>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{metrics.overallScore}%</div>
+              <div className="text-sm text-gray-600">Övergripande poäng</div>
+            </div>
             
-            <Button 
-              variant="outline"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center space-x-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </Button>
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{metrics.validRecords.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Giltiga poster</div>
+            </div>
+            
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-purple-600">{metrics.totalRecords.toLocaleString()}</div>
+              <div className="text-sm text-gray-600">Totala poster</div>
+            </div>
+            
+            <div className="text-center p-4 border rounded-lg">
+              <div className="text-2xl font-bold text-red-600">{metrics.issuesCount}</div>
+              <div className="text-sm text-gray-600">Identifierade problem</div>
+            </div>
           </div>
 
-          {migrationStatus.completed && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-3">
-              <div className="flex items-start space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-medium text-green-800">Migration Completed</h4>
-                  <p className="text-xs text-green-600">
-                    {migrationStatus.migratedCount} members successfully migrated to enhanced profiles.
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-2 mb-6">
+            <div className="flex justify-between text-sm">
+              <span>Datakvalitet</span>
+              <span>{metrics.overallScore}%</span>
             </div>
-          )}
+            <Progress value={metrics.overallScore} className="w-full" />
+            <div className="text-xs text-gray-500">
+              Senaste kontroll: {metrics.lastCheck}
+            </div>
+          </div>
 
-          {migrationStatus.error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <div className="flex items-start space-x-2">
-                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-medium text-red-800">Migration Failed</h4>
-                  <p className="text-xs text-red-600">{migrationStatus.error}</p>
-                </div>
-              </div>
-            </div>
+          {issues.length > 0 && (
+            <Alert className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                {issues.length} kvalitetsproblem identifierade. Granska och åtgärda för bättre datakvalitet.
+              </AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>
 
-      {/* Last Sync Info - only show if we have data */}
-      {!isEnhancedTableEmpty && metrics.lastSyncTime && (
+      {issues.length > 0 && (
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Last Data Sync</p>
-                <p className="text-sm">{new Date(metrics.lastSyncTime).toLocaleString()}</p>
-              </div>
-              <Badge variant="outline">
-                {Math.round((Date.now() - new Date(metrics.lastSyncTime).getTime()) / (1000 * 60 * 60))}h ago
-              </Badge>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5" />
+              <span>Identifierade kvalitetsproblem</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {issues.map((issue) => (
+                <div key={issue.id} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <Database className="w-4 h-4 text-gray-500" />
+                      <span className="font-medium">{issue.description}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {getSeverityBadge(issue.severity)}
+                      <Badge variant="outline">{issue.count} poster</Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600 mb-2">
+                    Tabell: <code className="bg-gray-100 px-1 rounded">{issue.table}</code>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600">
+                    Typ: <span className="capitalize">{issue.type.replace('_', ' ')}</span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {issues.length === 0 && !loading && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-green-700 mb-2">
+              Inga kvalitetsproblem identifierade!
+            </h3>
+            <p className="text-gray-600">
+              Dina data håller hög kvalitet. Fortsätt med regelbundna kontroller.
+            </p>
           </CardContent>
         </Card>
       )}

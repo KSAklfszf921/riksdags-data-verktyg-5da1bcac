@@ -10,21 +10,20 @@ import {
   Settings, 
   Database, 
   Activity, 
-  TestTube,
+  Shield,
   AlertTriangle,
   CheckCircle,
   Clock,
   BarChart3,
-  Shield,
   TrendingUp,
   RefreshCw,
   Zap
 } from "lucide-react";
 import EnhancedAdminDashboard from './EnhancedAdminDashboard';
 import EnhancedTestRunner from './EnhancedTestRunner';
-import ComprehensiveDataSync from './ComprehensiveDataSync';
 import ProcessMonitor from './ProcessMonitor';
-import DataSyncButtons from './DataSyncButtons';
+import UnifiedDataSyncManager from './UnifiedDataSyncManager';
+import DataQualityDashboard from './DataQualityDashboard';
 import EnhancedAdminQuickActions from './EnhancedAdminQuickActions';
 
 interface SystemMetrics {
@@ -48,7 +47,7 @@ const MasterAdminPanel: React.FC = () => {
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // Beräkna systemmetrics baserat på sync-data
+  // Calculate system metrics based on sync data
   useEffect(() => {
     const completedSyncs = recentSyncs.filter(s => s.status === 'completed');
     const failedSyncs = recentSyncs.filter(s => s.status === 'failed');
@@ -56,7 +55,7 @@ const MasterAdminPanel: React.FC = () => {
     
     const successRate = totalRecent > 0 ? (completedSyncs.length / totalRecent) * 100 : 100;
     
-    // Bestäm systemhälsa
+    // Determine system health
     let systemHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
     if (error || failedSyncs.length > completedSyncs.length) {
       systemHealth = 'critical';
@@ -64,7 +63,7 @@ const MasterAdminPanel: React.FC = () => {
       systemHealth = 'warning';
     }
     
-    // Beräkna datafräschhet
+    // Calculate data freshness
     const lastActivity = recentSyncs[0]?.completed_at || recentSyncs[0]?.started_at;
     let dataFreshness = 'Aldrig';
     if (lastActivity) {
@@ -92,13 +91,13 @@ const MasterAdminPanel: React.FC = () => {
     });
   }, [activeSyncs, recentSyncs, error]);
 
-  // Auto-refresh funktionalitet
+  // Auto-refresh functionality
   useEffect(() => {
     if (!autoRefresh) return;
     
     const interval = setInterval(() => {
       refreshStatus();
-    }, 10000); // Uppdatera varje 10 sekund
+    }, 10000); // Update every 10 seconds
     
     return () => clearInterval(interval);
   }, [autoRefresh, refreshStatus]);
@@ -140,7 +139,7 @@ const MasterAdminPanel: React.FC = () => {
             <div className="flex items-center space-x-2">
               <Shield className="w-5 h-5" />
               <span>Master Admin Panel</span>
-              <span className="text-sm font-normal text-gray-500">v2.0</span>
+              <span className="text-sm font-normal text-gray-500">v3.0</span>
             </div>
             <div className="flex items-center space-x-4">
               {getStatusBadge(systemMetrics.systemHealth)}
@@ -160,7 +159,7 @@ const MasterAdminPanel: React.FC = () => {
             </div>
           </CardTitle>
           <CardDescription>
-            Centraliserad kontrollpanel med realtidsövervakning och avancerad systemadministration
+            Unified kontrollpanel med förbättrad datahantering och kvalitetskontroll
           </CardDescription>
         </CardHeader>
         
@@ -225,8 +224,11 @@ const MasterAdminPanel: React.FC = () => {
             Dashboard
           </TabsTrigger>
           <TabsTrigger value="sync" className="flex items-center">
-            Synkronisering
+            Data Sync
             {getTabBadge('sync')}
+          </TabsTrigger>
+          <TabsTrigger value="quality" className="flex items-center">
+            Datakvalitet
           </TabsTrigger>
           <TabsTrigger value="monitor" className="flex items-center">
             Övervakning
@@ -234,9 +236,6 @@ const MasterAdminPanel: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="testing" className="flex items-center">
             Testning
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="flex items-center">
-            Analys
           </TabsTrigger>
         </TabsList>
 
@@ -248,10 +247,11 @@ const MasterAdminPanel: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="sync">
-          <div className="space-y-6">
-            <DataSyncButtons />
-            <ComprehensiveDataSync />
-          </div>
+          <UnifiedDataSyncManager />
+        </TabsContent>
+
+        <TabsContent value="quality">
+          <DataQualityDashboard />
         </TabsContent>
 
         <TabsContent value="monitor">
@@ -261,144 +261,9 @@ const MasterAdminPanel: React.FC = () => {
         <TabsContent value="testing">
           <EnhancedTestRunner />
         </TabsContent>
-
-        <TabsContent value="analytics">
-          <EnhancedAnalyticsTab />
-        </TabsContent>
       </Tabs>
     </div>
   );
 };
-
-const EnhancedAnalyticsTab: React.FC = () => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <TrendingUp className="w-5 h-5" />
-          <span>Systemtrender</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-sm">Synkroniseringar/dag</span>
-            <span className="font-medium text-green-600">24 ↗️</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm">Genomsnittlig svarstid</span>
-            <span className="font-medium text-blue-600">2.3min ↗️</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm">Felfrekvens</span>
-            <span className="font-medium text-green-600">0.4% ↘️</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm">Datavolym/dag</span>
-            <span className="font-medium text-purple-600">4.7GB ↗️</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm">API-begäranden/timme</span>
-            <span className="font-medium text-orange-600">156 ↗️</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <BarChart3 className="w-5 h-5" />
-          <span>Prestanda & Resurser</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>API-användning</span>
-              <span>73%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-blue-600 h-2 rounded-full" style={{ width: '73%' }}></div>
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Databaslast</span>
-              <span>35%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-green-600 h-2 rounded-full" style={{ width: '35%' }}></div>
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Edge Function-kapacitet</span>
-              <span>12%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '12%' }}></div>
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex justify-between text-sm mb-1">
-              <span>Lagringsutrymme</span>
-              <span>58%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className="bg-purple-600 h-2 rounded-full" style={{ width: '58%' }}></div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <Card className="md:col-span-2">
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Zap className="w-5 h-5" />
-          <span>Realtidsstatistik</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-blue-600">349</div>
-            <div className="text-xs text-gray-600">Ledamöter</div>
-          </div>
-          
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-green-600">18,543</div>
-            <div className="text-xs text-gray-600">Dokument</div>
-          </div>
-          
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-purple-600">3,247</div>
-            <div className="text-xs text-gray-600">Voteringar</div>
-          </div>
-          
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-orange-600">1,892</div>
-            <div className="text-xs text-gray-600">Kalender</div>
-          </div>
-          
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-red-600">8</div>
-            <div className="text-xs text-gray-600">Partier</div>
-          </div>
-          
-          <div className="p-3 border rounded">
-            <div className="text-lg font-bold text-gray-600">99.2%</div>
-            <div className="text-xs text-gray-600">Uptime</div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  </div>
-);
 
 export default MasterAdminPanel;

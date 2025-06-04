@@ -26,7 +26,7 @@ const RealTimeSyncMonitor: React.FC = () => {
   const { activeSyncs, recentSyncs, loading, error } = useSyncMonitor();
   const [syncProgress, setSyncProgress] = useState<Record<string, SyncProgress>>({});
 
-  // Simulera progress för aktiva syncs
+  // Simulate progress for active syncs
   useEffect(() => {
     if (activeSyncs.length === 0) {
       setSyncProgress({});
@@ -47,16 +47,14 @@ const RealTimeSyncMonitor: React.FC = () => {
             };
           }
           
-          // Simulera progress
           const current = updated[sync.id];
           if (current.progress < 95) {
             current.progress += Math.random() * 5;
             
-            // Uppdatera operation baserat på progress
             if (current.progress < 20) {
               current.currentOperation = 'Förbereder API-anrop...';
             } else if (current.progress < 40) {
-              current.currentOperation = 'Hämtar data från Riksdag API...';
+              current.currentOperation = 'Hämtar data från API...';
             } else if (current.progress < 60) {
               current.currentOperation = 'Bearbetar data...';
             } else if (current.progress < 80) {
@@ -65,7 +63,6 @@ const RealTimeSyncMonitor: React.FC = () => {
               current.currentOperation = 'Slutför synkronisering...';
             }
             
-            // Beräkna uppskattad återstående tid
             const elapsed = Date.now() - new Date(sync.started_at).getTime();
             const estimatedTotal = (elapsed / current.progress) * 100;
             current.estimatedTimeRemaining = Math.max(0, estimatedTotal - elapsed);
