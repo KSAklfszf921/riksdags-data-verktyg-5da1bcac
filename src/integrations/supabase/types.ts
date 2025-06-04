@@ -243,6 +243,120 @@ export type Database = {
         }
         Relationships: []
       }
+      enhanced_member_profiles: {
+        Row: {
+          activity_summary: Json | null
+          assignments: Json | null
+          birth_date: string | null
+          birth_year: number | null
+          committee_history: Json | null
+          constituency: string | null
+          created_at: string | null
+          current_committees: string[] | null
+          data_completeness_score: number | null
+          data_quality_issues: Json | null
+          education: string | null
+          email: string | null
+          first_name: string
+          full_name: string | null
+          gender: string | null
+          id: string
+          image_urls: Json | null
+          is_active: boolean | null
+          last_name: string
+          last_sync_at: string | null
+          latest_activity_date: string | null
+          member_id: string
+          missing_fields: string[] | null
+          party: string
+          phone: string | null
+          primary_image_url: string | null
+          profession: string | null
+          riksdag_status: string | null
+          social_media: Json | null
+          status_history: Json | null
+          sync_source: string | null
+          sync_version: string | null
+          updated_at: string | null
+          website_url: string | null
+          yearly_activity: Json | null
+        }
+        Insert: {
+          activity_summary?: Json | null
+          assignments?: Json | null
+          birth_date?: string | null
+          birth_year?: number | null
+          committee_history?: Json | null
+          constituency?: string | null
+          created_at?: string | null
+          current_committees?: string[] | null
+          data_completeness_score?: number | null
+          data_quality_issues?: Json | null
+          education?: string | null
+          email?: string | null
+          first_name?: string
+          full_name?: string | null
+          gender?: string | null
+          id?: string
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string
+          last_sync_at?: string | null
+          latest_activity_date?: string | null
+          member_id: string
+          missing_fields?: string[] | null
+          party: string
+          phone?: string | null
+          primary_image_url?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          social_media?: Json | null
+          status_history?: Json | null
+          sync_source?: string | null
+          sync_version?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+          yearly_activity?: Json | null
+        }
+        Update: {
+          activity_summary?: Json | null
+          assignments?: Json | null
+          birth_date?: string | null
+          birth_year?: number | null
+          committee_history?: Json | null
+          constituency?: string | null
+          created_at?: string | null
+          current_committees?: string[] | null
+          data_completeness_score?: number | null
+          data_quality_issues?: Json | null
+          education?: string | null
+          email?: string | null
+          first_name?: string
+          full_name?: string | null
+          gender?: string | null
+          id?: string
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string
+          last_sync_at?: string | null
+          latest_activity_date?: string | null
+          member_id?: string
+          missing_fields?: string[] | null
+          party?: string
+          phone?: string | null
+          primary_image_url?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          social_media?: Json | null
+          status_history?: Json | null
+          sync_source?: string | null
+          sync_version?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+          yearly_activity?: Json | null
+        }
+        Relationships: []
+      }
       language_analysis: {
         Row: {
           analysis_date: string
@@ -343,17 +457,24 @@ export type Database = {
           birth_year: number | null
           committee_assignments: Json | null
           constituency: string | null
+          contact_info: Json | null
           created_at: string
           current_committees: string[] | null
+          date_from: string | null
+          date_to: string | null
+          education: string | null
           first_name: string
           gender: string | null
           id: string
           image_urls: Json | null
           is_active: boolean | null
           last_name: string
+          last_sync_at: string | null
           member_id: string
           party: string
+          profession: string | null
           riksdag_status: string | null
+          status_history: Json | null
           updated_at: string
         }
         Insert: {
@@ -362,17 +483,24 @@ export type Database = {
           birth_year?: number | null
           committee_assignments?: Json | null
           constituency?: string | null
+          contact_info?: Json | null
           created_at?: string
           current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
           first_name: string
           gender?: string | null
           id?: string
           image_urls?: Json | null
           is_active?: boolean | null
           last_name: string
+          last_sync_at?: string | null
           member_id: string
           party: string
+          profession?: string | null
           riksdag_status?: string | null
+          status_history?: Json | null
           updated_at?: string
         }
         Update: {
@@ -381,20 +509,71 @@ export type Database = {
           birth_year?: number | null
           committee_assignments?: Json | null
           constituency?: string | null
+          contact_info?: Json | null
           created_at?: string
           current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
           first_name?: string
           gender?: string | null
           id?: string
           image_urls?: Json | null
           is_active?: boolean | null
           last_name?: string
+          last_sync_at?: string | null
           member_id?: string
           party?: string
+          profession?: string | null
           riksdag_status?: string | null
+          status_history?: Json | null
           updated_at?: string
         }
         Relationships: []
+      }
+      member_data_quality_log: {
+        Row: {
+          detected_at: string | null
+          id: string
+          issue_description: string
+          issue_type: string
+          member_id: string
+          resolution_notes: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          severity: string | null
+        }
+        Insert: {
+          detected_at?: string | null
+          id?: string
+          issue_description: string
+          issue_type: string
+          member_id: string
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          severity?: string | null
+        }
+        Update: {
+          detected_at?: string | null
+          id?: string
+          issue_description?: string
+          issue_type?: string
+          member_id?: string
+          resolution_notes?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          severity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_data_quality_log_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "enhanced_member_profiles"
+            referencedColumns: ["member_id"]
+          },
+        ]
       }
       member_news: {
         Row: {
@@ -431,6 +610,74 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      member_sync_status: {
+        Row: {
+          assignments_updated: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          current_step: string | null
+          data_updated: boolean | null
+          error_message: string | null
+          id: string
+          images_updated: boolean | null
+          max_retries: number | null
+          member_id: string
+          retry_count: number | null
+          started_at: string | null
+          status: string | null
+          steps_completed: number | null
+          steps_total: number | null
+          sync_batch_id: string
+          sync_type: string
+        }
+        Insert: {
+          assignments_updated?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: string | null
+          data_updated?: boolean | null
+          error_message?: string | null
+          id?: string
+          images_updated?: boolean | null
+          max_retries?: number | null
+          member_id: string
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          steps_completed?: number | null
+          steps_total?: number | null
+          sync_batch_id: string
+          sync_type: string
+        }
+        Update: {
+          assignments_updated?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: string | null
+          data_updated?: boolean | null
+          error_message?: string | null
+          id?: string
+          images_updated?: boolean | null
+          max_retries?: number | null
+          member_id?: string
+          retry_count?: number | null
+          started_at?: string | null
+          status?: string | null
+          steps_completed?: number | null
+          steps_total?: number | null
+          sync_batch_id?: string
+          sync_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_sync_status_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "enhanced_member_profiles"
+            referencedColumns: ["member_id"]
+          },
+        ]
       }
       party_data: {
         Row: {
@@ -614,10 +861,118 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      enhanced_member_view: {
+        Row: {
+          active_assignments_count: number | null
+          activity_data: Json | null
+          assignments: Json | null
+          birth_year: number | null
+          committee_assignments: Json | null
+          constituency: string | null
+          contact_info: Json | null
+          created_at: string | null
+          current_age: number | null
+          current_committees: string[] | null
+          date_from: string | null
+          date_to: string | null
+          education: string | null
+          first_name: string | null
+          gender: string | null
+          id: string | null
+          image_urls: Json | null
+          is_active: boolean | null
+          last_name: string | null
+          last_sync_at: string | null
+          member_id: string | null
+          party: string | null
+          profession: string | null
+          riksdag_status: string | null
+          status_history: Json | null
+          total_documents: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          active_assignments_count?: never
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          current_age?: never
+          current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
+          first_name?: string | null
+          gender?: string | null
+          id?: string | null
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string | null
+          last_sync_at?: string | null
+          member_id?: string | null
+          party?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          status_history?: Json | null
+          total_documents?: never
+          updated_at?: string | null
+        }
+        Update: {
+          active_assignments_count?: never
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          current_age?: never
+          current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
+          first_name?: string | null
+          gender?: string | null
+          id?: string | null
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string | null
+          last_sync_at?: string | null
+          member_id?: string | null
+          party?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          status_history?: Json | null
+          total_documents?: never
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      calculate_member_data_completeness: {
+        Args: {
+          member_row: Database["public"]["Tables"]["enhanced_member_profiles"]["Row"]
+        }
+        Returns: number
+      }
+      identify_missing_member_fields: {
+        Args: {
+          member_row: Database["public"]["Tables"]["enhanced_member_profiles"]["Row"]
+        }
+        Returns: string[]
+      }
+      migrate_to_enhanced_member_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      update_member_active_status: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
