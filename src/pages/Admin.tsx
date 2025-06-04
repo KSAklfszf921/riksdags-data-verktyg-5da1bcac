@@ -2,31 +2,31 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Database, Users, BarChart3, Settings, Zap, Vote, Activity, TestTube, Server } from "lucide-react";
+import { Shield, Vote, Activity, TestTube, Server, Settings } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
-import EnhancedAdminDashboard from "../components/EnhancedAdminDashboard";
+import MasterControlPanel from "../components/MasterControlPanel";
 import EnhancedVotingTool from "../components/EnhancedVotingTool";
 import ProcessMonitor from "../components/ProcessMonitor";
 import SystemPerformanceDashboard from "../components/SystemPerformanceDashboard";
 import ApiTestingDashboard from "../components/ApiTestingDashboard";
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("master");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageHeader
           title="Admin Dashboard"
-          description="Komplett systemadministration och övervakning"
+          description="Master kontrollpanel för systemadministration och övervakning"
           icon={<Shield className="w-6 h-6 text-white" />}
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="dashboard" className="flex items-center space-x-2">
-              <Zap className="w-4 h-4" />
-              <span>Dashboard</span>
+            <TabsTrigger value="master" className="flex items-center space-x-2">
+              <Shield className="w-4 h-4" />
+              <span>Master Panel</span>
             </TabsTrigger>
             <TabsTrigger value="voting" className="flex items-center space-x-2">
               <Vote className="w-4 h-4" />
@@ -50,8 +50,8 @@ const Admin = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard">
-            <EnhancedAdminDashboard />
+          <TabsContent value="master">
+            <MasterControlPanel />
           </TabsContent>
 
           <TabsContent value="voting">
@@ -78,7 +78,7 @@ const Admin = () => {
                   <span>Systeminställningar</span>
                 </CardTitle>
                 <CardDescription>
-                  Konfigurera systemomfattande inställningar och preferenser
+                  Avancerade systeminställningar och konfiguration
                 </CardDescription>
               </CardHeader>
               <CardContent>

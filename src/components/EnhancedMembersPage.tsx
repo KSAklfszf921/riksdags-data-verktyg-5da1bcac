@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Filter, Search, Star, Grid, List, Smartphone, AlertTriangle, Database } from "lucide-react";
+import { Users, Filter, Search, Star, Grid, List, Smartphone, AlertTriangle } from "lucide-react";
 import { useEnhancedMembers } from '@/hooks/useEnhancedMembers';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -13,7 +14,6 @@ import EnhancedMemberGrid from './EnhancedMemberGrid';
 import MemberFilters, { MemberFilter } from './MemberFilters';
 import EnhancedMemberProfile from './EnhancedMemberProfile';
 import MobileMemberCard from './MobileMemberCard';
-import ImprovedMemberDataSynchronizer from './ImprovedMemberDataSynchronizer';
 import { cn } from '@/lib/utils';
 
 const EnhancedMembersPage: React.FC = () => {
@@ -22,7 +22,6 @@ const EnhancedMembersPage: React.FC = () => {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'mobile'>('grid');
   const [showFilters, setShowFilters] = useState(!isMobile);
-  const [showSyncTool, setShowSyncTool] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   
   const [filters, setFilters] = useState<MemberFilter>({
@@ -185,7 +184,7 @@ const EnhancedMembersPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Data quality warning */}
+      {/* Data quality notice - now points to admin panel */}
       {needsSync && (
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
           <CardContent className="pt-6">
@@ -197,27 +196,21 @@ const EnhancedMembersPage: React.FC = () => {
                     Ofullständig medlemsdata upptäckt
                   </h3>
                   <p className="text-xs text-orange-600 dark:text-orange-300">
-                    Många ledamöter saknar namn och annan viktig information. Använd förbättrade synkroniseringsverktyget för att hämta fullständig data.
+                    Många ledamöter saknar namn och annan viktig information. Använd admin-panelen för datasynkronisering.
                   </p>
                 </div>
               </div>
               <Button 
-                onClick={() => setShowSyncTool(!showSyncTool)}
+                onClick={() => window.location.href = '/admin'}
                 variant="outline"
                 size="sm"
                 className="border-orange-300 text-orange-700 hover:bg-orange-100"
               >
-                <Database className="w-4 h-4 mr-2" />
-                {showSyncTool ? 'Dölj' : 'Visa'} Förbättrad Synkronisering
+                Gå till Admin-panel
               </Button>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Improved sync tool */}
-      {showSyncTool && (
-        <ImprovedMemberDataSynchronizer />
       )}
 
       {/* Header with tabs */}
