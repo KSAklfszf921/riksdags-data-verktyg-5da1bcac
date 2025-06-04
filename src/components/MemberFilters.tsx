@@ -219,24 +219,26 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
         </div>
 
         {/* Parties */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center space-x-1">
-            <Users className="w-4 h-4" />
-            <span>Partier</span>
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {availableParties.map(party => (
-              <Badge
-                key={party}
-                variant={filters.party.includes(party) ? "default" : "outline"}
-                className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900"
-                onClick={() => toggleArrayFilter('party', party)}
-              >
-                {party}
-              </Badge>
-            ))}
+        {availableParties.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center space-x-1">
+              <Users className="w-4 h-4" />
+              <span>Partier</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {availableParties.map(party => (
+                <Badge
+                  key={party}
+                  variant={filters.party.includes(party) ? "default" : "outline"}
+                  className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900"
+                  onClick={() => toggleArrayFilter('party', party)}
+                >
+                  {party}
+                </Badge>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Gender */}
         <div className="space-y-2">
@@ -302,6 +304,40 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
                     onClick={() => toggleArrayFilter('constituency', constituency)}
                   >
                     {constituency}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Committees */}
+        {availableCommittees.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Utskott</label>
+            <Select onValueChange={(value) => toggleArrayFilter('committee', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj utskott..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableCommittees.map(committee => (
+                  <SelectItem key={committee} value={committee}>
+                    {committee}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filters.committee.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {filters.committee.map(committee => (
+                  <Badge 
+                    key={committee} 
+                    variant="secondary"
+                    className="cursor-pointer"
+                    onClick={() => toggleArrayFilter('committee', committee)}
+                  >
+                    {committee}
                     <X className="w-3 h-3 ml-1" />
                   </Badge>
                 ))}

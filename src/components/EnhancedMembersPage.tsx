@@ -1,48 +1,11 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Users, TrendingUp, Activity, MapPin, Filter } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Users, TrendingUp, Activity, MapPin } from "lucide-react";
 import { useResponsive } from "@/hooks/use-responsive";
+import { useEnhancedMembers } from "@/hooks/useEnhancedMembers";
 import MemberFilters, { MemberFilter } from "./MemberFilters";
 import EnhancedMemberGrid from "./EnhancedMemberGrid";
-import StatsDashboard from "./StatsDashboard";
-
-// Mock data - in real app this would come from your API
-const mockMembers = [
-  {
-    id: '1',
-    member_id: 'i-123',
-    first_name: 'Anna',
-    last_name: 'Andersson',
-    party: 'S',
-    constituency: 'Stockholm',
-    birth_year: 1975,
-    gender: 'kvinna',
-    current_committees: ['UU', 'FiU'],
-    image_urls: {},
-    is_active: true
-  },
-  {
-    id: '2',
-    member_id: 'i-124',
-    first_name: 'Erik',
-    last_name: 'Eriksson',
-    party: 'M',
-    constituency: 'Göteborg',
-    birth_year: 1968,
-    gender: 'man',
-    current_committees: ['NU'],
-    image_urls: {},
-    is_active: true
-  },
-  // Add more mock members as needed
-];
-
-const availableParties = ['S', 'M', 'SD', 'C', 'V', 'KD', 'L', 'MP'];
-const availableConstituencies = ['Stockholm', 'Göteborg', 'Malmö', 'Uppsala', 'Västra Götaland'];
-const availableCommittees = ['UU', 'FiU', 'NU', 'SoU', 'SkU', 'TU', 'MU'];
 
 interface EnhancedMembersPageProps {
   className?: string;
@@ -66,9 +29,29 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     sortOrder: 'asc'
   });
 
+  // Load members data from Supabase
+  const { members: allMembers, loading, error } = useEnhancedMembers(1, 1000, 'current');
+
+  // Extract unique values for filter options
+  const filterOptions = useMemo(() => {
+    if (!allMembers.length) {
+      return {
+        parties: [],
+        constituencies: [],
+        committees: []
+      };
+    }
+
+    const parties = [...new Set(allMembers.map(m => m.party))].sort();
+    const constituencies = [...new Set(allMembers.map(m => m.constituency).filter(Boolean))].sort();
+    const committees = [...new Set(allMembers.flatMap(m => m.current_committees || []))].sort();
+
+    return { parties, constituencies, committees };
+  }, [allMembers]);
+
   // Filter and sort members
   const filteredMembers = useMemo(() => {
-    let filtered = mockMembers.filter(member => {
+    let filtered = allMembers.filter(member => {
       // Search filter
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
@@ -89,6 +72,14 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
       // Constituency filter
       if (filters.constituency.length > 0 && member.constituency && !filters.constituency.includes(member.constituency)) {
         return false;
+      }
+
+      // Committee filter
+      if (filters.committee.length > 0) {
+        const memberCommittees = member.current_committees || [];
+        if (!filters.committee.some(committee => memberCommittees.includes(committee))) {
+          return false;
+        }
       }
 
       // Age filter
@@ -126,6 +117,11 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
         case 'constituency':
           comparison = (a.constituency || '').localeCompare(b.constituency || '');
           break;
+        case 'activity':
+          const activityA = a.current_year_stats?.total_documents || 0;
+          const activityB = b.current_year_stats?.total_documents || 0;
+          comparison = activityA - activityB;
+          break;
         default:
           comparison = 0;
       }
@@ -134,7 +130,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     });
 
     return filtered;
-  }, [filters]);
+  }, [allMembers, filters]);
 
   const handleToggleFavorite = useCallback((memberId: string) => {
     setFavorites(prev => 
@@ -158,16 +154,29 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
       return acc;
     }, {} as Record<string, number>);
 
+    const averageAge = filteredMembers
+      .filter(m => m.birth_year)
+      .reduce((sum, m) => sum + (new Date().getFullYear() - (m.birth_year || 0)), 0) / 
+      filteredMembers.filter(m => m.birth_year).length;
+
     return {
       total: filteredMembers.length,
       parties: Object.keys(partyStats).length,
-      averageAge: filteredMembers
-        .filter(m => m.birth_year)
-        .reduce((sum, m) => sum + (new Date().getFullYear() - (m.birth_year || 0)), 0) / 
-        filteredMembers.filter(m => m.birth_year).length,
+      averageAge: isNaN(averageAge) ? 0 : Math.round(averageAge),
       genderDistribution: genderStats
     };
   }, [filteredMembers]);
+
+  if (error) {
+    return (
+      <Card className="p-8">
+        <div className="text-center text-red-500">
+          <h3 className="text-lg font-medium mb-2">Fel vid laddning av data</h3>
+          <p className="text-sm">{error}</p>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -179,7 +188,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
               <Users className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {stats.total}
+                  {loading ? '...' : stats.total}
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">Ledamöter</p>
               </div>
@@ -193,7 +202,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
               <TrendingUp className="w-5 h-5 text-green-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {stats.parties}
+                  {loading ? '...' : stats.parties}
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">Partier</p>
               </div>
@@ -207,7 +216,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
               <Activity className="w-5 h-5 text-purple-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {isNaN(stats.averageAge) ? '-' : Math.round(stats.averageAge)}
+                  {loading ? '...' : stats.averageAge || '-'}
                 </p>
                 <p className="text-xs text-gray-600 dark:text-gray-400">Medelålder</p>
               </div>
@@ -234,15 +243,16 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
       <MemberFilters
         filters={filters}
         onFiltersChange={setFilters}
-        availableParties={availableParties}
-        availableConstituencies={availableConstituencies}
-        availableCommittees={availableCommittees}
+        availableParties={filterOptions.parties}
+        availableConstituencies={filterOptions.constituencies}
+        availableCommittees={filterOptions.committees}
         compact={isMobile}
       />
 
       {/* Members Grid */}
       <EnhancedMemberGrid
         members={filteredMembers}
+        loading={loading}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         favorites={favorites}

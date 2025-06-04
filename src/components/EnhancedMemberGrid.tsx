@@ -8,29 +8,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity, Users } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-
-interface Member {
-  id: string;
-  member_id: string;
-  first_name: string;
-  last_name: string;
-  party: string;
-  constituency?: string;
-  birth_year?: number;
-  gender?: string;
-  current_committees?: string[];
-  committee_assignments?: any;
-  image_urls?: { [key: string]: string };
-  activity_data?: any;
-  is_active?: boolean;
-}
+import { EnhancedMember } from '@/hooks/useEnhancedMembers';
 
 interface EnhancedMemberGridProps {
-  members: Member[];
+  members: EnhancedMember[];
   loading?: boolean;
   viewMode?: 'grid' | 'list';
   onViewModeChange?: (mode: 'grid' | 'list') => void;
-  onMemberSelect?: (member: Member) => void;
+  onMemberSelect?: (member: EnhancedMember) => void;
   favorites?: string[];
   onToggleFavorite?: (memberId: string) => void;
   className?: string;
@@ -54,13 +39,12 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     return new Date().getFullYear() - birthYear;
   };
 
-  const getActivityLevel = (activityData?: any) => {
-    if (!activityData) return 'Okänd';
-    // Mock activity calculation - in real app this would be based on actual data
-    const level = Math.random();
-    if (level > 0.7) return 'Hög';
-    if (level > 0.4) return 'Medel';
-    return 'Låg';
+  const getActivityLevel = (member: EnhancedMember) => {
+    const totalDocs = member.current_year_stats?.total_documents || 0;
+    if (totalDocs > 50) return 'Hög';
+    if (totalDocs > 20) return 'Medel';
+    if (totalDocs > 0) return 'Låg';
+    return 'Okänd';
   };
 
   const getActivityColor = (level: string) => {
@@ -70,6 +54,12 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
       case 'Låg': return 'text-red-600 bg-red-100 dark:bg-red-900/20';
       default: return 'text-gray-600 bg-gray-100 dark:bg-gray-900/20';
     }
+  };
+
+  const getImageUrl = (member: EnhancedMember) => {
+    if (!member.image_urls || typeof member.image_urls !== 'object') return undefined;
+    const urls = member.image_urls as Record<string, string>;
+    return urls['192'] || urls['128'] || urls['80'] || undefined;
   };
 
   const sortedMembers = useMemo(() => {
@@ -110,10 +100,11 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     );
   }
 
-  const MemberCard = ({ member }: { member: Member }) => {
+  const MemberCard = ({ member }: { member: EnhancedMember }) => {
     const age = getAge(member.birth_year);
-    const activityLevel = getActivityLevel(member.activity_data);
+    const activityLevel = getActivityLevel(member);
     const isFavorite = favorites.includes(member.member_id);
+    const imageUrl = getImageUrl(member);
 
     const handleCardClick = () => {
       if (onMemberSelect) {
@@ -141,7 +132,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
               <div className="flex items-center space-x-4 flex-1 min-w-0">
                 <Avatar className="h-12 w-12 flex-shrink-0">
                   <AvatarImage 
-                    src={member.image_urls?.['192'] || member.image_urls?.['128']} 
+                    src={imageUrl} 
                     alt={`${member.first_name} ${member.last_name}`}
                   />
                   <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
@@ -223,7 +214,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
             <div className="relative">
               <Avatar className="h-16 w-16">
                 <AvatarImage 
-                  src={member.image_urls?.['192'] || member.image_urls?.['128']} 
+                  src={imageUrl} 
                   alt={`${member.first_name} ${member.last_name}`}
                 />
                 <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-lg">
