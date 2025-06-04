@@ -143,6 +143,29 @@ export const searchEvents = async (query: string): Promise<CachedCalendarData[]>
   }
 };
 
+// Add the missing export
+export const getCalendarDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
+  const { data, error } = await supabase
+    .from('calendar_data')
+    .select('updated_at')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error || !data) {
+    return { lastUpdated: null, isStale: true };
+  }
+
+  const lastUpdated = data.updated_at;
+  const lastUpdateTime = new Date(lastUpdated);
+  const now = new Date();
+  const hoursSinceUpdate = (now.getTime() - lastUpdateTime.getTime()) / (1000 * 60 * 60);
+  
+  const isStale = hoursSinceUpdate > 24;
+
+  return { lastUpdated, isStale };
+};
+
 // Format functions
 export const formatEventDate = (dateString: string | null): string => {
   if (!dateString) return 'Okänt datum';
@@ -224,7 +247,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> {
+  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -261,7 +284,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> {
+  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -298,7 +321,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getAllEvents(): Promise<CachedCalendarData[]> {
+  static async getAllEvents(): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')

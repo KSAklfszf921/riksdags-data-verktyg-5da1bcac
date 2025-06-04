@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -123,9 +124,9 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
         return [
           'BEGIN:VEVENT',
           `DTSTART:${format(eventDate, 'yyyyMMdd')}`,
-          `SUMMARY:${event.summary || event.aktivitet || 'Händelse'}`,
+          `SUMMARY:${event.summary || 'Händelse'}`,
           `DESCRIPTION:${event.description || ''}`,
-          `LOCATION:${event.plats || ''}`,
+          `LOCATION:${event.location || ''}`,
           `UID:${event.event_id || event.id}`,
           'END:VEVENT'
         ];

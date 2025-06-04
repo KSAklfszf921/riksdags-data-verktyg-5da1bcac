@@ -156,9 +156,9 @@ const UpcomingEventsWidget = () => {
                   <div className="text-xs font-medium text-gray-500 uppercase">
                     {formatEventDateShort(event.datum)}
                   </div>
-                  {event.tid && (
+                  {event.start_time && (
                     <div className="text-xs text-gray-400 mt-1">
-                      {formatEventTime(event.tid)}
+                      {formatEventTime(event.start_time)}
                     </div>
                   )}
                 </div>
@@ -167,12 +167,12 @@ const UpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {event.summary || event.aktivitet || 'Händelse'}
+                        {event.summary || 'Händelse'}
                       </h4>
-                      {event.plats && (
+                      {event.location && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <MapPin className="w-3 h-3 mr-1" />
-                          <span className="truncate">{event.plats}</span>
+                          <span className="truncate">{event.location}</span>
                         </div>
                       )}
                     </div>
