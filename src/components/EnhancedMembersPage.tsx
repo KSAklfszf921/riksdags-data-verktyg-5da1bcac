@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import EnhancedMemberGrid from './EnhancedMemberGrid';
 import MemberFilters, { MemberFilter } from './MemberFilters';
 import EnhancedMemberProfile from './EnhancedMemberProfile';
 import MobileMemberCard from './MobileMemberCard';
-import MemberDataSynchronizer from './MemberDataSynchronizer';
+import ImprovedMemberDataSynchronizer from './ImprovedMemberDataSynchronizer';
 import { cn } from '@/lib/utils';
 
 const EnhancedMembersPage: React.FC = () => {
@@ -198,7 +197,7 @@ const EnhancedMembersPage: React.FC = () => {
                     Ofullständig medlemsdata upptäckt
                   </h3>
                   <p className="text-xs text-orange-600 dark:text-orange-300">
-                    Många ledamöter saknar namn och annan viktig information. Kör synkronisering för att hämta fullständig data.
+                    Många ledamöter saknar namn och annan viktig information. Använd förbättrade synkroniseringsverktyget för att hämta fullständig data.
                   </p>
                 </div>
               </div>
@@ -209,16 +208,16 @@ const EnhancedMembersPage: React.FC = () => {
                 className="border-orange-300 text-orange-700 hover:bg-orange-100"
               >
                 <Database className="w-4 h-4 mr-2" />
-                {showSyncTool ? 'Dölj' : 'Visa'} Synkronisering
+                {showSyncTool ? 'Dölj' : 'Visa'} Förbättrad Synkronisering
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Sync tool */}
+      {/* Improved sync tool */}
       {showSyncTool && (
-        <MemberDataSynchronizer />
+        <ImprovedMemberDataSynchronizer />
       )}
 
       {/* Header with tabs */}
