@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { navItems } from "./nav-items";
-import ResponsiveHeader from "./components/ResponsiveHeader";
+import { ResponsiveHeader } from "./components/ResponsiveHeader";
 
 const queryClient = new QueryClient();
 
