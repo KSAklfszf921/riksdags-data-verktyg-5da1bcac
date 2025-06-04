@@ -11,64 +11,55 @@ export type Database = {
     Tables: {
       calendar_data: {
         Row: {
-          aktivitet: string | null
+          agenda_items: Json | null
           created_at: string
-          datum: string | null
+          datum: string
           description: string | null
+          end_time: string | null
           event_id: string
           id: string
+          location: string | null
           metadata: Json | null
           organ: string | null
           participants: Json | null
-          plats: string | null
-          related_documents: Json | null
-          sekretess: string | null
-          status: string | null
+          start_time: string | null
           summary: string | null
-          tid: string | null
           typ: string | null
           updated_at: string
-          url: string | null
         }
         Insert: {
-          aktivitet?: string | null
+          agenda_items?: Json | null
           created_at?: string
-          datum?: string | null
+          datum: string
           description?: string | null
+          end_time?: string | null
           event_id: string
           id?: string
+          location?: string | null
           metadata?: Json | null
           organ?: string | null
           participants?: Json | null
-          plats?: string | null
-          related_documents?: Json | null
-          sekretess?: string | null
-          status?: string | null
+          start_time?: string | null
           summary?: string | null
-          tid?: string | null
           typ?: string | null
           updated_at?: string
-          url?: string | null
         }
         Update: {
-          aktivitet?: string | null
+          agenda_items?: Json | null
           created_at?: string
-          datum?: string | null
+          datum?: string
           description?: string | null
+          end_time?: string | null
           event_id?: string
           id?: string
+          location?: string | null
           metadata?: Json | null
           organ?: string | null
           participants?: Json | null
-          plats?: string | null
-          related_documents?: Json | null
-          sekretess?: string | null
-          status?: string | null
+          start_time?: string | null
           summary?: string | null
-          tid?: string | null
           typ?: string | null
           updated_at?: string
-          url?: string | null
         }
         Relationships: []
       }
@@ -189,99 +180,6 @@ export type Database = {
         }
         Relationships: []
       }
-      language_analysis: {
-        Row: {
-          analysis_date: string
-          analysis_version: string
-          avg_sentence_length: number | null
-          avg_word_length: number | null
-          complex_words_ratio: number | null
-          created_at: string
-          document_id: string
-          document_title: string | null
-          document_type: string
-          exclamation_count: number
-          formal_language_indicators: number
-          full_text: string | null
-          id: string
-          language_complexity_score: number
-          member_id: string
-          member_name: string
-          overall_score: number
-          paragraph_count: number
-          passive_voice_ratio: number | null
-          question_count: number
-          rhetorical_elements_score: number
-          sentence_count: number
-          structural_clarity_score: number
-          technical_terms_count: number
-          unique_words_ratio: number | null
-          updated_at: string
-          vocabulary_richness_score: number
-          word_count: number
-        }
-        Insert: {
-          analysis_date?: string
-          analysis_version?: string
-          avg_sentence_length?: number | null
-          avg_word_length?: number | null
-          complex_words_ratio?: number | null
-          created_at?: string
-          document_id: string
-          document_title?: string | null
-          document_type: string
-          exclamation_count?: number
-          formal_language_indicators?: number
-          full_text?: string | null
-          id?: string
-          language_complexity_score: number
-          member_id: string
-          member_name: string
-          overall_score: number
-          paragraph_count?: number
-          passive_voice_ratio?: number | null
-          question_count?: number
-          rhetorical_elements_score: number
-          sentence_count?: number
-          structural_clarity_score: number
-          technical_terms_count?: number
-          unique_words_ratio?: number | null
-          updated_at?: string
-          vocabulary_richness_score: number
-          word_count?: number
-        }
-        Update: {
-          analysis_date?: string
-          analysis_version?: string
-          avg_sentence_length?: number | null
-          avg_word_length?: number | null
-          complex_words_ratio?: number | null
-          created_at?: string
-          document_id?: string
-          document_title?: string | null
-          document_type?: string
-          exclamation_count?: number
-          formal_language_indicators?: number
-          full_text?: string | null
-          id?: string
-          language_complexity_score?: number
-          member_id?: string
-          member_name?: string
-          overall_score?: number
-          paragraph_count?: number
-          passive_voice_ratio?: number | null
-          question_count?: number
-          rhetorical_elements_score?: number
-          sentence_count?: number
-          structural_clarity_score?: number
-          technical_terms_count?: number
-          unique_words_ratio?: number | null
-          updated_at?: string
-          vocabulary_richness_score?: number
-          word_count?: number
-        }
-        Relationships: []
-      }
       member_data: {
         Row: {
           activity_data: Json | null
@@ -342,51 +240,9 @@ export type Database = {
         }
         Relationships: []
       }
-      member_news: {
-        Row: {
-          created_at: string
-          description: string | null
-          id: string
-          image_url: string | null
-          link: string
-          member_id: string
-          member_name: string
-          pub_date: string
-          source: string | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          link: string
-          member_id: string
-          member_name: string
-          pub_date: string
-          source?: string | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          id?: string
-          image_url?: string | null
-          link?: string
-          member_id?: string
-          member_name?: string
-          pub_date?: string
-          source?: string | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       party_data: {
         Row: {
-          active_members: number
+          active_members: number | null
           activity_stats: Json | null
           age_distribution: Json | null
           committee_distribution: Json | null
@@ -397,11 +253,11 @@ export type Database = {
           member_list: Json | null
           party_code: string
           party_name: string
-          total_members: number
+          total_members: number | null
           updated_at: string
         }
         Insert: {
-          active_members?: number
+          active_members?: number | null
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
@@ -412,11 +268,11 @@ export type Database = {
           member_list?: Json | null
           party_code: string
           party_name: string
-          total_members?: number
+          total_members?: number | null
           updated_at?: string
         }
         Update: {
-          active_members?: number
+          active_members?: number | null
           activity_stats?: Json | null
           age_distribution?: Json | null
           committee_distribution?: Json | null
@@ -427,7 +283,7 @@ export type Database = {
           member_list?: Json | null
           party_code?: string
           party_name?: string
-          total_members?: number
+          total_members?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -436,7 +292,7 @@ export type Database = {
         Row: {
           anf_klockslag: string | null
           anforande_id: string | null
-          anforande_nummer: string | null
+          anforande_nummer: number | null
           anforande_url_html: string | null
           anforandedatum: string | null
           anforandetext: string | null
@@ -460,7 +316,7 @@ export type Database = {
         Insert: {
           anf_klockslag?: string | null
           anforande_id?: string | null
-          anforande_nummer?: string | null
+          anforande_nummer?: number | null
           anforande_url_html?: string | null
           anforandedatum?: string | null
           anforandetext?: string | null
@@ -484,7 +340,7 @@ export type Database = {
         Update: {
           anf_klockslag?: string | null
           anforande_id?: string | null
-          anforande_nummer?: string | null
+          anforande_nummer?: number | null
           anforande_url_html?: string | null
           anforandedatum?: string | null
           anforandetext?: string | null
@@ -516,14 +372,14 @@ export type Database = {
           dok_id: string | null
           hangar_id: string | null
           id: string
+          metadata: Json | null
           party_breakdown: Json | null
-          punkt: string | null
+          punkt: number | null
           rm: string | null
           systemdatum: string | null
           updated_at: string
           vote_id: string
           vote_results: Json | null
-          vote_statistics: Json | null
           votering: string | null
         }
         Insert: {
@@ -534,14 +390,14 @@ export type Database = {
           dok_id?: string | null
           hangar_id?: string | null
           id?: string
+          metadata?: Json | null
           party_breakdown?: Json | null
-          punkt?: string | null
+          punkt?: number | null
           rm?: string | null
           systemdatum?: string | null
           updated_at?: string
           vote_id: string
           vote_results?: Json | null
-          vote_statistics?: Json | null
           votering?: string | null
         }
         Update: {
@@ -552,14 +408,14 @@ export type Database = {
           dok_id?: string | null
           hangar_id?: string | null
           id?: string
+          metadata?: Json | null
           party_breakdown?: Json | null
-          punkt?: string | null
+          punkt?: number | null
           rm?: string | null
           systemdatum?: string | null
           updated_at?: string
           vote_id?: string
           vote_results?: Json | null
-          vote_statistics?: Json | null
           votering?: string | null
         }
         Relationships: []
@@ -569,91 +425,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      bytea_to_text: {
-        Args: { data: string }
-        Returns: string
-      }
-      http: {
-        Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_delete: {
-        Args:
-          | { uri: string }
-          | { uri: string; content: string; content_type: string }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_get: {
-        Args: { uri: string } | { uri: string; data: Json }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_head: {
-        Args: { uri: string }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_header: {
-        Args: { field: string; value: string }
-        Returns: Database["public"]["CompositeTypes"]["http_header"]
-      }
-      http_list_curlopt: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          curlopt: string
-          value: string
-        }[]
-      }
-      http_patch: {
-        Args: { uri: string; content: string; content_type: string }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_post: {
-        Args:
-          | { uri: string; content: string; content_type: string }
-          | { uri: string; data: Json }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_put: {
-        Args: { uri: string; content: string; content_type: string }
-        Returns: Database["public"]["CompositeTypes"]["http_response"]
-      }
-      http_reset_curlopt: {
-        Args: Record<PropertyKey, never>
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
         Returns: boolean
       }
-      http_set_curlopt: {
-        Args: { curlopt: string; value: string }
+      is_admin: {
+        Args: { _user_id?: string }
         Returns: boolean
       }
-      text_to_bytea: {
-        Args: { data: string }
-        Returns: string
+      migrate_to_enhanced_member_profiles: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
-      urlencode: {
-        Args: { data: Json } | { string: string } | { string: string }
-        Returns: string
+      update_member_active_status: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
-      http_header: {
-        field: string | null
-        value: string | null
-      }
-      http_request: {
-        method: unknown | null
-        uri: string | null
-        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
-        content_type: string | null
-        content: string | null
-      }
-      http_response: {
-        status: number | null
-        content_type: string | null
-        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
-        content: string | null
-      }
+      [_ in never]: never
     }
   }
 }
@@ -765,6 +561,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+    },
   },
 } as const
