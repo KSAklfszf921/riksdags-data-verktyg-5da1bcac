@@ -22,6 +22,22 @@ interface TableStats {
   isStale: boolean;
 }
 
+export interface DataFreshnessStatus {
+  type: string;
+  recordCount: number;
+  lastUpdated: string | null;
+  isStale: boolean;
+  errorMessage?: string;
+}
+
+export interface RefreshResult {
+  success: boolean;
+  message: string;
+  duration?: number;
+  stats?: any;
+  errors?: string[];
+}
+
 class DataRefreshService {
   private readonly validTables: ValidTableName[] = [
     'enhanced_member_profiles',
@@ -224,6 +240,128 @@ class DataRefreshService {
       emptyTables,
       overallHealth
     };
+  }
+}
+
+// Legacy compatibility functions for DatabaseInitializer
+export async function initializeAllDatabases(): Promise<RefreshResult> {
+  try {
+    const startTime = Date.now();
+    const result = await dataRefreshService.refreshAllStaleData({ forceRefresh: true });
+    const duration = Date.now() - startTime;
+    
+    return {
+      success: result.failed.length === 0,
+      message: `Initialization complete. Refreshed: ${result.refreshed.length}, Failed: ${result.failed.length}`,
+      duration,
+      stats: result
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+export async function refreshAllData(): Promise<RefreshResult> {
+  try {
+    const startTime = Date.now();
+    const result = await dataRefreshService.refreshAllStaleData();
+    const duration = Date.now() - startTime;
+    
+    return {
+      success: result.failed.length === 0,
+      message: `Refresh complete. Updated: ${result.refreshed.length}, Failed: ${result.failed.length}`,
+      duration,
+      stats: result
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+export async function refreshSpecificDataType(dataType: string): Promise<RefreshResult> {
+  try {
+    const tableMapping: Record<string, ValidTableName> = {
+      'Party': 'party_data',
+      'Member': 'enhanced_member_profiles',
+      'Vote': 'vote_data',
+      'Document': 'document_data',
+      'Calendar': 'calendar_data'
+    };
+    
+    const tableName = tableMapping[dataType];
+    if (!tableName) {
+      return {
+        success: false,
+        message: `Unknown data type: ${dataType}`
+      };
+    }
+    
+    const success = await dataRefreshService.refreshTable(tableName, { forceRefresh: true });
+    
+    return {
+      success,
+      message: success ? `${dataType} data refreshed successfully` : `Failed to refresh ${dataType} data`
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Error refreshing ${dataType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+}
+
+export async function getComprehensiveDataStatus(): Promise<{
+  freshnessStatus: DataFreshnessStatus[];
+  totalRecords: number;
+}> {
+  try {
+    const stats = await dataRefreshService.getAllTableStats();
+    
+    const freshnessStatus: DataFreshnessStatus[] = stats.map(stat => ({
+      type: stat.tableName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      recordCount: stat.recordCount,
+      lastUpdated: stat.lastUpdated,
+      isStale: stat.isStale
+    }));
+    
+    const totalRecords = stats.reduce((sum, stat) => sum + stat.recordCount, 0);
+    
+    return {
+      freshnessStatus,
+      totalRecords
+    };
+  } catch (error) {
+    console.error('Error getting comprehensive data status:', error);
+    return {
+      freshnessStatus: [],
+      totalRecords: 0
+    };
+  }
+}
+
+export function formatDataStatusMessage(dataStatus: DataFreshnessStatus[]): string {
+  if (dataStatus.length === 0) {
+    return 'Ingen data tillgänglig';
+  }
+  
+  const staleCount = dataStatus.filter(d => d.isStale).length;
+  const totalCount = dataStatus.length;
+  
+  if (staleCount === 0) {
+    return 'All data är uppdaterad och aktuell';
+  } else if (staleCount < totalCount / 2) {
+    return `${staleCount} av ${totalCount} datatyper behöver uppdateras`;
+  } else {
+    return `Majoriteten av data behöver uppdateras (${staleCount}/${totalCount})`;
   }
 }
 

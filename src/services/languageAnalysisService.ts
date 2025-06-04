@@ -73,39 +73,25 @@ export class LanguageAnalysisService {
     return { level: 'Grundläggande', description: 'Grundläggande språklig nivå', color: 'bg-red-100 text-red-800' };
   }
 
-  // Global data validation (for dashboard)
+  // Global data validation (for dashboard) - Updated to use available tables
   static async validateDataAvailability(memberId?: string, memberName?: string): Promise<DataValidationResult> {
     console.log(`=== VALIDATING DATA AVAILABILITY ===`);
     
     try {
       if (memberId && memberName) {
-        // Individual member validation
-        const { data: speeches, error: speechError } = await supabase
-          .from('speech_data')
-          .select('speech_id, anforandetext, rel_dok_titel')
-          .eq('intressent_id', memberId)
-          .not('anforandetext', 'is', null)
-          .neq('anforandetext', '');
-
-        if (speechError) {
-          console.error('Error fetching speeches:', speechError);
-        }
-
+        // Individual member validation - using document_data since speech_data doesn't exist
         const { data: documents, error: docError } = await supabase
           .from('document_data')
-          .select('document_id, titel, content_preview')
-          .eq('intressent_id', memberId);
+          .select('document_id, titel, content_preview, intressent_id')
+          .eq('intressent_id', memberId)
+          .not('content_preview', 'is', null)
+          .neq('content_preview', '');
 
         if (docError) {
           console.error('Error fetching documents:', docError);
         }
 
-        const speechesAvailable = speeches?.length || 0;
         const documentsAvailable = documents?.length || 0;
-        
-        const speechesWithText = speeches?.filter(s => 
-          s.anforandetext && s.anforandetext.trim().length > 100
-        ).length || 0;
         
         const documentsWithText = documents?.filter(d => 
           d.content_preview && d.content_preview.trim().length > 100
@@ -114,29 +100,23 @@ export class LanguageAnalysisService {
         return {
           member_id: memberId,
           member_name: memberName,
-          speeches_available: speechesAvailable,
+          speeches_available: 0, // No speech_data table available
           documents_available: documentsAvailable,
-          speeches_with_text: speechesWithText,
+          speeches_with_text: 0,
           documents_with_text: documentsWithText,
-          total_analyzable: speechesWithText + documentsWithText,
+          total_analyzable: documentsWithText,
           totalMembers: 1,
-          membersWithValidContent: (speechesWithText + documentsWithText) > 0 ? 1 : 0,
-          membersWithSpeeches: speechesWithText > 0 ? 1 : 0,
+          membersWithValidContent: documentsWithText > 0 ? 1 : 0,
+          membersWithSpeeches: 0,
           membersWithQuestions: documentsWithText > 0 ? 1 : 0,
-          avgSpeechLength: speeches?.reduce((sum, s) => sum + (s.anforandetext?.length || 0), 0) / Math.max(speechesAvailable, 1) || 0,
+          avgSpeechLength: 0,
           avgQuestionLength: documents?.reduce((sum, d) => sum + (d.content_preview?.length || 0), 0) / Math.max(documentsAvailable, 1) || 0,
           emptyContentCount: 0,
           shortContentCount: 0,
-          recommendations: [`Analysera ${speechesWithText + documentsWithText} tillgängliga dokument för ${memberName}`]
+          recommendations: [`Analysera ${documentsWithText} tillgängliga dokument för ${memberName}`]
         };
       } else {
-        // Global validation for all members
-        const { data: allSpeeches } = await supabase
-          .from('speech_data')
-          .select('intressent_id, anforandetext')
-          .not('anforandetext', 'is', null)
-          .neq('anforandetext', '');
-
+        // Global validation for all members - using enhanced_member_profiles
         const { data: allDocuments } = await supabase
           .from('document_data')
           .select('intressent_id, content_preview')
@@ -144,25 +124,15 @@ export class LanguageAnalysisService {
           .neq('content_preview', '');
 
         const { data: allMembers } = await supabase
-          .from('member_data')
+          .from('enhanced_member_profiles')
           .select('member_id, first_name, last_name')
           .eq('is_active', true);
 
         const totalMembers = allMembers?.length || 0;
         const memberIds = new Set(allMembers?.map(m => m.member_id) || []);
         
-        const speechesByMember = new Map();
         const documentsByMember = new Map();
         
-        allSpeeches?.forEach(speech => {
-          if (memberIds.has(speech.intressent_id)) {
-            if (!speechesByMember.has(speech.intressent_id)) {
-              speechesByMember.set(speech.intressent_id, []);
-            }
-            speechesByMember.get(speech.intressent_id).push(speech);
-          }
-        });
-
         allDocuments?.forEach(doc => {
           if (memberIds.has(doc.intressent_id)) {
             if (!documentsByMember.has(doc.intressent_id)) {
@@ -172,33 +142,31 @@ export class LanguageAnalysisService {
           }
         });
 
-        const membersWithSpeeches = speechesByMember.size;
         const membersWithQuestions = documentsByMember.size;
-        const membersWithValidContent = new Set([...speechesByMember.keys(), ...documentsByMember.keys()]).size;
+        const membersWithValidContent = documentsByMember.size;
 
-        const avgSpeechLength = allSpeeches?.reduce((sum, s) => sum + (s.anforandetext?.length || 0), 0) / Math.max(allSpeeches?.length || 1, 1);
         const avgQuestionLength = allDocuments?.reduce((sum, d) => sum + (d.content_preview?.length || 0), 0) / Math.max(allDocuments?.length || 1, 1);
 
         return {
           member_id: '',
           member_name: '',
-          speeches_available: allSpeeches?.length || 0,
+          speeches_available: 0,
           documents_available: allDocuments?.length || 0,
-          speeches_with_text: allSpeeches?.length || 0,
+          speeches_with_text: 0,
           documents_with_text: allDocuments?.length || 0,
-          total_analyzable: (allSpeeches?.length || 0) + (allDocuments?.length || 0),
+          total_analyzable: allDocuments?.length || 0,
           totalMembers,
           membersWithValidContent,
-          membersWithSpeeches,
+          membersWithSpeeches: 0,
           membersWithQuestions,
-          avgSpeechLength,
+          avgSpeechLength: 0,
           avgQuestionLength,
           emptyContentCount: totalMembers - membersWithValidContent,
           shortContentCount: 0,
           recommendations: [
             `${membersWithValidContent} av ${totalMembers} ledamöter har analysbar text`,
-            `Genomsnittlig anförandelängd: ${Math.round(avgSpeechLength)} tecken`,
-            `${membersWithSpeeches} ledamöter har anföranden, ${membersWithQuestions} har dokument`
+            `Genomsnittlig dokumentlängd: ${Math.round(avgQuestionLength)} tecken`,
+            `${membersWithQuestions} ledamöter har dokument`
           ]
         };
       }
@@ -225,7 +193,7 @@ export class LanguageAnalysisService {
     }
   }
 
-  // Simple member language analysis
+  // Simple member language analysis - Updated to use document_data
   static async analyzeMemberLanguage(memberId: string, memberName: string): Promise<number> {
     console.log(`=== STARTING LANGUAGE ANALYSIS FOR ${memberName} ===`);
     
@@ -239,29 +207,29 @@ export class LanguageAnalysisService {
 
       let analyzedCount = 0;
 
-      // Analyze speeches
-      if (validation.speeches_with_text > 0) {
-        const { data: speeches } = await supabase
-          .from('speech_data')
-          .select('speech_id, anforandetext, rel_dok_titel, anforandedatum')
+      // Analyze documents instead of speeches since speech_data table doesn't exist
+      if (validation.documents_with_text > 0) {
+        const { data: documents } = await supabase
+          .from('document_data')
+          .select('document_id, content_preview, titel, datum')
           .eq('intressent_id', memberId)
-          .not('anforandetext', 'is', null)
-          .neq('anforandetext', '')
+          .not('content_preview', 'is', null)
+          .neq('content_preview', '')
           .limit(5);
 
-        if (speeches) {
-          for (const speech of speeches) {
-            if (speech.anforandetext && speech.anforandetext.trim().length > 100) {
-              const analysis = await this.performLanguageAnalysis(speech.anforandetext);
+        if (documents) {
+          for (const doc of documents) {
+            if (doc.content_preview && doc.content_preview.trim().length > 100) {
+              const analysis = await this.performLanguageAnalysis(doc.content_preview);
               
               const { error } = await supabase
                 .from('language_analysis')
                 .insert({
                   member_id: memberId,
                   member_name: memberName,
-                  document_id: speech.speech_id,
-                  document_title: speech.rel_dok_titel || 'Anförande',
-                  document_type: 'speech',
+                  document_id: doc.document_id,
+                  document_title: doc.titel || 'Dokument',
+                  document_type: 'document',
                   overall_score: analysis.overall_score,
                   language_complexity_score: analysis.language_complexity_score,
                   vocabulary_richness_score: analysis.vocabulary_richness_score,
@@ -279,12 +247,12 @@ export class LanguageAnalysisService {
                   exclamation_count: analysis.exclamation_count,
                   formal_language_indicators: analysis.formal_language_indicators,
                   technical_terms_count: analysis.technical_terms_count,
-                  full_text: speech.anforandetext.substring(0, 5000)
+                  full_text: doc.content_preview.substring(0, 5000)
                 });
 
               if (!error) {
                 analyzedCount++;
-                console.log(`✅ Analyzed speech: ${speech.speech_id}`);
+                console.log(`✅ Analyzed document: ${doc.document_id}`);
               }
             }
           }
