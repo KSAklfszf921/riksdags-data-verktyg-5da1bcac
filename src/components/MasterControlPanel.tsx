@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +29,7 @@ import {
   Monitor,
   Zap
 } from "lucide-react";
+import SecurityStatusIndicator from './SecurityStatusIndicator';
 
 const MasterControlPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -92,39 +92,47 @@ const MasterControlPanel: React.FC = () => {
         </CardHeader>
         
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-blue-600">{systemStats?.totalMembers || 0}</div>
-              <div className="text-sm text-gray-600">Ledamöter</div>
-            </div>
-            
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-green-600">{systemStats?.totalDocuments || 0}</div>
-              <div className="text-sm text-gray-600">Dokument</div>
-            </div>
-            
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-purple-600">{systemStats?.totalVotes || 0}</div>
-              <div className="text-sm text-gray-600">Voteringar</div>
-            </div>
-            
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-orange-600">{activeSyncs.length}</div>
-              <div className="text-sm text-gray-600">Aktiva synk</div>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+            <div className="lg:col-span-3">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-blue-600">{systemStats?.totalMembers || 0}</div>
+                  <div className="text-sm text-gray-600">Ledamöter</div>
+                </div>
+                
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-green-600">{systemStats?.totalDocuments || 0}</div>
+                  <div className="text-sm text-gray-600">Dokument</div>
+                </div>
+                
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-purple-600">{systemStats?.totalVotes || 0}</div>
+                  <div className="text-sm text-gray-600">Voteringar</div>
+                </div>
+                
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-orange-600">{activeSyncs.length}</div>
+                  <div className="text-sm text-gray-600">Aktiva synk</div>
+                </div>
 
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-red-600">
-                {systemStats?.dataFreshness || 'N/A'}
-              </div>
-              <div className="text-sm text-gray-600">Data-ålder</div>
-            </div>
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-red-600">
+                    {systemStats?.dataFreshness || 'N/A'}
+                  </div>
+                  <div className="text-sm text-gray-600">Data-ålder</div>
+                </div>
 
-            <div className="text-center p-4 border rounded-lg bg-white">
-              <div className="text-2xl font-bold text-indigo-600">
-                {systemStats?.performanceScore || 0}%
+                <div className="text-center p-4 border rounded-lg bg-white">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {systemStats?.performanceScore || 0}%
+                  </div>
+                  <div className="text-sm text-gray-600">Prestanda</div>
+                </div>
               </div>
-              <div className="text-sm text-gray-600">Prestanda</div>
+            </div>
+            
+            <div className="lg:col-span-1">
+              <SecurityStatusIndicator />
             </div>
           </div>
           
