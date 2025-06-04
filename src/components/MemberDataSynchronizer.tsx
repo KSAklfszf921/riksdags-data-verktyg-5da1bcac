@@ -126,7 +126,7 @@ const MemberDataSynchronizer: React.FC = () => {
         current_committees: currentCommittees.length > 0 ? currentCommittees : null,
         image_urls: Object.keys(imageUrls).length > 0 ? imageUrls : null,
         assignments: assignmentsForDb,
-        date_from: member.datum_from || null,
+        date_from: member.datum_fran || null,
         date_to: member.datum_tom || null,
         status_history: statusHistory.length > 0 ? statusHistory : null,
         last_sync_at: new Date().toISOString(),
