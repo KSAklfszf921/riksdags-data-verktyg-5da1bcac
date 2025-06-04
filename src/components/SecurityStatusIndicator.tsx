@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, ShieldCheck, ShieldAlert, Lock, Unlock, Eye, EyeOff } from "lucide-react";
-import { useAuth } from '@/contexts/EnhancedAuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SecurityStatus {
@@ -12,7 +12,6 @@ interface SecurityStatus {
   authRequired: boolean;
   dataEncrypted: boolean;
   sessionValid: boolean;
-  adminAccess: boolean;
   lastSecurityCheck: string;
 }
 
@@ -22,11 +21,10 @@ const SecurityStatusIndicator: React.FC = () => {
     authRequired: false,
     dataEncrypted: false,
     sessionValid: false,
-    adminAccess: false,
     lastSecurityCheck: 'Never'
   });
   const [loading, setLoading] = useState(true);
-  const { user, session, isAdmin } = useAuth();
+  const { user, session } = useAuth();
 
   const checkSecurityStatus = async () => {
     setLoading(true);
@@ -60,7 +58,6 @@ const SecurityStatusIndicator: React.FC = () => {
         authRequired,
         dataEncrypted,
         sessionValid,
-        adminAccess: isAdmin,
         lastSecurityCheck: new Date().toLocaleTimeString()
       });
 
@@ -78,7 +75,7 @@ const SecurityStatusIndicator: React.FC = () => {
     const interval = setInterval(checkSecurityStatus, 5 * 60 * 1000);
     
     return () => clearInterval(interval);
-  }, [user, session, isAdmin]);
+  }, [user, session]);
 
   const getSecurityScore = (): number => {
     const checks = [
@@ -171,15 +168,6 @@ const SecurityStatusIndicator: React.FC = () => {
             )}
           </div>
         </div>
-
-        {securityStatus.adminAccess && (
-          <Alert className="bg-blue-50 border-blue-200 py-2">
-            <Shield className="h-3 w-3 text-blue-600" />
-            <AlertDescription className="text-xs text-blue-800">
-              Admin access active - Enhanced security monitoring enabled
-            </AlertDescription>
-          </Alert>
-        )}
 
         <div className="text-xs text-gray-500 pt-2 border-t">
           Last check: {securityStatus.lastSecurityCheck}
