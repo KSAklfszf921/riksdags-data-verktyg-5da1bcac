@@ -4,6 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { CachedMemberData } from '../services/cachedPartyApi';
 
 export interface EnhancedMember extends CachedMemberData {
+  profession?: string;
+  education?: string;
+  date_from?: string;
+  date_to?: string;
+  last_sync_at?: string;
+  status_history?: any[];
   yearly_stats: {
     [year: string]: {
       motions: number;
