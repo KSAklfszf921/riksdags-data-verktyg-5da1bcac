@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -13,7 +12,7 @@ export interface EnhancedMember extends CachedMemberData {
       motions: number;
       interpellations: number;
       written_questions: number;
-      speeches?: number;
+      speeches: number;
       total_documents: number;
     }
   };
