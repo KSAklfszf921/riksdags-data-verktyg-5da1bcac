@@ -40,12 +40,15 @@ async function generateTopLists(riksdagsYear: string = '2024/25') {
   console.log(`📊 Generating top lists for ${riksdagsYear}`)
   
   try {
-    // Fetch documents for current year
+    // Fetch current year documents with specific date range
     const currentDate = new Date()
     const fromDate = `${currentDate.getFullYear()}-01-01`
     const toDate = currentDate.toISOString().split('T')[0]
     
-    const documentUrl = `${BASE_URL}/dokumentlista/?utformat=json&from=${fromDate}&tom=${toDate}&sz=5000&sort=datum&sortorder=desc`
+    console.log(`📅 Fetching documents from ${fromDate} to ${toDate}`)
+    
+    // Fetch documents with increased size limit and proper filtering
+    const documentUrl = `${BASE_URL}/dokumentlista/?utformat=json&from=${fromDate}&tom=${toDate}&sz=10000&sort=datum&sortorder=desc`
     const documentData = await fetchWithRetry(documentUrl)
     
     if (!documentData.dokumentlista?.dokument) {
@@ -57,35 +60,38 @@ async function generateTopLists(riksdagsYear: string = '2024/25') {
       ? documentData.dokumentlista.dokument 
       : [documentData.dokumentlista.dokument]
     
-    // Fetch members data
-    const memberUrl = `${BASE_URL}/personlista?utformat=json&sz=1000`
-    const memberData = await fetchWithRetry(memberUrl)
+    console.log(`📄 Processing ${documents.length} documents`)
     
-    if (!memberData.personlista?.person) {
-      console.warn('⚠️ No members found for top lists')
+    // Get enhanced member profiles for name mapping
+    const { data: memberProfiles } = await supabase
+      .from('enhanced_member_profiles')
+      .select('member_id, first_name, last_name, party, constituency, primary_image_url')
+    
+    if (!memberProfiles || memberProfiles.length === 0) {
+      console.warn('⚠️ No member profiles found in database')
       return null
     }
     
-    const members = Array.isArray(memberData.personlista.person) 
-      ? memberData.personlista.person 
-      : [memberData.personlista.person]
-    
-    // Create member lookup
+    // Create member lookup map
     const memberLookup = new Map()
-    members.forEach(member => {
-      memberLookup.set(member.intressent_id, {
-        name: `${member.tilltalsnamn} ${member.efternamn}`,
-        party: member.parti,
-        constituency: member.valkrets,
-        imageUrl: member.bild_url_192 || member.bild_url_80
+    memberProfiles.forEach(member => {
+      memberLookup.set(member.member_id, {
+        name: `${member.first_name} ${member.last_name}`,
+        party: member.party,
+        constituency: member.constituency,
+        imageUrl: member.primary_image_url
       })
     })
     
-    // Count documents by type and member
+    console.log(`👥 Created lookup for ${memberLookup.size} members`)
+    
+    // Initialize counters for different document types
     const motionCounts = new Map()
     const interpellationCounts = new Map()
     const writtenQuestionCounts = new Map()
     
+    // Process documents by type
+    let processedCount = 0
     documents.forEach(doc => {
       if (!doc.intressent_id) return
       
@@ -93,6 +99,7 @@ async function generateTopLists(riksdagsYear: string = '2024/25') {
       if (!memberInfo) return
       
       const memberKey = doc.intressent_id
+      processedCount++
       
       switch (doc.typ) {
         case 'mot':
@@ -107,32 +114,50 @@ async function generateTopLists(riksdagsYear: string = '2024/25') {
       }
     })
     
-    // Fetch speech data for current year
-    const speechUrl = `${BASE_URL}/anforandelista?utformat=json&rm=${encodeURIComponent(riksdagsYear)}&sz=5000`
+    console.log(`📊 Processed ${processedCount} documents with member IDs`)
+    console.log(`📈 Found ${motionCounts.size} members with motions, ${interpellationCounts.size} with interpellations, ${writtenQuestionCounts.size} with written questions`)
+    
+    // Fetch speech data for current year with retry and better error handling
     let speechCounts = new Map()
     
     try {
+      console.log(`🎤 Fetching speeches for ${riksdagsYear}`)
+      const speechUrl = `${BASE_URL}/anforandelista?utformat=json&rm=${encodeURIComponent(riksdagsYear)}&sz=10000`
       const speechData = await fetchWithRetry(speechUrl)
+      
       if (speechData.anforandelista?.anforande) {
         const speeches = Array.isArray(speechData.anforandelista.anforande) 
           ? speechData.anforandelista.anforande 
           : [speechData.anforandelista.anforande]
         
+        console.log(`🎤 Processing ${speeches.length} speeches`)
+        
         speeches.forEach(speech => {
           if (!speech.intressent_id) return
+          const memberInfo = memberLookup.get(speech.intressent_id)
+          if (!memberInfo) return
+          
           speechCounts.set(speech.intressent_id, (speechCounts.get(speech.intressent_id) || 0) + 1)
         })
+        
+        console.log(`🎤 Found ${speechCounts.size} members with speeches`)
       }
     } catch (error) {
-      console.error('Error fetching speech data:', error)
+      console.error('❌ Error fetching speech data:', error)
+      // Continue without speech data rather than failing completely
     }
     
-    // Create top lists
-    const createTopList = (countMap: Map<string, number>) => {
-      return Array.from(countMap.entries())
+    // Create top lists with improved sorting and data validation
+    const createTopList = (countMap: Map<string, number>, type: string) => {
+      console.log(`📋 Creating top list for ${type} with ${countMap.size} entries`)
+      
+      const topList = Array.from(countMap.entries())
         .map(([memberId, count]) => {
           const memberInfo = memberLookup.get(memberId)
-          if (!memberInfo) return null
+          if (!memberInfo) {
+            console.warn(`⚠️ Member info not found for ID: ${memberId}`)
+            return null
+          }
           
           return {
             id: memberId,
@@ -143,20 +168,39 @@ async function generateTopLists(riksdagsYear: string = '2024/25') {
             count
           }
         })
-        .filter(item => item !== null)
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 10)
+        .filter(item => item !== null && item.count > 0) // Only include members with actual activity
+        .sort((a, b) => {
+          // Primary sort by count (descending)
+          if (b.count !== a.count) return b.count - a.count
+          // Secondary sort by name (ascending) for ties
+          return a.name.localeCompare(b.name)
+        })
+        .slice(0, 20) // Keep top 20 instead of 10 for more comprehensive data
+      
+      console.log(`✅ Created ${type} top list with ${topList.length} entries`)
+      return topList
     }
     
     const topLists = {
-      motions: createTopList(motionCounts),
-      speeches: createTopList(speechCounts),
-      interpellations: createTopList(interpellationCounts),
-      writtenQuestions: createTopList(writtenQuestionCounts),
-      lastUpdated: new Date().toISOString()
+      motions: createTopList(motionCounts, 'motions'),
+      speeches: createTopList(speechCounts, 'speeches'),
+      interpellations: createTopList(interpellationCounts, 'interpellations'),
+      writtenQuestions: createTopList(writtenQuestionCounts, 'writtenQuestions'),
+      lastUpdated: new Date().toISOString(),
+      metadata: {
+        totalDocuments: documents.length,
+        processedDocuments: processedCount,
+        riksdagsYear,
+        dateRange: { from: fromDate, to: toDate },
+        memberCount: memberLookup.size
+      }
     }
     
-    console.log(`✅ Generated top lists with ${topLists.motions.length} motion leaders, ${topLists.speeches.length} speech leaders`)
+    console.log(`✅ Generated comprehensive top lists:`)
+    console.log(`   - Motions: ${topLists.motions.length} leaders`)
+    console.log(`   - Speeches: ${topLists.speeches.length} leaders`)
+    console.log(`   - Interpellations: ${topLists.interpellations.length} leaders`)
+    console.log(`   - Written Questions: ${topLists.writtenQuestions.length} leaders`)
     
     return topLists
   } catch (error) {
@@ -169,33 +213,28 @@ async function generatePartyData() {
   console.log(`👥 Generating party analysis data`)
   
   try {
-    // Fetch all current members with committee data
-    const memberUrl = `${BASE_URL}/personlista?utformat=json&sz=1000`
-    const memberData = await fetchWithRetry(memberUrl)
+    // Use enhanced member profiles instead of fetching from API
+    const { data: memberProfiles } = await supabase
+      .from('enhanced_member_profiles')
+      .select('*')
+      .eq('is_active', true)
     
-    if (!memberData.personlista?.person) {
-      throw new Error('No members data found')
+    if (!memberProfiles || memberProfiles.length === 0) {
+      throw new Error('No enhanced member profiles found')
     }
     
-    const members = Array.isArray(memberData.personlista.person) 
-      ? memberData.personlista.person 
-      : [memberData.personlista.person]
-    
-    // Filter current members only
-    const currentMembers = members.filter(member => 
-      member.status === 'Tjänstgörande' || !member.status
-    )
+    console.log(`👥 Processing ${memberProfiles.length} active members`)
     
     // Group by party and calculate statistics
     const partyMap = new Map()
     
-    for (const member of currentMembers) {
-      if (!member.parti) continue
+    for (const member of memberProfiles) {
+      if (!member.party) continue
       
-      if (!partyMap.has(member.parti)) {
-        partyMap.set(member.parti, {
-          party_code: member.parti,
-          party_name: member.parti, // You might want to map this to full names
+      if (!partyMap.has(member.party)) {
+        partyMap.set(member.party, {
+          party_code: member.party,
+          party_name: member.party,
           total_members: 0,
           active_members: 0,
           members: [],
@@ -205,26 +244,33 @@ async function generatePartyData() {
         })
       }
       
-      const partyData = partyMap.get(member.parti)
+      const partyData = partyMap.get(member.party)
       partyData.total_members++
       partyData.active_members++
       partyData.members.push({
-        id: member.intressent_id,
-        name: `${member.tilltalsnamn} ${member.efternamn}`,
-        constituency: member.valkrets,
-        birth_year: parseInt(member.fodd_ar) || null
+        id: member.member_id,
+        name: `${member.first_name} ${member.last_name}`,
+        constituency: member.constituency,
+        birth_year: member.birth_year
       })
       
+      // Add committee information
+      if (member.current_committees) {
+        member.current_committees.forEach(committee => {
+          partyData.committees.add(committee)
+        })
+      }
+      
       // Calculate age
-      if (member.fodd_ar) {
-        const age = new Date().getFullYear() - parseInt(member.fodd_ar)
+      if (member.birth_year) {
+        const age = new Date().getFullYear() - member.birth_year
         partyData.ages.push(age)
       }
       
       // Count gender
-      if (member.kon === 'man') {
+      if (member.gender === 'man') {
         partyData.genders.male++
-      } else if (member.kon === 'kvinna') {
+      } else if (member.gender === 'kvinna') {
         partyData.genders.female++
       } else {
         partyData.genders.unknown++
@@ -248,23 +294,33 @@ async function generatePartyData() {
         else ageGroups['61+']++
       })
       
+      // Committee distribution
+      const committeeDistribution = {}
+      Array.from(data.committees).forEach(committee => {
+        committeeDistribution[committee] = data.members.filter(member => 
+          memberProfiles.find(p => p.member_id === member.id && 
+            p.current_committees && p.current_committees.includes(committee))
+        ).length
+      })
+      
       partyDataArray.push({
         party_code: partyCode,
         party_name: data.party_name,
         total_members: totalMembers,
         active_members: data.active_members,
         gender_distribution: {
-          male: totalMembers > 0 ? (data.genders.male / totalMembers) * 100 : 0,
-          female: totalMembers > 0 ? (data.genders.female / totalMembers) * 100 : 0,
-          unknown: totalMembers > 0 ? (data.genders.unknown / totalMembers) * 100 : 0
+          male: totalMembers > 0 ? Math.round((data.genders.male / totalMembers) * 100) : 0,
+          female: totalMembers > 0 ? Math.round((data.genders.female / totalMembers) * 100) : 0,
+          unknown: totalMembers > 0 ? Math.round((data.genders.unknown / totalMembers) * 100) : 0
         },
         age_distribution: ageGroups,
-        committee_distribution: {},
+        committee_distribution: committeeDistribution,
         committee_members: {},
         member_list: data.members,
         activity_stats: {
-          average_age: avgAge,
-          total_active: data.active_members
+          average_age: Math.round(avgAge),
+          total_active: data.active_members,
+          total_committees: data.committees.size
         }
       })
     }
@@ -283,7 +339,7 @@ Deno.serve(async (req) => {
   }
   
   try {
-    console.log('🚀 Starting toplists and party data sync')
+    console.log('🚀 Starting enhanced toplists and party data sync')
     
     const startTime = Date.now()
     let topListsStored = false
@@ -291,7 +347,7 @@ Deno.serve(async (req) => {
     
     // Generate and store top lists
     try {
-      console.log('📊 Generating top lists...')
+      console.log('📊 Generating enhanced top lists...')
       const topListsData = await generateTopLists()
       
       if (topListsData) {
@@ -307,7 +363,7 @@ Deno.serve(async (req) => {
           console.error('❌ Error storing top lists:', topListsError)
         } else {
           topListsStored = true
-          console.log('✅ Top lists stored successfully')
+          console.log('✅ Enhanced top lists stored successfully')
         }
       }
     } catch (error) {
@@ -316,7 +372,7 @@ Deno.serve(async (req) => {
     
     // Generate and store party data
     try {
-      console.log('👥 Generating party data...')
+      console.log('👥 Generating enhanced party data...')
       const partyData = await generatePartyData()
       
       // Clear existing party data
@@ -331,7 +387,7 @@ Deno.serve(async (req) => {
         console.error('❌ Error storing party data:', partyError)
       } else {
         partyDataStored = true
-        console.log(`✅ Party data stored successfully for ${partyData.length} parties`)
+        console.log(`✅ Enhanced party data stored successfully for ${partyData.length} parties`)
       }
     } catch (error) {
       console.error('💥 Party data generation failed:', error)
@@ -341,7 +397,7 @@ Deno.serve(async (req) => {
     
     const response = {
       success: true,
-      message: 'Toplists and party data sync completed',
+      message: 'Enhanced toplists and party data sync completed',
       stats: {
         toplists_stored: topListsStored,
         party_data_stored: partyDataStored,
@@ -350,14 +406,14 @@ Deno.serve(async (req) => {
       timestamp: new Date().toISOString()
     }
     
-    console.log('📤 Toplists and party data sync response:', response)
+    console.log('📤 Enhanced sync response:', response)
     
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
     
   } catch (error) {
-    console.error('💥 Toplists and party data sync failed:', error)
+    console.error('💥 Enhanced toplists and party data sync failed:', error)
     
     return new Response(JSON.stringify({
       success: false,

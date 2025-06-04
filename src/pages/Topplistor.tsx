@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
 import { PageHeader } from '../components/PageHeader';
 import { useResponsive } from '../hooks/use-responsive';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   FileText, 
   MessageSquare, 
@@ -20,12 +21,14 @@ import {
   Trophy,
   Download,
   Share2,
-  Clock
+  Clock,
+  Database
 } from 'lucide-react';
 
 const Topplistor = () => {
   const [selectedYear, setSelectedYear] = useState('2024/25');
   const [topCount, setTopCount] = useState(10);
+  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const { isMobile, isTablet } = useResponsive();
   
@@ -56,6 +59,47 @@ const Topplistor = () => {
       title: "Uppdaterar data",
       description: "Hämtar senaste cachade informationen...",
     });
+  };
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      toast({
+        title: "Startar datasynkronisering",
+        description: "Hämtar ny data från Riksdagen...",
+      });
+
+      const { error } = await supabase.functions.invoke('fetch-toplists-data', {
+        body: { 
+          manualSync: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Synkronisering slutförd",
+        description: "Topplistorna har uppdaterats med senaste data.",
+      });
+
+      // Refresh the data after sync
+      setTimeout(() => {
+        refreshData();
+      }, 2000);
+
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Synkronisering misslyckades",
+        description: "Kunde inte hämta ny data. Försök igen senare.",
+        variant: "destructive"
+      });
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const shareUrl = () => {
@@ -114,8 +158,8 @@ const Topplistor = () => {
                 <div className="flex items-start space-x-2 text-blue-700">
                   <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <p className="font-medium mb-1">Automatisk uppdatering</p>
-                    <p>Data från riksdagen uppdateras automatiskt varje natt.</p>
+                    <p className="font-medium mb-1">Förbättrad databehandling</p>
+                    <p>Data från riksdagen analyseras med avancerade algoritmer och uppdateras automatiskt varje natt.</p>
                     {lastUpdated && (
                       <p className="mt-1 text-xs opacity-75">
                         Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
@@ -132,32 +176,34 @@ const Topplistor = () => {
           <Card className="mb-6 border-blue-200 bg-blue-50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center space-x-2 text-blue-800 text-lg">
-                <Clock className="w-5 h-5" />
-                <span>Automatisk datauppdatering</span>
+                <Database className="w-5 h-5" />
+                <span>Förbättrad databehandling och automatisk uppdatering</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-blue-700">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-semibold mb-2">Datakällor:</h4>
+                  <h4 className="font-semibold mb-2">Förbättrade datakällor:</h4>
                   <ul className="space-y-1 text-xs">
-                    <li>• Motioner: Förslag från riksdagsledamöter</li>
-                    <li>• Anföranden: Tal i riksdagens kammare</li>
-                    <li>• Interpellationer: Frågor till ministrar</li>
-                    <li>• Skriftliga frågor: Frågor till regeringen</li>
+                    <li>• Motioner: Förslag från riksdagsledamöter med förbättrad filtrering</li>
+                    <li>• Anföranden: Tal i riksdagens kammare med årlig uppdelning</li>
+                    <li>• Interpellationer: Frågor till ministrar med förbättrad spårning</li>
+                    <li>• Skriftliga frågor: Frågor till regeringen med noggrann räkning</li>
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Schemaläggning:</h4>
-                  <p className="text-xs">
-                    Data hämtas automatiskt från riksdagen varje natt. 
-                    Ingen manuell uppdatering behövs.
+                  <h4 className="font-semibold mb-2">Automatisk datahantering:</h4>
+                  <div className="text-xs space-y-1">
+                    <p>• Data synkroniseras automatiskt varje natt</p>
+                    <p>• Förbättrade algoritmer för noggrannare räkning</p>
+                    <p>• Validering mot medlemsdatabasen</p>
+                    <p>• Hantering av dubbletter och fel</p>
                     {lastUpdated && (
-                      <span className="block mt-1">
+                      <p className="mt-2 font-medium">
                         Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
-                      </span>
+                      </p>
                     )}
-                  </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -197,7 +243,7 @@ const Topplistor = () => {
             </div>
           </div>
 
-          <div className={`${isMobile ? 'grid grid-cols-3 gap-2' : 'flex space-x-2'}`}>
+          <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex space-x-2'}`}>
             <Button 
               onClick={handleRefresh} 
               variant="outline" 
@@ -207,6 +253,17 @@ const Topplistor = () => {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {!isMobile && <span>Uppdatera</span>}
+            </Button>
+
+            <Button 
+              onClick={handleManualSync} 
+              variant="outline" 
+              size={isMobile ? "sm" : "default"}
+              disabled={syncing || loading}
+              className="flex items-center justify-center space-x-2"
+            >
+              <Database className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              {!isMobile && <span>{syncing ? 'Synkar...' : 'Synka'}</span>}
             </Button>
             
             <Button 
@@ -243,11 +300,13 @@ const Topplistor = () => {
           </Card>
         )}
 
-        {loading && motions.length === 0 && speeches.length === 0 && (
+        {(loading || syncing) && motions.length === 0 && speeches.length === 0 && (
           <div className="flex justify-center items-center py-8">
             <div className="flex flex-col items-center">
               <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-              <p className="text-gray-600">Laddar cachade topplistor...</p>
+              <p className="text-gray-600">
+                {syncing ? 'Synkroniserar data från Riksdagen...' : 'Laddar cachade topplistor...'}
+              </p>
             </div>
           </div>
         )}
@@ -258,7 +317,7 @@ const Topplistor = () => {
             members={motions}
             icon={<FileText className="w-5 h-5 text-blue-600" />}
             unit="motioner"
-            loading={loading}
+            loading={loading || syncing}
           />
 
           <TopListCard
@@ -266,7 +325,7 @@ const Topplistor = () => {
             members={speeches}
             icon={<MessageSquare className="w-5 h-5 text-green-600" />}
             unit="anföranden"
-            loading={loading}
+            loading={loading || syncing}
           />
 
           <TopListCard
@@ -274,7 +333,7 @@ const Topplistor = () => {
             members={interpellations}
             icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
             unit="interpellationer"
-            loading={loading}
+            loading={loading || syncing}
           />
 
           <TopListCard
@@ -282,11 +341,11 @@ const Topplistor = () => {
             members={writtenQuestions}
             icon={<Edit3 className="w-5 h-5 text-orange-600" />}
             unit="frågor"
-            loading={loading}
+            loading={loading || syncing}
           />
         </div>
 
-        {!loading && !error && (
+        {!loading && !syncing && !error && (
           <Card className="mt-8">
             <CardHeader className="pb-3">
               <CardTitle className={isMobile ? "text-lg" : "text-xl"}>Sammanfattning</CardTitle>

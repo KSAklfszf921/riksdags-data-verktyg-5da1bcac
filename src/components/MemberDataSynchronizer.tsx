@@ -95,7 +95,7 @@ const MemberDataSynchronizer: React.FC = () => {
       // Check if member is active using the correct property
       const isActive = !(member as any).datum_tom || new Date((member as any).datum_tom) > new Date();
 
-      // Prepare member data with validated fields
+      // Prepare member data with validated fields - using enhanced_member_profiles table
       const memberData = {
         member_id: member.intressent_id,
         first_name: firstName,
@@ -108,8 +108,9 @@ const MemberDataSynchronizer: React.FC = () => {
         riksdag_status: member.status || 'Okänd',
         current_committees: currentCommittees.length > 0 ? currentCommittees : null,
         image_urls: Object.keys(imageUrls).length > 0 ? imageUrls : null,
+        primary_image_url: imageUrls['max'] || imageUrls['192'] || imageUrls['80'] || null,
         assignments: assignmentsForDb,
-        activity_data: {
+        activity_summary: {
           motions: 0,
           speeches: 0,
           interpellations: 0,
@@ -118,9 +119,9 @@ const MemberDataSynchronizer: React.FC = () => {
         }
       };
 
-      // Upsert member data
+      // Upsert member data to enhanced_member_profiles
       const { error } = await supabase
-        .from('member_data')
+        .from('enhanced_member_profiles')
         .upsert(memberData, { 
           onConflict: 'member_id',
           ignoreDuplicates: false 
@@ -162,7 +163,7 @@ const MemberDataSynchronizer: React.FC = () => {
         return result;
       } catch (err) {
         error = err;
-        addLog(`Attempt ${retries + 1} failed for ${description}: ${err}`, 'error');
+        addLog(`Attempt ${retries + 1} failed for ${description}: ${err instanceof Error ? err.message : String(err)}`, 'error');
         retries++;
       }
     }
@@ -244,7 +245,8 @@ const MemberDataSynchronizer: React.FC = () => {
             addLog(`Uppdaterad: ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'}`, 'success');
             
           } catch (error) {
-            addLog(`Fel vid bearbetning av ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'}: ${error}`, 'error');
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            addLog(`Fel vid bearbetning av ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'}: ${errorMessage}`, 'error');
             setStats(prev => ({ 
               ...prev, 
               processedMembers: prev.processedMembers + 1,
@@ -264,7 +266,8 @@ const MemberDataSynchronizer: React.FC = () => {
       toast.success(`Synkronisering slutförd! ${stats.successfulUpdates} ledamöter uppdaterade, ${stats.errors} fel.`);
 
     } catch (error) {
-      addLog(`Kritiskt fel under synkronisering: ${error}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`Kritiskt fel under synkronisering: ${errorMessage}`, 'error');
       toast.error('Synkronisering misslyckades');
     } finally {
       setSyncRunning(false);
