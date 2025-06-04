@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp, Filter, Activity } from "lucide-react";
+import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp, Filter, Activity, MapPin } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { useResponsive } from "../hooks/use-responsive";
 import EnhancedCalendar from '../components/EnhancedCalendar';
-import { fetchCachedCalendarData, fetchRecentActivities, getCalendarDataFreshness, getEventTitle, CachedCalendarData } from '../services/cachedCalendarApi';
+import { fetchCachedCalendarData, fetchRecentActivities, getCalendarDataFreshness, getEventTitle, getEventTypeDescription, formatEventTime, CachedCalendarData } from '../services/cachedCalendarApi';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 
@@ -127,20 +127,15 @@ const Kalender = () => {
     }
   };
 
-  const formatActivityTitle = (activity: CachedCalendarData) => {
-    return getEventTitle(activity);
-  };
-
-  const formatActivityTime = (activity: CachedCalendarData) => {
-    if (!activity.datum) return '';
+  const formatActivityDate = (activity: CachedCalendarData) => {
+    if (!activity.datum) return 'Okänt datum';
     
     try {
       const date = new Date(activity.datum);
       return date.toLocaleDateString('sv-SE', { 
+        weekday: 'short',
         month: 'short', 
-        day: 'numeric',
-        hour: activity.tid ? '2-digit' : undefined,
-        minute: activity.tid ? '2-digit' : undefined
+        day: 'numeric'
       });
     } catch {
       return activity.datum;
@@ -185,6 +180,9 @@ const Kalender = () => {
               <Activity className="w-5 h-5" />
               <span>Senaste aktiviteter</span>
             </CardTitle>
+            <CardDescription className="text-green-700">
+              De 5 senast tillagda händelserna i databasen
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -193,22 +191,63 @@ const Kalender = () => {
                 <span className="text-green-700">Laddar senaste aktiviteter...</span>
               </div>
             ) : recentActivities.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {recentActivities.map((activity, index) => (
-                  <div key={activity.id || index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-green-800 truncate">
-                        {getEventTitle(activity)}
-                      </h4>
-                      {activity.organ && (
-                        <Badge variant="secondary" className="mt-1 text-xs bg-green-100 text-green-700">
-                          {activity.organ}
-                        </Badge>
-                      )}
+                  <div key={activity.id || index} className="p-4 bg-white rounded-lg border border-green-200 shadow-sm">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-green-800 text-base mb-1">
+                          {getEventTitle(activity)}
+                        </h4>
+                        {getEventTypeDescription(activity) && (
+                          <p className="text-sm text-green-600 mb-2">
+                            {getEventTypeDescription(activity)}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-green-600">
+                          {activity.datum && (
+                            <div className="flex items-center">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              <span>{formatActivityDate(activity)}</span>
+                            </div>
+                          )}
+                          {activity.tid && (
+                            <div className="flex items-center">
+                              <Clock className="w-3 h-3 mr-1" />
+                              <span>{formatEventTime(activity.tid)}</span>
+                            </div>
+                          )}
+                          {activity.plats && (
+                            <div className="flex items-center">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              <span className="truncate max-w-[200px]">{activity.plats}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 ml-4">
+                        {activity.organ && (
+                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                            {activity.organ}
+                          </Badge>
+                        )}
+                        {activity.typ && (
+                          <Badge variant="outline" className="text-xs">
+                            {activity.typ}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-sm text-green-600 ml-4">
-                      {formatActivityTime(activity)}
-                    </div>
+                    {activity.summary && activity.summary !== getEventTitle(activity) && (
+                      <div className="mt-2 p-2 bg-green-25 border border-green-100 rounded text-xs text-green-700">
+                        <strong>Sammanfattning:</strong> {activity.summary}
+                      </div>
+                    )}
+                    {activity.description && (
+                      <div className="mt-2 p-2 bg-green-25 border border-green-100 rounded text-xs text-green-700">
+                        <strong>Beskrivning:</strong> {activity.description.substring(0, 200)}{activity.description.length > 200 ? '...' : ''}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
