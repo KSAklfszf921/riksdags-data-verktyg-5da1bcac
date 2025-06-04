@@ -17,6 +17,22 @@ export interface DataRefreshStatus {
   error?: string;
 }
 
+export interface DataFreshnessStatus {
+  table: string;
+  lastUpdated: string | null;
+  recordCount: number;
+  isStale: boolean;
+  error?: string;
+}
+
+export interface RefreshResult {
+  success: boolean;
+  message: string;
+  duration?: number;
+  stats?: any;
+  errors?: string[];
+}
+
 export class DataRefreshService {
   private static readonly STALE_THRESHOLD_HOURS = 24;
 
@@ -102,7 +118,8 @@ export class DataRefreshService {
     }
   }
 
-  static async refreshAllData(): Promise<{ success: boolean; errors: string[] }> {
+  static async refreshAllData(): Promise<RefreshResult> {
+    const startTime = Date.now();
     const tables: ValidTableName[] = [
       'member_data',
       'party_data',
@@ -121,10 +138,68 @@ export class DataRefreshService {
       }
     }
 
+    const duration = Date.now() - startTime;
+
     return {
       success: errors.length === 0,
-      errors
+      message: errors.length === 0 ? 'All data refreshed successfully' : `Refresh completed with ${errors.length} errors`,
+      duration,
+      errors: errors.length > 0 ? errors : undefined
     };
+  }
+
+  static async initializeAllDatabases(): Promise<RefreshResult> {
+    try {
+      console.log('Initializing all databases...');
+      const result = await this.refreshAllData();
+      return {
+        ...result,
+        message: result.success ? 'Database initialization completed successfully' : 'Database initialization completed with errors'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  static async refreshSpecificDataType(dataType: ValidTableName): Promise<RefreshResult> {
+    try {
+      const result = await this.refreshTable(dataType);
+      return {
+        success: result.success,
+        message: result.success ? `${dataType} refreshed successfully` : `Failed to refresh ${dataType}`,
+        errors: result.error ? [result.error] : undefined
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to refresh ${dataType}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
+
+  static async getComprehensiveDataStatus(): Promise<{ freshnessStatus: DataFreshnessStatus[] }> {
+    const status = await this.getDataStatus();
+    return {
+      freshnessStatus: status.map(item => ({
+        table: item.table,
+        lastUpdated: item.lastUpdated,
+        recordCount: item.recordCount,
+        isStale: item.isStale,
+        error: item.error
+      }))
+    };
+  }
+
+  static formatDataStatusMessage(status: DataFreshnessStatus): string {
+    if (status.error) {
+      return `Error: ${status.error}`;
+    }
+    
+    const lastUpdatedText = this.formatLastUpdated(status.lastUpdated);
+    return `${status.recordCount} records, last updated: ${lastUpdatedText}`;
   }
 
   private static isDataStale(lastUpdated: string | null): boolean {

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -250,13 +249,17 @@ export class SupabaseDataService {
         if (error) throw error;
 
         // Get latest update
-        const { data: latestData } = await supabase
+        const { data: latestData, error: latestError } = await supabase
           .from(table as any)
           .select('updated_at')
           .order('updated_at', { ascending: false })
           .limit(1);
 
-        const lastUpdate = latestData?.[0]?.updated_at;
+        if (latestError) {
+          console.error(`Error fetching latest update for ${table}:`, latestError);
+        }
+
+        const lastUpdate = latestData?.[0]?.updated_at || null;
         const hoursOld = lastUpdate ? 
           (Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60) : null;
 

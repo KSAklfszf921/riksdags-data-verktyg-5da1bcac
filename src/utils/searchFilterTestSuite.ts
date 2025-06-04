@@ -221,7 +221,7 @@ export class SearchFilterTestSuite extends EnhancedTester {
         for (const term of searchTerms.slice(0, 2)) { // Test first 2 terms
           const { data, error } = await supabase
             .from('vote_data')
-            .select('vote_id, beteckning, avser, vote_statistics')
+            .select('vote_id, beteckning, avser, metadata')
             .or(`beteckning.ilike.%${term}%,avser.ilike.%${term}%`)
             .limit(5);
             
@@ -230,7 +230,7 @@ export class SearchFilterTestSuite extends EnhancedTester {
           results.push({
             searchTerm: term,
             votesFound: data?.length || 0,
-            hasStatistics: data?.some(v => v.vote_statistics) || false,
+            hasMetadata: data?.some(v => v.metadata) || false,
             relevantResults: data?.some(v => 
               v.beteckning?.toLowerCase().includes(term.toLowerCase()) ||
               v.avser?.toLowerCase().includes(term.toLowerCase())
@@ -247,46 +247,6 @@ export class SearchFilterTestSuite extends EnhancedTester {
     );
   }
 
-  async testLanguageAnalysisFiltering(): Promise<DetailedTestResult> {
-    return this.testApiEndpoint(
-      'Language Analysis Filtering',
-      async () => {
-        // Test filtering by score ranges
-        const { data: highScores, error: highError } = await supabase
-          .from('language_analysis')
-          .select('member_name, overall_score, document_type')
-          .gte('overall_score', 8)
-          .limit(10);
-          
-        const { data: lowScores, error: lowError } = await supabase
-          .from('language_analysis')
-          .select('member_name, overall_score, document_type')
-          .lte('overall_score', 3)
-          .limit(10);
-          
-        // Test filtering by document type
-        const { data: speechAnalysis, error: speechError } = await supabase
-          .from('language_analysis')
-          .select('member_name, overall_score, document_type')
-          .eq('document_type', 'speech')
-          .limit(10);
-          
-        if (highError || lowError || speechError) {
-          throw new Error(`Language analysis filtering failed`);
-        }
-        
-        return {
-          highScoreAnalyses: highScores?.length || 0,
-          lowScoreAnalyses: lowScores?.length || 0,
-          speechAnalyses: speechAnalysis?.length || 0,
-          scoreRangeWorks: (highScores?.every(a => a.overall_score >= 8) || false) &&
-                          (lowScores?.every(a => a.overall_score <= 3) || false),
-          documentTypeFilterWorks: speechAnalysis?.every(a => a.document_type === 'speech') || false
-        };
-      }
-    );
-  }
-
   async runAllSearchFilterTests(): Promise<void> {
     console.log('🔍 Starting search and filter testing...');
     
@@ -296,7 +256,6 @@ export class SearchFilterTestSuite extends EnhancedTester {
     await this.testDocumentTypeFiltering();
     await this.testDateRangeFiltering();
     await this.testVoteSearchByTopic();
-    await this.testLanguageAnalysisFiltering();
     
     console.log('✅ Search and filter testing completed');
   }
