@@ -1,4 +1,3 @@
-
 // Updated Riksdag API service to comply with technical guide
 const BASE_URL = 'https://data.riksdagen.se';
 
@@ -45,6 +44,7 @@ export interface RiksdagDocument {
   id: string;
   titel: string;
   subtitel?: string;
+  undertitel?: string; // Add missing property
   typ: string;
   datum: string;
   dokument_url_html?: string;
@@ -54,6 +54,7 @@ export interface RiksdagDocument {
   organ?: string;
   rm?: string;
   hangar_id?: string;
+  title?: string; // Add alias for compatibility
 }
 
 export interface VoteSearchParams {
@@ -91,13 +92,20 @@ export interface SpeechSearchParams {
   toDate?: string;
   org?: string;
   iid?: string;
+  intressentId?: string; // Add missing property
   parti?: string[];
+  party?: string; // Add alias
   sort?: string;
   sortorder?: 'asc' | 'desc';
   p?: number;
+  anftyp?: string; // Add missing property
+  date?: string; // Add missing property
+  systemDate?: string; // Add missing property
+  pageSize?: number; // Add missing property
 }
 
 export interface RiksdagSpeech {
+  id?: string; // Add missing property
   anforande_id: string;
   dok_id: string;
   rm: string;
@@ -105,43 +113,19 @@ export interface RiksdagSpeech {
   talare: string;
   parti: string;
   anforande_text: string;
+  text?: string; // Add alias for compatibility
   datum: string;
   titel: string;
+  title?: string; // Add alias for compatibility
   kammaraktivitet: string;
   rel_dok_id?: string;
   intressent_id?: string;
-}
-
-export interface RiksdagMember {
-  intressent_id: string;
-  tilltalsnamn: string;
-  efternamn: string;
-  parti: string;
-  valkrets: string;
-  kon: string;
-  fodd_ar: string;
-  hangar_guid: string;
-  status: string;
-  datum_fran: string;
-  datum_tom: string;
-  fodd_datum: string;
-  bild_url_80?: string;
-  bild_url_192?: string;
-  bild_url_max?: string;
-}
-
-export interface RiksdagMemberDetails extends RiksdagMember {
-  email?: string;
-  assignments: Array<{
-    organ_kod: string;
-    roll: string;
-    status: string;
-    from: string;
-    tom: string;
-    typ: string;
-    ordning: number;
-    uppgift: string;
-  }>;
+  anforande_url_html?: string; // Add missing property
+  avsnittsrubrik?: string; // Add missing property
+  anforandedatum?: string; // Add missing property
+  replik?: string; // Add missing property
+  protokoll_url_www?: string; // Add missing property
+  date?: string; // Add alias for compatibility
 }
 
 // Committee mapping with correct codes
@@ -245,6 +229,7 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{
       id: doc.dok_id || doc.id,
       titel: doc.titel || '',
       subtitel: doc.subtitel,
+      undertitel: doc.undertitel || doc.subtitel, // Map both properties
       typ: doc.doktyp || doc.typ,
       datum: doc.datum || doc.publicerad || doc.systemdatum,
       dokument_url_html: doc.dokument_url_html,
@@ -253,7 +238,8 @@ export const searchDocuments = async (params: DocumentSearchParams): Promise<{
       beteckning: doc.beteckning,
       organ: doc.organ,
       rm: doc.rm,
-      hangar_id: doc.hangar_id
+      hangar_id: doc.hangar_id,
+      title: doc.titel || '' // Add alias
     }));
 
     const totalCount = parseInt(data.dokumentlista['@hits']) || documents.length;
@@ -371,6 +357,7 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{
   if (params.toDate) searchParams.append('tom', params.toDate);
   if (params.org) searchParams.append('organ', params.org);
   if (params.iid) searchParams.append('iid', params.iid);
+  if (params.intressentId) searchParams.append('iid', params.intressentId);
   if (params.sort) searchParams.append('sort', params.sort);
   if (params.sortorder) searchParams.append('sortorder', params.sortorder);
   
@@ -408,6 +395,7 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{
     }
 
     const mappedSpeeches: RiksdagSpeech[] = speeches.map(speech => ({
+      id: speech.anforande_id, // Add missing property
       anforande_id: speech.anforande_id,
       dok_id: speech.dok_id,
       rm: speech.rm,
@@ -415,11 +403,19 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{
       talare: speech.talare,
       parti: speech.parti,
       anforande_text: speech.anforande_text,
+      text: speech.anforande_text, // Add alias
       datum: speech.datum,
       titel: speech.titel,
+      title: speech.titel, // Add alias
       kammaraktivitet: speech.kammaraktivitet,
       rel_dok_id: speech.rel_dok_id,
-      intressent_id: speech.intressent_id
+      intressent_id: speech.intressent_id,
+      anforande_url_html: speech.anforande_url_html, // Add missing property
+      avsnittsrubrik: speech.avsnittsrubrik, // Add missing property
+      anforandedatum: speech.anforandedatum || speech.datum, // Add missing property
+      replik: speech.replik, // Add missing property
+      protokoll_url_www: speech.protokoll_url_www, // Add missing property
+      date: speech.datum || speech.anforandedatum // Add alias
     }));
 
     const totalCount = parseInt(data.anforandelista['@hits']) || speeches.length;
@@ -743,4 +739,9 @@ export const getMemberCommitteeAssignments = async (memberId: string): Promise<s
     .filter(assignment => assignment.typ === 'uppdrag' && !assignment.tom)
     .map(assignment => assignment.organ_kod)
     .filter(code => isValidCommitteeCode(code));
+};
+
+// Helper function to get committee name
+export const getCommitteeName = (code: string): string => {
+  return COMMITTEE_MAPPING[code] || code;
 };
