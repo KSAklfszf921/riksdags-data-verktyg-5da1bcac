@@ -65,50 +65,276 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
     overallStatus: 'idle'
   });
 
+  // Enhanced logging with timestamp and color indicators
+  const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    console.log(`[${timestamp}] ${message}`);
+  };
+
   const testApiConnectivity = async () => {
     try {
-      console.log('🌐 Testar API-anslutning till Riksdagen...');
+      console.log('🌐 Testing API connectivity to Riksdagen...');
       
-      // Test basic connectivity
-      const testUrl = 'https://data.riksdagen.se/dokumentlista/?utformat=json&sz=1';
-      const response = await fetch(testUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'RiksdagApp/1.0'
+      // Test multiple endpoints with different strategies
+      const testEndpoints = [
+        {
+          name: 'Calendar API',
+          url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=5',
+          timeout: 10000
+        },
+        {
+          name: 'Document API', 
+          url: 'https://data.riksdagen.se/dokumentlista/?utformat=json&sz=5',
+          timeout: 10000
+        },
+        {
+          name: 'Member API',
+          url: 'https://data.riksdagen.se/personlista/?utformat=json&sz=5',
+          timeout: 10000
         }
-      });
+      ];
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const results = [];
+      let successfulTests = 0;
+
+      for (const endpoint of testEndpoints) {
+        try {
+          console.log(`🔍 Testing ${endpoint.name}...`);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), endpoint.timeout);
+          
+          const response = await fetch(endpoint.url, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'RiksdagApp/1.0 (API Test)'
+            },
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          const responseText = await response.text();
+          const isHtml = responseText.trim().startsWith('<');
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          if (isHtml) {
+            throw new Error('API returned HTML instead of JSON - possible rate limiting or API changes');
+          }
+
+          // Try to parse JSON
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            throw new Error('Invalid JSON response from API');
+          }
+
+          results.push({
+            endpoint: endpoint.name,
+            status: 'success',
+            responseSize: responseText.length,
+            hasData: Object.keys(data).length > 0
+          });
+          
+          successfulTests++;
+          console.log(`✅ ${endpoint.name} test successful`);
+
+        } catch (error) {
+          console.error(`❌ ${endpoint.name} test failed:`, error);
+          results.push({
+            endpoint: endpoint.name,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
       }
 
-      const data = await response.json();
-      
-      return {
-        status: 'success' as const,
-        message: 'API-anslutning fungerar',
-        details: [
-          `HTTP Status: ${response.status}`,
-          `Response Time: ${performance.now()}ms`,
-          `Data Format: JSON`,
-          `Sample Response: ${JSON.stringify(data).substring(0, 100)}...`
-        ]
-      };
+      if (successfulTests === 0) {
+        return {
+          status: 'error' as const,
+          message: 'Alla API-tester misslyckades',
+          details: [
+            'Ingen av Riksdagens API-endpoints svarar korrekt',
+            'Detta kan bero på nätverksproblem, API-förändringar eller rate limiting',
+            ...results.map(r => `${r.endpoint}: ${r.status === 'error' ? r.error : 'OK'}`)
+          ],
+          fixes: [
+            'Kontrollera internetanslutningen',
+            'Vänta 5-10 minuter och försök igen (rate limiting)',
+            'Kontrollera om Riksdagens API har ändrats',
+            'Överväg att implementera backup data-källor'
+          ]
+        };
+      } else if (successfulTests < testEndpoints.length) {
+        return {
+          status: 'warning' as const,
+          message: `${successfulTests}/${testEndpoints.length} API-tester lyckades`,
+          details: [
+            `${successfulTests} av ${testEndpoints.length} endpoints fungerar`,
+            ...results.map(r => `${r.endpoint}: ${r.status === 'error' ? r.error : 'OK'}`)
+          ],
+          fixes: [
+            'Vissa funktioner kan vara begränsade',
+            'Övervaka misslyckade endpoints',
+            'Implementera fallback-strategier'
+          ],
+          canAutoFix: false
+        };
+      } else {
+        return {
+          status: 'success' as const,
+          message: 'Alla API-anslutningar fungerar',
+          details: [
+            `Alla ${testEndpoints.length} endpoints svarar korrekt`,
+            `Total responsdata: ${results.reduce((sum, r) => sum + (r.responseSize || 0), 0)} bytes`,
+            'API-kvalitet: Utmärkt'
+          ]
+        };
+      }
     } catch (error) {
-      console.error('❌ API connectivity test failed:', error);
+      console.error('❌ Critical API connectivity test error:', error);
       return {
         status: 'error' as const,
-        message: 'API-anslutning misslyckades',
+        message: 'Kritiskt fel vid API-test',
         details: [
-          `Fel: ${error instanceof Error ? error.message : 'Okänt fel'}`,
-          'Detta kan bero på nätverksproblem eller API-begränsningar'
+          `Systemfel: ${error instanceof Error ? error.message : 'Okänt fel'}`,
+          'Kunde inte genomföra grundläggande API-tester'
         ],
         fixes: [
-          'Kontrollera internetanslutningen',
-          'Vänta en stund och försök igen',
-          'Riksdagens API kan vara temporärt otillgängligt'
+          'Kontrollera nätverksanslutningen',
+          'Starta om applikationen',
+          'Kontrollera brandväggsinställningar'
         ]
+      };
+    }
+  };
+
+  const testDatabaseIntegrity = async () => {
+    try {
+      console.log('🗄️ Testing database integrity and conflict handling...');
+      
+      const tests = [];
+      
+      // Test 1: Basic connectivity
+      try {
+        const { error: connectError } = await supabase
+          .from('automated_sync_status')
+          .select('id')
+          .limit(1);
+          
+        if (connectError) {
+          throw new Error(`Database connection failed: ${connectError.message}`);
+        }
+        tests.push({ name: 'Database Connection', status: 'success' });
+      } catch (error) {
+        tests.push({ 
+          name: 'Database Connection', 
+          status: 'error', 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+
+      // Test 2: Check for hanging syncs
+      try {
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data: hangingSyncs, error } = await supabase
+          .from('automated_sync_status')
+          .select('id, sync_type, started_at')
+          .eq('status', 'running')
+          .lt('started_at', thirtyMinutesAgo);
+
+        if (error) {
+          throw new Error(`Failed to check hanging syncs: ${error.message}`);
+        }
+
+        const hangingCount = hangingSyncs?.length || 0;
+        tests.push({ 
+          name: 'Hanging Processes Check', 
+          status: hangingCount > 0 ? 'warning' : 'success',
+          details: hangingCount > 0 ? `Found ${hangingCount} hanging processes` : 'No hanging processes'
+        });
+      } catch (error) {
+        tests.push({ 
+          name: 'Hanging Processes Check', 
+          status: 'error', 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+
+      // Test 3: Check for recent conflicts in logs
+      try {
+        const recentErrors = await supabase
+          .from('data_sync_log')
+          .select('error_details, created_at')
+          .not('error_details', 'is', null)
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .limit(10);
+
+        const conflictErrors = recentErrors.data?.filter(log => 
+          JSON.stringify(log.error_details).includes('ON CONFLICT DO UPDATE')
+        ) || [];
+
+        tests.push({ 
+          name: 'Recent Conflict Errors', 
+          status: conflictErrors.length > 0 ? 'warning' : 'success',
+          details: conflictErrors.length > 0 
+            ? `Found ${conflictErrors.length} conflict errors in last 24h` 
+            : 'No recent conflict errors'
+        });
+      } catch (error) {
+        tests.push({ 
+          name: 'Recent Conflict Errors', 
+          status: 'error', 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        });
+      }
+
+      const errorTests = tests.filter(t => t.status === 'error');
+      const warningTests = tests.filter(t => t.status === 'warning');
+
+      if (errorTests.length > 0) {
+        return {
+          status: 'error' as const,
+          message: `${errorTests.length} kritiska databasfel upptäckta`,
+          details: tests.map(t => `${t.name}: ${t.status === 'error' ? t.error : t.details || 'OK'}`),
+          fixes: [
+            'Kontrollera databasanslutningen',
+            'Rensa hängande processer',
+            'Granska konflikhantering i batch-operationer'
+          ],
+          canAutoFix: true
+        };
+      } else if (warningTests.length > 0) {
+        return {
+          status: 'warning' as const,
+          message: `${warningTests.length} databasvarningar upptäckta`,
+          details: tests.map(t => `${t.name}: ${t.details || 'OK'}`),
+          fixes: [
+            'Rensa hängande processer',
+            'Optimera batch-operationer',
+            'Övervaka databasprestation'
+          ],
+          canAutoFix: true
+        };
+      } else {
+        return {
+          status: 'success' as const,
+          message: 'Databas fungerar normalt',
+          details: tests.map(t => `${t.name}: OK`)
+        };
+      }
+    } catch (error) {
+      console.error('❌ Database integrity test failed:', error);
+      return {
+        status: 'error' as const,
+        message: 'Databas-integritetstest misslyckades',
+        details: [`Systemfel: ${error instanceof Error ? error.message : 'Okänt fel'}`],
+        fixes: ['Kontrollera Supabase-konfiguration', 'Verifiera databasrättigheter']
       };
     }
   };
@@ -117,10 +343,19 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
     {
       id: 'api_connectivity',
       name: 'API-anslutning',
-      description: 'Testar anslutning till Riksdagens API',
+      description: 'Testar anslutning till Riksdagens API med förbättrad felhantering',
       icon: <Wifi className="w-5 h-5" />,
       critical: true,
       action: testApiConnectivity
+    },
+    {
+      id: 'database_integrity',
+      name: 'Databas-integritet',
+      description: 'Kontrollerar databaskonflikter och hängande processer',
+      icon: <Database className="w-5 h-5" />,
+      critical: true,
+      autoFix: true,
+      action: testDatabaseIntegrity
     },
     {
       id: 'health_check',
@@ -157,7 +392,7 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
     {
       id: 'process_cleanup',
       name: 'Processrensning',
-      description: 'Rensar hängande och gamla processer',
+      description: 'Rensar hängande och gamla processer med förbättrad logik',
       icon: <Clock className="w-5 h-5" />,
       autoFix: true,
       action: async () => {
@@ -267,13 +502,13 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
       results: {}
     }));
 
-    console.log('🚀 Startar Master Diagnostik Workflow...');
+    console.log('🚀 Starting Master Diagnostics Workflow with enhanced error handling...');
 
     for (let i = 0; i < diagnosticSteps.length; i++) {
       const step = diagnosticSteps[i];
       
       setWorkflow(prev => ({ ...prev, currentStep: i }));
-      console.log(`🔍 Kör: ${step.name}`);
+      console.log(`🔍 Running: ${step.name}`);
 
       try {
         const result = await step.action();
@@ -285,16 +520,26 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
 
         console.log(`✅ ${step.name}: ${result.status} - ${result.message}`);
 
-        // Auto-fix för kritiska problem
-        if (step.autoFix && result.canAutoFix && result.status === 'error') {
-          console.log(`🔧 Auto-fix för ${step.name}...`);
-          // Utför auto-fix här om implementerat
+        // Auto-fix for critical problems with enhanced logic
+        if (step.autoFix && result.canAutoFix && (result.status === 'error' || result.status === 'warning')) {
+          console.log(`🔧 Auto-fix available for ${step.name}...`);
+          addLog(`Auto-fix triggered for ${step.name}`, 'warning');
+          
+          if (step.id === 'database_integrity' || step.id === 'process_cleanup') {
+            // Trigger cleanup for database issues
+            try {
+              await cleanupHangingProcesses();
+              addLog('Automatic cleanup completed', 'success');
+            } catch (error) {
+              addLog(`Auto-fix failed: ${error}`, 'error');
+            }
+          }
         }
 
         await new Promise(resolve => setTimeout(resolve, 500));
 
       } catch (error) {
-        console.error(`❌ ${step.name} misslyckades:`, error);
+        console.error(`❌ ${step.name} failed:`, error);
         const errorResult: DiagnosticResult = {
           status: 'error',
           message: `Fel under ${step.name}`,
@@ -316,8 +561,8 @@ const MasterDiagnosticsWorkflow: React.FC = () => {
     }));
 
     toast({
-      title: "Diagnostik slutförd",
-      description: "Alla diagnostiksteg har genomförts",
+      title: "Förbättrad diagnostik slutförd",
+      description: "Alla diagnostiksteg med förbättrad felhantering har genomförts",
     });
   }, [diagnosticSteps, toast, performHealthCheck, cleanupHangingProcesses, healthData]);
 
