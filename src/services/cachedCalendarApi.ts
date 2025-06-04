@@ -247,7 +247,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> => {
+  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -284,7 +284,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> => {
+  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -321,7 +321,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getAllEvents(): Promise<CachedCalendarData[]> => {
+  static async getAllEvents(): Promise<CachedCalendarData[]> {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
