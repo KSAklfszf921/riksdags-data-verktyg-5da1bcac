@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Filter, Search, Star, Grid, List, AlertTriangle, Trash2 } from "lucide-react";
+import { Users, Filter, Search, Star, Grid, List, AlertTriangle, Trash2, Database, RefreshCw } from "lucide-react";
 import { useEnhancedMembers } from '@/hooks/useEnhancedMembers';
 import { useFavorites } from '@/hooks/useFavorites';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -42,7 +42,19 @@ const EnhancedMembersPage: React.FC = () => {
   // Load members with enhanced data
   const { members, loading, error } = useEnhancedMembers(1, 1000, 'current');
 
-  // Check data quality and identify incomplete profiles
+  // Check if database is empty
+  const isDatabaseEmpty = !loading && members.length === 0 && !error;
+
+  // Enhanced filter options with validation
+  const filterOptions = useMemo(() => {
+    const parties = [...new Set(members.filter(m => m.party).map(m => m.party))].sort();
+    const constituencies = [...new Set(members.filter(m => m.constituency).map(m => m.constituency!))].sort();
+    const committees = [...new Set(members.flatMap(m => m.current_committees || []))].sort();
+    
+    return { parties, constituencies, committees };
+  }, [members]);
+
+  // Data quality analysis for non-empty database
   const dataQualityAnalysis = useMemo(() => {
     if (members.length === 0) return { needsSync: false, incompleteProfiles: [] };
     
@@ -60,15 +72,6 @@ const EnhancedMembersPage: React.FC = () => {
     const needsSync = (emptyNames / members.length) > 0.1; // More than 10% have empty names
     
     return { needsSync, incompleteProfiles };
-  }, [members]);
-
-  // Enhanced filter options with validation
-  const filterOptions = useMemo(() => {
-    const parties = [...new Set(members.filter(m => m.party).map(m => m.party))].sort();
-    const constituencies = [...new Set(members.filter(m => m.constituency).map(m => m.constituency!))].sort();
-    const committees = [...new Set(members.flatMap(m => m.current_committees || []))].sort();
-    
-    return { parties, constituencies, committees };
   }, [members]);
 
   // Clean up incomplete member profiles
@@ -90,14 +93,6 @@ const EnhancedMembersPage: React.FC = () => {
 
       if (enhancedError) throw enhancedError;
 
-      // Also delete from member_data for complete cleanup
-      const { error: memberError } = await supabase
-        .from('member_data')
-        .delete()
-        .in('member_id', memberIds);
-
-      if (memberError) throw memberError;
-
       toast.success(`${memberIds.length} ofullständiga profiler har tagits bort. Kör datasynkronisering för att hämta uppdaterad data.`);
       
       // Refresh the page to reload data
@@ -110,6 +105,36 @@ const EnhancedMembersPage: React.FC = () => {
       setCleanupInProgress(false);
     }
   }, [dataQualityAnalysis.incompleteProfiles]);
+
+  // Trigger data synchronization
+  const handleDataSync = useCallback(async () => {
+    try {
+      toast.info('Startar datasynkronisering...');
+      
+      // Call the comprehensive data sync function
+      const { error } = await supabase.functions.invoke('fetch-comprehensive-data', {
+        body: { 
+          syncType: 'enhanced_members',
+          forceRefresh: true 
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Datasynkronisering startad. Data kommer att uppdateras inom kort.');
+      
+      // Refresh after a short delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error starting data sync:', error);
+      toast.error('Kunde inte starta datasynkronisering');
+    }
+  }, []);
 
   // Apply filters with enhanced validation
   const filteredMembers = useMemo(() => {
@@ -235,6 +260,50 @@ const EnhancedMembersPage: React.FC = () => {
           <p className="text-sm">{error}</p>
         </div>
       </Card>
+    );
+  }
+
+  // Show empty database state
+  if (isDatabaseEmpty) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center space-x-3">
+                <Database className="w-8 h-8 text-blue-600" />
+                <div>
+                  <h3 className="text-lg font-medium text-blue-800 dark:text-blue-200">
+                    Databasen är tom
+                  </h3>
+                  <p className="text-sm text-blue-600 dark:text-blue-300">
+                    Inga ledamöter finns i databasen ännu. Starta datasynkronisering för att hämta medlemsdata.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-center space-x-4">
+                <Button 
+                  onClick={handleDataSync}
+                  variant="default"
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Starta datasynkronisering
+                </Button>
+                <Button 
+                  onClick={() => window.location.href = '/admin'}
+                  variant="outline"
+                  size="lg"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                >
+                  Admin-panel
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 

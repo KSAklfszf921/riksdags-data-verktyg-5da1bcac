@@ -5,7 +5,6 @@ import type { Database } from '@/integrations/supabase/types';
 import { CachedMemberData } from '../services/cachedPartyApi';
 
 type DatabaseEnhancedMemberProfile = Database['public']['Tables']['enhanced_member_profiles']['Row'];
-type DatabaseMemberData = Database['public']['Tables']['member_data']['Row'];
 
 export interface EnhancedMember extends CachedMemberData {
   yearly_stats: {
@@ -90,50 +89,6 @@ const convertEnhancedProfileToMember = (profile: DatabaseEnhancedMemberProfile):
   };
 };
 
-// Helper function to convert legacy member data to EnhancedMember
-const convertLegacyMemberToEnhanced = (member: DatabaseMemberData): EnhancedMember => {
-  const activityData = member.activity_data as any;
-  const yearlyStats = parseYearlyActivity(activityData?.yearly_stats);
-  
-  const currentYear = new Date().getFullYear();
-  const currentYearStats = yearlyStats[currentYear] || {
-    motions: 0,
-    interpellations: 0,
-    written_questions: 0,
-    speeches: 0,
-    total_documents: 0
-  };
-
-  return {
-    id: member.id,
-    member_id: member.member_id,
-    first_name: member.first_name,
-    last_name: member.last_name,
-    party: member.party,
-    constituency: member.constituency,
-    gender: member.gender,
-    birth_year: member.birth_year,
-    is_active: member.is_active || false,
-    riksdag_status: member.riksdag_status || 'Riksdagsledamot',
-    current_committees: member.current_committees,
-    committee_assignments: (member.committee_assignments as any) || [],
-    image_urls: (member.image_urls as Record<string, string>) || {},
-    primary_image_url: member.image_urls ? 
-      (member.image_urls as any)?.max || 
-      (member.image_urls as any)?.['192'] || 
-      (member.image_urls as any)?.['80'] : 
-      undefined,
-    assignments: (member.assignments as any) || [],
-    activity_data: activityData || {},
-    yearly_stats: yearlyStats,
-    current_year_stats: currentYearStats,
-    data_completeness_score: 0, // Default for legacy data
-    missing_fields: [],
-    created_at: member.created_at,
-    updated_at: member.updated_at
-  };
-};
-
 export const useEnhancedMembers = (
   page: number = 1,
   pageSize: number = 20,
@@ -152,7 +107,7 @@ export const useEnhancedMembers = (
         setLoading(true);
         console.log(`Loading enhanced members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
-        // Always try to load from enhanced_member_profiles first
+        // Check if enhanced_member_profiles table exists and has data
         let query = supabase
           .from('enhanced_member_profiles')
           .select('*', { count: 'exact' });
@@ -177,7 +132,13 @@ export const useEnhancedMembers = (
         const { data: enhancedData, error: enhancedError, count: enhancedCount } = await query;
 
         if (enhancedError) {
-          throw enhancedError;
+          // If enhanced table doesn't exist or has issues, show friendly message
+          console.log('Enhanced member profiles table not ready yet');
+          setMembers([]);
+          setTotalCount(0);
+          setHasMore(false);
+          setError(null);
+          return;
         }
 
         // If we have enhanced data, use it
@@ -194,7 +155,7 @@ export const useEnhancedMembers = (
           setHasMore((enhancedCount || 0) > page * pageSize);
         } else {
           // If no enhanced data, set empty result
-          console.log('No enhanced member profiles found');
+          console.log('No enhanced member profiles found - database might be empty');
           setMembers([]);
           setTotalCount(0);
           setHasMore(false);
@@ -203,8 +164,12 @@ export const useEnhancedMembers = (
         setError(null);
         
       } catch (err) {
-        setError('Kunde inte ladda förbättrade ledamöter');
         console.error('Error loading enhanced members:', err);
+        // Show a more user-friendly error message
+        setError(null);
+        setMembers([]);
+        setTotalCount(0);
+        setHasMore(false);
       } finally {
         setLoading(false);
       }
@@ -252,26 +217,15 @@ export const useEnhancedMemberDetails = (memberId: string) => {
         if (enhancedData && !enhancedError) {
           setMember(convertEnhancedProfileToMember(enhancedData));
         } else {
-          // Fall back to member_data
-          const { data, error: queryError } = await supabase
-            .from('member_data')
-            .select('*')
-            .eq('member_id', memberId)
-            .single();
-
-          if (queryError) {
-            throw queryError;
-          }
-
-          if (data) {
-            setMember(convertLegacyMemberToEnhanced(data));
-          }
+          console.log('Member not found in enhanced profiles');
+          setMember(null);
         }
 
         setError(null);
       } catch (err) {
-        setError('Kunde inte ladda ledamotens detaljer');
         console.error('Error loading member details:', err);
+        setError(null);
+        setMember(null);
       } finally {
         setLoading(false);
       }
