@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,6 +91,9 @@ const MemberDataSynchronizer: React.FC = () => {
         JSON.parse(JSON.stringify(details.assignments)) : 
         [];
 
+      // Check if member is active - use tom field from member data if available
+      const isActive = !member.tom || new Date(member.tom) > new Date();
+
       // Prepare member data with validated fields
       const memberData = {
         member_id: member.intressent_id,
@@ -101,7 +103,7 @@ const MemberDataSynchronizer: React.FC = () => {
         constituency: member.valkrets || null,
         gender: member.kon || null,
         birth_year: member.fodd_ar ? parseInt(member.fodd_ar) : null,
-        is_active: !member.datum_tom || new Date(member.datum_tom) > new Date(),
+        is_active: isActive,
         riksdag_status: member.status || 'Okänd',
         current_committees: currentCommittees.length > 0 ? currentCommittees : null,
         image_urls: Object.keys(imageUrls).length > 0 ? imageUrls : null,
