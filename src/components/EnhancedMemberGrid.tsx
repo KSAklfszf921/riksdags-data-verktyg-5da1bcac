@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity } from "lucide-react";
+import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity, Users } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
