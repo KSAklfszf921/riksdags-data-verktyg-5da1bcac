@@ -72,6 +72,8 @@ export const useSyncMonitor = () => {
 
   const cleanupHangingSyncs = useCallback(async () => {
     try {
+      console.log('🧹 Cleaning up hanging syncs...');
+      
       // Find syncs that have been running for more than 30 minutes
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
@@ -132,10 +134,13 @@ export const useSyncMonitor = () => {
     }
   }, [fetchSyncStatus]);
 
-  // Set up real-time subscription
+  // Set up real-time subscription and periodic refresh
   useEffect(() => {
     // Initial fetch
     fetchSyncStatus();
+
+    // Auto-cleanup on mount
+    cleanupHangingSyncs().catch(console.error);
 
     // Set up real-time subscription
     const channel = supabase
@@ -157,11 +162,17 @@ export const useSyncMonitor = () => {
     // Set up periodic refresh (every 30 seconds)
     const interval = setInterval(fetchSyncStatus, 30000);
 
+    // Set up periodic cleanup (every 5 minutes)
+    const cleanupInterval = setInterval(() => {
+      cleanupHangingSyncs().catch(console.error);
+    }, 5 * 60 * 1000);
+
     return () => {
       clearInterval(interval);
+      clearInterval(cleanupInterval);
       supabase.removeChannel(channel);
     };
-  }, [fetchSyncStatus]);
+  }, [fetchSyncStatus, cleanupHangingSyncs]);
 
   return {
     ...state,

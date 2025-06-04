@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Vote, Activity, TestTube, Server, Settings } from "lucide-react";
+import { Shield, Vote, Activity, TestTube, Server, Settings, Heart } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import MasterControlPanel from "../components/MasterControlPanel";
 import EnhancedVotingTool from "../components/EnhancedVotingTool";
@@ -12,9 +11,10 @@ import ApiTestingDashboard from "../components/ApiTestingDashboard";
 import AdminSecurityPanel from "../components/AdminSecurityPanel";
 import SecurityAuditLog from "../components/SecurityAuditLog";
 import SecurityIncidentResponse from "../components/SecurityIncidentResponse";
+import SystemHealthMonitor from "../components/SystemHealthMonitor";
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState("master");
+  const [activeTab, setActiveTab] = useState("health");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
@@ -26,7 +26,11 @@ const Admin = () => {
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="health" className="flex items-center space-x-2">
+              <Heart className="w-4 h-4" />
+              <span>Systemhälsa</span>
+            </TabsTrigger>
             <TabsTrigger value="master" className="flex items-center space-x-2">
               <Shield className="w-4 h-4" />
               <span>Master Panel</span>
@@ -52,6 +56,10 @@ const Admin = () => {
               <span>Inställningar</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="health">
+            <SystemHealthMonitor />
+          </TabsContent>
 
           <TabsContent value="master">
             <MasterControlPanel />
