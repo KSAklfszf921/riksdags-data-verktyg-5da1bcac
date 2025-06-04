@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -5,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+// Updated to follow technical guide recommendations
+const BASE_URL = 'https://data.riksdagen.se';
 
 interface Party {
   id: string;
@@ -60,7 +64,8 @@ interface Speech {
 }
 
 const fetchParties = async (): Promise<Party[]> => {
-  const url = 'https://data.riksdagen.se/partier.json';
+  // Updated URL to follow technical guide
+  const url = `${BASE_URL}/partier.json`;
   const response = await fetch(url);
   const data = await response.json();
   return data.partier.parti.map((p: any) => ({
@@ -73,7 +78,17 @@ const fetchParties = async (): Promise<Party[]> => {
 };
 
 const fetchMembers = async (partyId: string): Promise<Member[]> => {
-  const url = `https://data.riksdagen.se/personlista/?iid=&fnamn=&enamn=&parti=${partyId}&valkrets=&rdlstatus=tjanst&utformat=json&sort=efternamn`;
+  // Updated to use proper parameters following technical guide
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  searchParams.append('rdlstatus', 'tjanst');
+  searchParams.append('sort', 'efternamn');
+  searchParams.append('p', '1');
+  
+  // Use 'sok' parameter for party filtering as recommended
+  searchParams.append('sok', partyId);
+  
+  const url = `${BASE_URL}/personlista/?${searchParams.toString()}`;
   const response = await fetch(url);
   const data = await response.json();
 
@@ -91,12 +106,20 @@ const fetchMembers = async (partyId: string): Promise<Member[]> => {
     party_id: m.parti,
     role: m.roll_kod,
     district: m.valkrets,
-    image_url: m.bild_url
+    image_url: m.bild_url_192 || m.bild_url_max || m.bild_url_80 // Use available image URLs
   }));
 };
 
 const fetchDocuments = async (): Promise<Document[]> => {
-  const url = 'https://data.riksdagen.se/dokumentlista/?sok=&doktyp=mot,prop&utformat=json&sort=datum&sortorder=desc&sz=500';
+  // Updated to use proper parameters following technical guide
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  searchParams.append('doktyp', 'mot,prop');
+  searchParams.append('sort', 'datum');
+  searchParams.append('sortorder', 'desc');
+  searchParams.append('p', '1'); // Use 'p' instead of 'sz'
+  
+  const url = `${BASE_URL}/dokumentlista/?${searchParams.toString()}`;
   const response = await fetch(url);
   const data = await response.json();
 
@@ -113,12 +136,19 @@ const fetchDocuments = async (): Promise<Document[]> => {
     subtitle: d.subtitel,
     doc_date: d.datum,
     category: d.doktyp,
-    url: d.dokument_url_html
+    url: d.dokument_url_html || d.dokument_url_text
   }));
 };
 
 const fetchVotes = async (): Promise<Vote[]> => {
-  const url = 'https://data.riksdagen.se/voteringlista/?rm=latest&bet=&hang=&punkt=&votering=&utformat=json&gruppering=votering';
+  // Updated to use proper parameters following technical guide
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  searchParams.append('rm', 'latest');
+  searchParams.append('gruppering', 'votering');
+  searchParams.append('p', '1');
+  
+  const url = `${BASE_URL}/voteringlista/?${searchParams.toString()}`;
   const response = await fetch(url);
   const data = await response.json();
 
@@ -156,7 +186,15 @@ const fetchVotes = async (): Promise<Vote[]> => {
 };
 
 const fetchSpeeches = async (): Promise<Speech[]> => {
-  const url = 'https://data.riksdagen.se/anforandeforlista/?doktyp=tal&utformat=json&sort=datumtid&sortorder=desc&sz=500';
+  // Updated to use proper parameters following technical guide
+  const searchParams = new URLSearchParams();
+  searchParams.append('utformat', 'json');
+  searchParams.append('doktyp', 'tal');
+  searchParams.append('sort', 'datumtid');
+  searchParams.append('sortorder', 'desc');
+  searchParams.append('p', '1'); // Use 'p' instead of 'sz'
+  
+  const url = `${BASE_URL}/anforandelista/?${searchParams.toString()}`;
   const response = await fetch(url);
   const data = await response.json();
 

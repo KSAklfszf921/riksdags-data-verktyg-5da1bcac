@@ -1,25 +1,27 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
+const BASE_URL = 'https://data.riksdagen.se';
+
 export interface CachedCalendarData {
-  id: string;
+  id?: string;
   event_id: string;
   datum: string | null;
   tid: string | null;
-  plats: string | null;
-  aktivitet: string | null;
   typ: string | null;
+  aktivitet: string | null;
+  plats: string | null;
   organ: string | null;
   summary: string | null;
   description: string | null;
   status: string | null;
   url: string | null;
   sekretess: string | null;
-  participants: Json | null;
-  related_documents: Json | null;
-  metadata: Json | null;
-  created_at: string;
-  updated_at: string;
+  participants?: any;
+  related_documents?: any;
+  metadata?: any;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const fetchCachedCalendarData = async (limit = 100): Promise<CachedCalendarData[]> => {
@@ -179,6 +181,99 @@ export const getCalendarDataFreshness = async (): Promise<{ lastUpdated: string 
   const isStale = hoursSinceUpdate > 24;
 
   return { lastUpdated, isStale };
+};
+
+// Updated calendar API service to comply with technical guide
+export const fetchCalendarDataFromApi = async (): Promise<CachedCalendarData[]> => {
+  console.log('📅 Fetching calendar data from Riksdag API...');
+  
+  try {
+    // Use proper parameters following the technical guide
+    const searchParams = new URLSearchParams();
+    searchParams.append('utformat', 'json'); // Always use JSON format
+    
+    const url = `${BASE_URL}/kalender/?${searchParams.toString()}`;
+    console.log('📡 Calendar API URL:', url);
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'RiksdagMonitor/1.0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    
+    // Check if response is HTML (error page)
+    if (text.trim().startsWith('<')) {
+      throw new Error('API returned HTML instead of JSON - possible rate limiting or API changes');
+    }
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseError) {
+      throw new Error('Invalid JSON response from API');
+    }
+
+    console.log('📅 Raw calendar response structure:', Object.keys(data));
+
+    let events: any[] = [];
+    
+    // Handle different response structures
+    if (data.kalender?.händelse) {
+      events = Array.isArray(data.kalender.händelse) 
+        ? data.kalender.händelse 
+        : [data.kalender.händelse];
+    } else if (data.kalenderlista?.kalender) {
+      const kalenderData = Array.isArray(data.kalenderlista.kalender) 
+        ? data.kalenderlista.kalender 
+        : [data.kalenderlista.kalender];
+      
+      events = kalenderData.flatMap(k => 
+        k.händelse ? (Array.isArray(k.händelse) ? k.händelse : [k.händelse]) : []
+      );
+    }
+
+    console.log(`📅 Found ${events.length} calendar events`);
+
+    // Map events to our format
+    const mappedEvents: CachedCalendarData[] = events.map((event, index) => {
+      const eventId = event.id || event.händelse_id || `event-${Date.now()}-${index}`;
+      
+      return {
+        event_id: eventId,
+        datum: event.datum || null,
+        tid: event.tid || event.tid_från || null,
+        typ: event.typ || null,
+        aktivitet: event.aktivitet || event.titel || null,
+        plats: event.plats || event.lokal || null,
+        organ: event.organ || null,
+        summary: event.summary || event.kort_beskrivning || null,
+        description: event.beskrivning || event.innehåll || null,
+        status: event.status || 'planerad',
+        url: event.url || event.länk || null,
+        sekretess: event.sekretess || 'öppen',
+        participants: event.deltagare || null,
+        related_documents: event.dokument || null,
+        metadata: {
+          source: 'riksdag_api',
+          fetched_at: new Date().toISOString(),
+          original_data: event
+        }
+      };
+    });
+
+    return mappedEvents;
+    
+  } catch (error) {
+    console.error('❌ Error fetching calendar data:', error);
+    throw error;
+  }
 };
 
 // Utility functions for working with calendar data

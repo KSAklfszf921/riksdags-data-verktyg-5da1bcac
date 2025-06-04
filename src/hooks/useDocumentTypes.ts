@@ -1,4 +1,5 @@
 
+// Updated document types hook to follow technical guide
 import { useState, useEffect } from 'react';
 import { searchDocuments } from '../services/riksdagApi';
 
@@ -16,7 +17,7 @@ export const useDocumentTypes = () => {
     const fetchDocumentTypeCounts = async () => {
       setLoading(true);
       
-      // Updated with correct document types from the API
+      // Updated with correct document types from the technical guide
       const types = [
         { value: 'bet', label: 'Betänkande' },
         { value: 'prop', label: 'Proposition' },
@@ -42,9 +43,10 @@ export const useDocumentTypes = () => {
 
       for (const type of types) {
         try {
+          // Use proper pagination parameter 'p' instead of 'sz'
           const result = await searchDocuments({
             doktyp: type.value,
-            sz: 1
+            p: 1 // Use 'p' for pagination as recommended
           });
           typeStats.push({
             ...type,
@@ -59,7 +61,7 @@ export const useDocumentTypes = () => {
         }
       }
 
-      // Sortera efter antal dokument (högst först)
+      // Sort by document count (highest first)
       typeStats.sort((a, b) => b.count - a.count);
       setDocumentTypes(typeStats);
       setLoading(false);
