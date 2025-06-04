@@ -10,6 +10,9 @@ import ImprovedMemberDataSynchronizer from './ImprovedMemberDataSynchronizer';
 import MasterSyncTool from './MasterSyncTool';
 import DataValidationDashboard from './DataValidationDashboard';
 import SystemPerformanceDashboard from './SystemPerformanceDashboard';
+import EnhancedAdminQuickActions from './EnhancedAdminQuickActions';
+import SystemHealthDashboard from './SystemHealthDashboard';
+import AdminSecurityPanel from './AdminSecurityPanel';
 import { 
   Shield, 
   Database, 
@@ -138,10 +141,14 @@ const MasterControlPanel: React.FC = () => {
 
       {/* Master Control Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <BarChart3 className="w-4 h-4" />
             <span>Översikt</span>
+          </TabsTrigger>
+          <TabsTrigger value="quickactions" className="flex items-center space-x-2">
+            <Zap className="w-4 h-4" />
+            <span>Snabbåtgärder</span>
           </TabsTrigger>
           <TabsTrigger value="sync" className="flex items-center space-x-2">
             <Database className="w-4 h-4" />
@@ -151,6 +158,10 @@ const MasterControlPanel: React.FC = () => {
                 {activeSyncs.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="health" className="flex items-center space-x-2">
+            <Activity className="w-4 h-4" />
+            <span>Systemhälsa</span>
           </TabsTrigger>
           <TabsTrigger value="validation" className="flex items-center space-x-2">
             <TestTube className="w-4 h-4" />
@@ -164,14 +175,14 @@ const MasterControlPanel: React.FC = () => {
             <Lock className="w-4 h-4" />
             <span>Säkerhet</span>
           </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center space-x-2">
-            <Settings className="w-4 h-4" />
-            <span>Inställningar</span>
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <MasterOverviewTab activeSyncs={activeSyncs} recentSyncs={recentSyncs} systemStats={systemStats} />
+        </TabsContent>
+
+        <TabsContent value="quickactions">
+          <EnhancedAdminQuickActions />
         </TabsContent>
 
         <TabsContent value="sync">
@@ -179,6 +190,10 @@ const MasterControlPanel: React.FC = () => {
             <MasterSyncTool />
             <ImprovedMemberDataSynchronizer />
           </div>
+        </TabsContent>
+
+        <TabsContent value="health">
+          <SystemHealthDashboard />
         </TabsContent>
 
         <TabsContent value="validation">
@@ -190,11 +205,7 @@ const MasterControlPanel: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="security">
-          <SecurityControlsTab />
-        </TabsContent>
-
-        <TabsContent value="settings">
-          <MasterSettingsTab />
+          <AdminSecurityPanel />
         </TabsContent>
       </Tabs>
     </div>
