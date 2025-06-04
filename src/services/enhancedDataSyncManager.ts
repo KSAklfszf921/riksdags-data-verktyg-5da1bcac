@@ -1,4 +1,3 @@
-
 import { supabase } from '../integrations/supabase/client';
 import { enhancedDatabaseManager } from './enhancedDatabaseManager';
 
@@ -155,7 +154,7 @@ class EnhancedDataSyncManager {
   private async getExistingIds(tableName: string, uniqueField: string): Promise<Set<string>> {
     try {
       const { data, error } = await supabase
-        .from(tableName)
+        .from(tableName as any)
         .select(uniqueField);
 
       if (error) {
@@ -255,7 +254,7 @@ class EnhancedDataSyncManager {
       const startTime = Date.now();
       
       // Test database connection
-      const { error } = await supabase.from('member_data').select('id').limit(1);
+      const { error } = await supabase.from('member_data' as any).select('id').limit(1);
       const dbConnection = !error;
       const responseTime = Date.now() - startTime;
       

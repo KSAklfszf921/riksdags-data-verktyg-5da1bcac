@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,8 +32,6 @@ interface SyncProgress {
   totalRecords: number;
   duplicatesSkipped: number;
   errors: string[];
-  startTime?: Date;
-  endTime?: Date;
   retryCount: number;
   estimatedTimeRemaining?: number;
 }
@@ -199,7 +196,7 @@ const ComprehensiveDataSync: React.FC = () => {
 
       while (!success && retryCount <= maxRetries) {
         try {
-          updateMetrics(prev => ({ ...prev, totalRequests: prev.totalRequests + 1 }));
+          updateMetrics({ totalRequests: syncMetrics.totalRequests + 1 });
           
           // Anropa Supabase Edge Function med förbättrade parametrar
           const response = await supabase.functions.invoke('fetch-comprehensive-data', {
@@ -219,7 +216,7 @@ const ComprehensiveDataSync: React.FC = () => {
 
           data = response.data;
           success = true;
-          updateMetrics(prev => ({ ...prev, successfulRequests: prev.successfulRequests + 1 }));
+          updateMetrics({ successfulRequests: syncMetrics.successfulRequests + 1 });
           
         } catch (error) {
           retryCount++;
@@ -230,11 +227,10 @@ const ComprehensiveDataSync: React.FC = () => {
             addLog(`⚠️ Försök ${retryCount} misslyckades för ${endpoint.endpoint}, försöker igen om ${delay}ms...`, 'warning');
             await new Promise(resolve => setTimeout(resolve, delay));
           } else {
-            updateMetrics(prev => ({ 
-              ...prev, 
-              failedRequests: prev.failedRequests + 1,
-              networkErrors: prev.networkErrors + 1
-            }));
+            updateMetrics({ 
+              failedRequests: syncMetrics.failedRequests + 1,
+              networkErrors: syncMetrics.networkErrors + 1
+            });
             throw error;
           }
         }
@@ -265,12 +261,14 @@ const ComprehensiveDataSync: React.FC = () => {
       }
 
       const processingTime = Date.now() - startTime;
-      updateMetrics(prev => ({
-        ...prev,
-        duplicateEntries: prev.duplicateEntries + (data?.duplicates_filtered || 0),
-        averageResponseTime: ((prev.averageResponseTime * (prev.successfulRequests - 1)) + processingTime) / prev.successfulRequests,
-        totalProcessingTime: prev.totalProcessingTime + processingTime
-      }));
+      const currentAvgTime = syncMetrics.averageResponseTime;
+      const currentSuccessful = syncMetrics.successfulRequests;
+      
+      updateMetrics({
+        duplicateEntries: syncMetrics.duplicateEntries + (data?.duplicates_filtered || 0),
+        averageResponseTime: ((currentAvgTime * (currentSuccessful - 1)) + processingTime) / currentSuccessful,
+        totalProcessingTime: syncMetrics.totalProcessingTime + processingTime
+      });
 
       updateSyncProgress(endpointIndex, { 
         status: 'completed',
@@ -290,10 +288,9 @@ const ComprehensiveDataSync: React.FC = () => {
         errors: [errorMessage]
       });
 
-      updateMetrics(prev => ({ 
-        ...prev, 
-        databaseErrors: prev.databaseErrors + 1 
-      }));
+      updateMetrics({ 
+        databaseErrors: syncMetrics.databaseErrors + 1 
+      });
 
       addLog(`❌ Fel vid synkronisering av ${endpoint.endpoint}: ${errorMessage}`, 'error');
     }
@@ -360,7 +357,7 @@ const ComprehensiveDataSync: React.FC = () => {
       }
 
       const totalTime = Date.now() - overallStartTime;
-      updateMetrics(prev => ({ ...prev, totalProcessingTime: totalTime }));
+      updateMetrics({ totalProcessingTime: totalTime });
 
       if (!isPaused) {
         addLog('🎉 Förbättrad omfattande datasynkronisering slutförd!', 'success');
@@ -597,15 +594,13 @@ const ComprehensiveDataSync: React.FC = () => {
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-800">
                 <div className="space-y-1">
-                  <div>
-                    Förbättrad synkronisering slutförd! {completedCount}/{syncProgress.length} endpoints lyckades.
-                  </div>
-                  <div className="text-sm">
-                    📊 {totalRecordsProcessed.toLocaleString()} poster behandlade, {totalDuplicatesSkipped.toLocaleString()} dubbletter filtrerade
-                  </div>
-                  <div className="text-sm">
-                    🚀 {syncMetrics.successfulRequests}/{syncMetrics.totalRequests} API-anrop lyckades
-                  </div>
+                  Förbättrad synkronisering slutförd! {completedCount}/{syncProgress.length} endpoints lyckades.
+                </div>
+                <div className="text-sm">
+                  📊 {totalRecordsProcessed.toLocaleString()} poster behandlade, {totalDuplicatesSkipped.toLocaleString()} dubbletter filtrerade
+                </div>
+                <div className="text-sm">
+                  🚀 {syncMetrics.successfulRequests}/{syncMetrics.totalRequests} API-anrop lyckades
                 </div>
               </AlertDescription>
             </Alert>
