@@ -15,11 +15,30 @@ export interface OptimizedEnhancedMember {
   constituency: string | null;
   gender: string | null;
   birth_year: number | null;
+  birth_date: string | null;
   is_active: boolean;
   riksdag_status: string;
   current_committees: string[] | null;
+  assignments: any;
+  activity_summary: any;
+  yearly_activity: any;
+  committee_history: any;
+  status_history: any;
+  social_media: any;
+  image_urls: any;
   primary_image_url: string | null;
   data_completeness_score: number;
+  data_quality_issues: any;
+  missing_fields: string[] | null;
+  latest_activity_date: string | null;
+  education: string | null;
+  email: string | null;
+  profession: string | null;
+  website_url: string | null;
+  phone: string | null;
+  sync_version: string | null;
+  sync_source: string | null;
+  last_sync_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,11 +76,30 @@ const convertToOptimizedMember = (profile: DatabaseEnhancedMemberProfile): Optim
   constituency: profile.constituency,
   gender: profile.gender,
   birth_year: profile.birth_year,
+  birth_date: profile.birth_date ? profile.birth_date.toString() : null,
   is_active: profile.is_active ?? false,
   riksdag_status: profile.riksdag_status || 'Riksdagsledamot',
   current_committees: profile.current_committees,
+  assignments: profile.assignments,
+  activity_summary: profile.activity_summary,
+  yearly_activity: profile.yearly_activity,
+  committee_history: profile.committee_history,
+  status_history: profile.status_history,
+  social_media: profile.social_media,
+  image_urls: profile.image_urls,
   primary_image_url: profile.primary_image_url,
   data_completeness_score: profile.data_completeness_score || 0,
+  data_quality_issues: profile.data_quality_issues,
+  missing_fields: profile.missing_fields,
+  latest_activity_date: profile.latest_activity_date ? profile.latest_activity_date.toString() : null,
+  education: profile.education,
+  email: profile.email,
+  profession: profile.profession,
+  website_url: profile.website_url,
+  phone: profile.phone,
+  sync_version: profile.sync_version,
+  sync_source: profile.sync_source,
+  last_sync_at: profile.last_sync_at || new Date().toISOString(),
   created_at: profile.created_at || new Date().toISOString(),
   updated_at: profile.updated_at || new Date().toISOString()
 });
@@ -90,24 +128,7 @@ export const useOptimizedEnhancedMembers = (
   const buildQuery = useCallback(() => {
     let query = supabase
       .from('enhanced_member_profiles')
-      .select(`
-        id,
-        member_id,
-        first_name,
-        last_name,
-        full_name,
-        party,
-        constituency,
-        gender,
-        birth_year,
-        is_active,
-        riksdag_status,
-        current_committees,
-        primary_image_url,
-        data_completeness_score,
-        created_at,
-        updated_at
-      `, { count: 'exact' });
+      .select('*', { count: 'exact' });
 
     // Apply filters
     if (status === 'current') {
@@ -237,24 +258,7 @@ export const useOptimizedMemberDetails = (memberId: string) => {
       try {
         const { data, error: queryError } = await supabase
           .from('enhanced_member_profiles')
-          .select(`
-            id,
-            member_id,
-            first_name,
-            last_name,
-            full_name,
-            party,
-            constituency,
-            gender,
-            birth_year,
-            is_active,
-            riksdag_status,
-            current_committees,
-            primary_image_url,
-            data_completeness_score,
-            created_at,
-            updated_at
-          `)
+          .select('*')
           .eq('member_id', memberId)
           .single();
 
