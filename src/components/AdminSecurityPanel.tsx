@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,8 @@ import {
   Clock,
   Globe,
   Database,
-  FileText
+  FileText,
+  Settings
 } from "lucide-react";
 
 interface SecuritySettings {

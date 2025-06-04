@@ -9,6 +9,9 @@ import EnhancedVotingTool from "../components/EnhancedVotingTool";
 import ProcessMonitor from "../components/ProcessMonitor";
 import SystemPerformanceDashboard from "../components/SystemPerformanceDashboard";
 import ApiTestingDashboard from "../components/ApiTestingDashboard";
+import AdminSecurityPanel from "../components/AdminSecurityPanel";
+import SecurityAuditLog from "../components/SecurityAuditLog";
+import SecurityIncidentResponse from "../components/SecurityIncidentResponse";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("master");
@@ -71,101 +74,140 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="settings">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Settings className="w-5 h-5" />
-                  <span>Systeminställningar</span>
-                </CardTitle>
-                <CardDescription>
-                  Avancerade systeminställningar och konfiguration
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Datasynkronisering</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Automatisk synkronisering</span>
-                          <input type="checkbox" className="rounded" defaultChecked />
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Synkroniseringsintervall</span>
-                          <select className="border rounded px-2 py-1 text-sm">
-                            <option>Varje timme</option>
-                            <option>Var 6:e timme</option>
-                            <option>Dagligen</option>
-                          </select>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+            <div className="space-y-6">
+              {/* Security Section */}
+              <div className="space-y-6">
+                <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Shield className="w-6 h-6 text-blue-600" />
+                      <span>Säkerhetshantering</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Omfattande säkerhetskontroller och incidenthantering
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="security-settings" className="space-y-4">
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="security-settings">Säkerhetsinställningar</TabsTrigger>
+                        <TabsTrigger value="audit-log">Auditlogg</TabsTrigger>
+                        <TabsTrigger value="incidents">Incidenter</TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="security-settings">
+                        <AdminSecurityPanel />
+                      </TabsContent>
+                      
+                      <TabsContent value="audit-log">
+                        <SecurityAuditLog />
+                      </TabsContent>
+                      
+                      <TabsContent value="incidents">
+                        <SecurityIncidentResponse />
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </div>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Systemövervakning</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Aktivera e-postaviseringar</span>
-                          <input type="checkbox" className="rounded" />
+              {/* System Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Settings className="w-5 h-5" />
+                    <span>Systeminställningar</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Avancerade systeminställningar och konfiguration
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Datasynkronisering</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Automatisk synkronisering</span>
+                            <input type="checkbox" className="rounded" defaultChecked />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Synkroniseringsintervall</span>
+                            <select className="border rounded px-2 py-1 text-sm">
+                              <option>Varje timme</option>
+                              <option>Var 6:e timme</option>
+                              <option>Dagligen</option>
+                            </select>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Loggnivå</span>
-                          <select className="border rounded px-2 py-1 text-sm">
-                            <option>Info</option>
-                            <option>Varning</option>
-                            <option>Fel</option>
-                            <option>Debug</option>
-                          </select>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Säkerhetsåtgärder</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Aktivera API-begränsning</span>
-                          <input type="checkbox" className="rounded" defaultChecked />
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Systemövervakning</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Aktivera e-postaviseringar</span>
+                            <input type="checkbox" className="rounded" />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Loggnivå</span>
+                            <select className="border rounded px-2 py-1 text-sm">
+                              <option>Info</option>
+                              <option>Varning</option>
+                              <option>Fel</option>
+                              <option>Debug</option>
+                            </select>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Max förfrågningar per minut</span>
-                          <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="100" />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Prestanda</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Cache-storlek (MB)</span>
-                          <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="512" />
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Säkerhetsåtgärder</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Aktivera API-begränsning</span>
+                            <input type="checkbox" className="rounded" defaultChecked />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Max förfrågningar per minut</span>
+                            <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="100" />
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Aktivera komprimering</span>
-                          <input type="checkbox" className="rounded" defaultChecked />
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Prestanda</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Cache-storlek (MB)</span>
+                            <input type="number" className="border rounded px-2 py-1 text-sm w-20" defaultValue="512" />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Aktivera komprimering</span>
+                            <input type="checkbox" className="rounded" defaultChecked />
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
