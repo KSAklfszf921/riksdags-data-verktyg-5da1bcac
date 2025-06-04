@@ -43,10 +43,21 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     return new Date().getFullYear() - birthYear;
   };
 
+  // Helper function to safely handle image_urls
+  const getImageUrls = (imageUrls: any): Record<string, string> | null => {
+    if (!imageUrls) return null;
+    if (typeof imageUrls === 'string') return null;
+    if (typeof imageUrls === 'object' && imageUrls !== null) {
+      return imageUrls as Record<string, string>;
+    }
+    return null;
+  };
+
   // Convert enhanced member to legacy member format for MemberProfile
   const convertToLegacyMember = (enhancedMember: EnhancedMember) => {
     const activityData = enhancedMember.activity_data as any;
     const assignments = enhancedMember.assignments as any;
+    const imageUrls = getImageUrls(enhancedMember.image_urls);
     
     return {
       id: enhancedMember.member_id,
@@ -54,10 +65,10 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
       lastName: enhancedMember.last_name,
       party: enhancedMember.party,
       constituency: enhancedMember.constituency || '',
-      imageUrl: enhancedMember.image_urls ? 
-        (enhancedMember.image_urls as any)['192'] || 
-        (enhancedMember.image_urls as any)['128'] || 
-        (enhancedMember.image_urls as any)['80'] || 
+      imageUrl: imageUrls ? 
+        imageUrls['192'] || 
+        imageUrls['128'] || 
+        imageUrls['80'] || 
         `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face` :
         `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`,
       email: `${enhancedMember.first_name.toLowerCase()}.${enhancedMember.last_name.toLowerCase()}@riksdagen.se`,
@@ -127,6 +138,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
   const MemberCard = ({ member }: { member: EnhancedMember }) => {
     const age = getAge(member.birth_year);
     const isFavorite = favorites.includes(member.member_id);
+    const imageUrls = getImageUrls(member.image_urls);
 
     const handleCardClick = () => {
       if (onMemberSelect) {
@@ -154,7 +166,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
               <div className="flex items-center space-x-4 flex-1 min-w-0">
                 <div className="relative flex-shrink-0">
                   <MemberImageHandler
-                    imageUrls={member.image_urls}
+                    imageUrls={imageUrls}
                     firstName={member.first_name}
                     lastName={member.last_name}
                     size="md"
@@ -248,7 +260,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
           <div className="flex flex-col items-center text-center space-y-3">
             <div className="relative">
               <MemberImageHandler
-                imageUrls={member.image_urls}
+                imageUrls={imageUrls}
                 firstName={member.first_name}
                 lastName={member.last_name}
                 size="lg"

@@ -1,22 +1,29 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Users, TrendingUp, Activity, MapPin } from "lucide-react";
-import { useResponsive } from "@/hooks/use-responsive";
-import { useEnhancedMembers } from "@/hooks/useEnhancedMembers";
-import MemberFilters, { MemberFilter } from "./MemberFilters";
-import EnhancedMemberGrid from "./EnhancedMemberGrid";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users, Filter, Search, Star, Grid, List, Smartphone } from "lucide-react";
+import { useEnhancedMembers } from '@/hooks/useEnhancedMembers';
+import { useFavorites } from '@/hooks/useFavorites';
+import { useResponsive } from '@/hooks/use-responsive';
+import EnhancedMemberGrid from './EnhancedMemberGrid';
+import MemberFilters, { MemberFilter } from './MemberFilters';
+import EnhancedMemberProfile from './EnhancedMemberProfile';
+import MobileMemberCard from './MobileMemberCard';
+import { cn } from '@/lib/utils';
 
-interface EnhancedMembersPageProps {
-  className?: string;
-}
-
-const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
-  className = ""
-}) => {
+const EnhancedMembersPage: React.FC = () => {
   const { isMobile } = useResponsive();
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { favorites, toggleFavorite } = useFavorites();
+  const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'mobile'>('grid');
+  const [showFilters, setShowFilters] = useState(!isMobile);
+  const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
+  
   const [filters, setFilters] = useState<MemberFilter>({
     search: '',
     party: [],
@@ -29,77 +36,76 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     sortOrder: 'asc'
   });
 
-  // Load enhanced members data from Supabase with full functionality
-  const { members: allMembers, loading, error } = useEnhancedMembers(1, 1000, 'current');
+  // Load members with enhanced data
+  const { members, loading, error } = useEnhancedMembers(1, 1000, 'current');
 
-  // Extract unique values for filter options
+  // Extract available filter options
   const filterOptions = useMemo(() => {
-    if (!allMembers.length) {
-      return {
-        parties: [],
-        constituencies: [],
-        committees: []
-      };
+    const parties = [...new Set(members.map(m => m.party))].sort();
+    const constituencies = [...new Set(members.filter(m => m.constituency).map(m => m.constituency!))].sort();
+    const committees = [...new Set(members.flatMap(m => m.current_committees || []))].sort();
+    
+    return { parties, constituencies, committees };
+  }, [members]);
+
+  // Apply filters
+  const filteredMembers = useMemo(() => {
+    let filtered = [...members];
+
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(member =>
+        member.first_name.toLowerCase().includes(searchLower) ||
+        member.last_name.toLowerCase().includes(searchLower) ||
+        member.party.toLowerCase().includes(searchLower) ||
+        (member.constituency && member.constituency.toLowerCase().includes(searchLower))
+      );
     }
 
-    const parties = [...new Set(allMembers.map(m => m.party))].sort();
-    const constituencies = [...new Set(allMembers.map(m => m.constituency).filter(Boolean))].sort();
-    const committees = [...new Set(allMembers.flatMap(m => m.current_committees || []))].sort();
+    // Party filter
+    if (filters.party.length > 0) {
+      filtered = filtered.filter(member => filters.party.includes(member.party));
+    }
 
-    return { parties, constituencies, committees };
-  }, [allMembers]);
+    // Gender filter
+    if (filters.gender.length > 0) {
+      filtered = filtered.filter(member => 
+        member.gender && filters.gender.includes(member.gender)
+      );
+    }
 
-  // Enhanced filtering with full data support
-  const filteredMembers = useMemo(() => {
-    let filtered = allMembers.filter(member => {
-      // Search filter - search in name, party, constituency
-      if (filters.search) {
-        const searchTerm = filters.search.toLowerCase();
-        const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
-        const searchableText = `${fullName} ${member.party.toLowerCase()} ${(member.constituency || '').toLowerCase()}`;
-        if (!searchableText.includes(searchTerm)) return false;
-      }
+    // Constituency filter
+    if (filters.constituency.length > 0) {
+      filtered = filtered.filter(member => 
+        member.constituency && filters.constituency.includes(member.constituency)
+      );
+    }
 
-      // Party filter
-      if (filters.party.length > 0 && !filters.party.includes(member.party)) {
-        return false;
-      }
+    // Committee filter
+    if (filters.committee.length > 0) {
+      filtered = filtered.filter(member =>
+        member.current_committees && 
+        filters.committee.some(committee => member.current_committees!.includes(committee))
+      );
+    }
 
-      // Gender filter
-      if (filters.gender.length > 0 && member.gender && !filters.gender.includes(member.gender)) {
-        return false;
-      }
+    // Age filter
+    if (member.birth_year) {
+      const age = new Date().getFullYear() - member.birth_year;
+      filtered = filtered.filter(member => {
+        if (!member.birth_year) return true;
+        const memberAge = new Date().getFullYear() - member.birth_year;
+        return memberAge >= filters.ageRange[0] && memberAge <= filters.ageRange[1];
+      });
+    }
 
-      // Constituency filter
-      if (filters.constituency.length > 0 && member.constituency && !filters.constituency.includes(member.constituency)) {
-        return false;
-      }
+    // Active status filter
+    if (filters.activeOnly) {
+      filtered = filtered.filter(member => member.is_active);
+    }
 
-      // Committee filter
-      if (filters.committee.length > 0) {
-        const memberCommittees = member.current_committees || [];
-        if (!filters.committee.some(committee => memberCommittees.includes(committee))) {
-          return false;
-        }
-      }
-
-      // Age filter
-      if (member.birth_year) {
-        const age = new Date().getFullYear() - member.birth_year;
-        if (age < filters.ageRange[0] || age > filters.ageRange[1]) {
-          return false;
-        }
-      }
-
-      // Active only filter
-      if (filters.activeOnly && !member.is_active) {
-        return false;
-      }
-
-      return true;
-    });
-
-    // Enhanced sorting with activity data
+    // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
       
@@ -123,62 +129,42 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
           const activityB = b.current_year_stats?.total_documents || 0;
           comparison = activityA - activityB;
           break;
-        default:
-          comparison = 0;
       }
-
+      
       return filters.sortOrder === 'desc' ? -comparison : comparison;
     });
 
     return filtered;
-  }, [allMembers, filters]);
+  }, [members, filters]);
 
-  const handleToggleFavorite = useCallback((memberId: string) => {
-    setFavorites(prev => 
-      prev.includes(memberId) 
-        ? prev.filter(id => id !== memberId)
-        : [...prev, memberId]
-    );
+  // Get members based on active tab
+  const displayMembers = useMemo(() => {
+    if (activeTab === 'favorites') {
+      return filteredMembers.filter(member => favorites.includes(member.member_id));
+    }
+    return filteredMembers;
+  }, [filteredMembers, activeTab, favorites]);
+
+  const handleMemberSelect = useCallback((member: any) => {
+    setSelectedMember(member);
   }, []);
 
-  // Enhanced statistics with real activity data
-  const stats = useMemo(() => {
-    const partyStats = filteredMembers.reduce((acc, member) => {
-      acc[member.party] = (acc[member.party] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+  const handleViewModeChange = useCallback((mode: 'grid' | 'list') => {
+    setViewMode(mode);
+  }, []);
 
-    const genderStats = filteredMembers.reduce((acc, member) => {
-      if (member.gender) {
-        acc[member.gender] = (acc[member.gender] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    const averageAge = filteredMembers
-      .filter(m => m.birth_year)
-      .reduce((sum, m) => sum + (new Date().getFullYear() - (m.birth_year || 0)), 0) / 
-      filteredMembers.filter(m => m.birth_year).length;
-
-    const totalActivity = filteredMembers.reduce((sum, m) => {
-      return sum + (m.current_year_stats?.total_documents || 0);
-    }, 0);
-
-    return {
-      total: filteredMembers.length,
-      parties: Object.keys(partyStats).length,
-      averageAge: isNaN(averageAge) ? 0 : Math.round(averageAge),
-      genderDistribution: genderStats,
-      totalActivity: totalActivity,
-      avgActivity: filteredMembers.length > 0 ? Math.round(totalActivity / filteredMembers.length) : 0
-    };
-  }, [filteredMembers]);
+  // Auto-adjust view mode based on screen size
+  React.useEffect(() => {
+    if (isMobile && viewMode !== 'mobile') {
+      setViewMode('mobile');
+    }
+  }, [isMobile, viewMode]);
 
   if (error) {
     return (
       <Card className="p-8">
-        <div className="text-center text-red-500">
-          <h3 className="text-lg font-medium mb-2">Fel vid laddning av data</h3>
+        <div className="text-center text-red-600">
+          <h3 className="text-lg font-medium mb-2">Fel vid laddning</h3>
           <p className="text-sm">{error}</p>
         </div>
       </Card>
@@ -186,85 +172,143 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
   }
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      {/* Enhanced Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-          <CardContent className="p-4">
+    <div className="space-y-6">
+      {/* Header with tabs */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="w-6 h-6" />
+              <span>Riksdagsledamöter</span>
+            </CardTitle>
+            
             <div className="flex items-center space-x-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {loading ? '...' : stats.total}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Ledamöter</p>
-              </div>
+              {!isMobile && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center space-x-2"
+                >
+                  <Filter className="w-4 h-4" />
+                  <span>{showFilters ? 'Dölj filter' : 'Visa filter'}</span>
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'all' | 'favorites')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="all" className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>Alla ({filteredMembers.length})</span>
+              </TabsTrigger>
+              <TabsTrigger value="favorites" className="flex items-center space-x-2">
+                <Star className="w-4 h-4" />
+                <span>Favoriter ({favorites.length})</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
 
-        <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+      {/* Quick search for mobile */}
+      {isMobile && (
+        <Card>
           <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {loading ? '...' : stats.parties}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Partier</p>
-              </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Sök ledamot..."
+                value={filters.search}
+                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                className="pl-10"
+              />
             </div>
           </CardContent>
         </Card>
+      )}
 
-        <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-5 h-5 text-purple-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {loading ? '...' : stats.avgActivity || '-'}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Snitt aktivitet</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Filters sidebar */}
+        {showFilters && !isMobile && (
+          <div className="lg:col-span-1">
+            <MemberFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              availableParties={filterOptions.parties}
+              availableConstituencies={filterOptions.constituencies}
+              availableCommittees={filterOptions.committees}
+              compact={isMobile}
+            />
+          </div>
+        )}
 
-        <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <MapPin className="w-5 h-5 text-orange-600" />
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {favorites.length}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Favoriter</p>
+        {/* Main content */}
+        <div className={cn(
+          showFilters && !isMobile ? "lg:col-span-3" : "lg:col-span-4"
+        )}>
+          {/* Mobile filters */}
+          {isMobile && showFilters && (
+            <MemberFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              availableParties={filterOptions.parties}
+              availableConstituencies={filterOptions.constituencies}
+              availableCommittees={filterOptions.committees}
+              compact={true}
+              className="mb-6"
+            />
+          )}
+
+          {/* Members display */}
+          {viewMode === 'mobile' ? (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">
+                  {displayMembers.length} ledamöter
+                </h2>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <Filter className="w-4 h-4" />
+                </Button>
               </div>
+              
+              {displayMembers.map((member) => (
+                <MobileMemberCard
+                  key={member.member_id}
+                  member={member}
+                  isFavorite={favorites.includes(member.member_id)}
+                  onToggleFavorite={toggleFavorite}
+                  onMemberSelect={handleMemberSelect}
+                />
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <EnhancedMemberGrid
+              members={displayMembers}
+              loading={loading}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              onMemberSelect={handleMemberSelect}
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Filters */}
-      <MemberFilters
-        filters={filters}
-        onFiltersChange={setFilters}
-        availableParties={filterOptions.parties}
-        availableConstituencies={filterOptions.constituencies}
-        availableCommittees={filterOptions.committees}
-        compact={isMobile}
-      />
-
-      {/* Enhanced Members Grid with full data */}
-      <EnhancedMemberGrid
-        members={filteredMembers}
-        loading={loading}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        favorites={favorites}
-        onToggleFavorite={handleToggleFavorite}
-      />
+      {/* Member profile modal */}
+      {selectedMember && (
+        <EnhancedMemberProfile 
+          member={selectedMember} 
+          onClose={() => setSelectedMember(null)} 
+        />
+      )}
     </div>
   );
 };
