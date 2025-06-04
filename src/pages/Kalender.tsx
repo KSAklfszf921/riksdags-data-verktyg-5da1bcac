@@ -1,14 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp, Filter } from "lucide-react";
+import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock, TrendingUp, Filter, Activity } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import { useResponsive } from "../hooks/use-responsive";
 import EnhancedCalendar from '../components/EnhancedCalendar';
-import { fetchCachedCalendarData, getCalendarDataFreshness, CachedCalendarData } from '../services/cachedCalendarApi';
+import { fetchCachedCalendarData, fetchRecentActivities, getCalendarDataFreshness, CachedCalendarData } from '../services/cachedCalendarApi';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,6 +17,7 @@ const Kalender = () => {
   const { isMobile } = useResponsive();
   const { toast } = useToast();
   const [events, setEvents] = useState<CachedCalendarData[]>([]);
+  const [recentActivities, setRecentActivities] = useState<CachedCalendarData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -30,10 +32,17 @@ const Kalender = () => {
     setError(null);
     
     try {
-      console.log('Loading recent events...');
-      const recentEvents = await fetchCachedCalendarData(50); // Get 50 recent events
+      console.log('Loading calendar events and recent activities...');
+      
+      // Load recent events for calendar display
+      const [recentEvents, latestActivities] = await Promise.all([
+        fetchCachedCalendarData(50),
+        fetchRecentActivities(5)
+      ]);
+      
       setEvents(recentEvents);
-      console.log(`Loaded ${recentEvents.length} recent events`);
+      setRecentActivities(latestActivities);
+      console.log(`Loaded ${recentEvents.length} recent events and ${latestActivities.length} latest activities`);
       
       // Get total count
       const { count } = await supabase
@@ -81,7 +90,7 @@ const Kalender = () => {
       
       toast({
         title: "Data uppdaterad",
-        description: `${data?.stored || 0} nya kalenderhändelser sparades`,
+        description: `${data?.events_processed || 0} nya kalenderhändelser bearbetades`,
       });
       
     } catch (err) {
@@ -119,6 +128,26 @@ const Kalender = () => {
     }
   };
 
+  const formatActivityTitle = (activity: CachedCalendarData) => {
+    return activity.summary || activity.aktivitet || 'Händelse';
+  };
+
+  const formatActivityTime = (activity: CachedCalendarData) => {
+    if (!activity.datum) return '';
+    
+    try {
+      const date = new Date(activity.datum);
+      return date.toLocaleDateString('sv-SE', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: activity.tid ? '2-digit' : undefined,
+        minute: activity.tid ? '2-digit' : undefined
+      });
+    } catch {
+      return activity.datum;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
@@ -147,6 +176,48 @@ const Kalender = () => {
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">Kammakt aktiviteter</Badge>
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">Utskottsmöten</Badge>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Activities Card */}
+        <Card className="mb-6 border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-green-800">
+              <Activity className="w-5 h-5" />
+              <span>Senaste aktiviteter</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                <span className="text-green-700">Laddar senaste aktiviteter...</span>
+              </div>
+            ) : recentActivities.length > 0 ? (
+              <div className="space-y-3">
+                {recentActivities.map((activity, index) => (
+                  <div key={activity.id || index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-green-800 truncate">
+                        {formatActivityTitle(activity)}
+                      </h4>
+                      {activity.organ && (
+                        <Badge variant="secondary" className="mt-1 text-xs bg-green-100 text-green-700">
+                          {activity.organ}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-green-600 ml-4">
+                      {formatActivityTime(activity)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-green-700 text-center py-4">
+                Inga senaste aktiviteter tillgängliga
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -205,6 +276,17 @@ const Kalender = () => {
                   </Badge>
                 </div>
               </div>
+            </div>
+            
+            <Separator className="my-4" />
+            
+            <div className="text-sm text-gray-600">
+              <p className="mb-2">
+                <strong>Automatisk uppdatering:</strong> Kalenderdata hämtas automatiskt varje timme från Riksdagens API.
+              </p>
+              <p>
+                <strong>Manuell uppdatering:</strong> Klicka på "Uppdatera" ovan för att hämta senaste data omedelbart.
+              </p>
             </div>
           </CardContent>
         </Card>

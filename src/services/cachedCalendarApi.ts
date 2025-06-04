@@ -41,6 +41,24 @@ export const fetchCachedCalendarData = async (limit = 100): Promise<CachedCalend
   return data || [];
 };
 
+export const fetchRecentActivities = async (limit = 5): Promise<CachedCalendarData[]> => {
+  console.log(`Fetching ${limit} most recent calendar activities`);
+  
+  const { data, error } = await supabase
+    .from('calendar_data')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching recent activities:', error);
+    throw new Error(`Failed to fetch recent activities: ${error.message}`);
+  }
+
+  console.log(`Successfully fetched ${data?.length || 0} recent activities`);
+  return data || [];
+};
+
 export const fetchUpcomingEvents = async (daysAhead = 30): Promise<CachedCalendarData[]> => {
   console.log(`Fetching upcoming events for next ${daysAhead} days`);
   
