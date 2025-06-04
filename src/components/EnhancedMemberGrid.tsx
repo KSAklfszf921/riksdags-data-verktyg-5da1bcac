@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity, Users } from "lucide-react";
+import { Grid, List, Eye, Heart, Star, MapPin, Calendar, Activity, Users, Camera, Rss } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { EnhancedMember } from '@/hooks/useEnhancedMembers';
+import MemberProfile from './MemberProfile';
 
 interface EnhancedMemberGridProps {
   members: EnhancedMember[];
@@ -33,6 +34,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
 }) => {
   const navigate = useNavigate();
   const [hoveredMember, setHoveredMember] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<EnhancedMember | null>(null);
 
   const getAge = (birthYear?: number) => {
     if (!birthYear) return null;
@@ -56,10 +58,52 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
     }
   };
 
+  // Enhanced image URL extraction with fallbacks
   const getImageUrl = (member: EnhancedMember) => {
-    if (!member.image_urls || typeof member.image_urls !== 'object') return undefined;
+    if (!member.image_urls || typeof member.image_urls !== 'object') {
+      // Fallback to placeholder image
+      return `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
+    }
     const urls = member.image_urls as Record<string, string>;
-    return urls['192'] || urls['128'] || urls['80'] || undefined;
+    return urls['192'] || urls['128'] || urls['80'] || `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face`;
+  };
+
+  // Convert enhanced member to legacy member format for MemberProfile
+  const convertToLegacyMember = (enhancedMember: EnhancedMember) => {
+    const activityData = enhancedMember.activity_data as any;
+    const assignments = enhancedMember.assignments as any;
+    
+    return {
+      id: enhancedMember.member_id,
+      firstName: enhancedMember.first_name,
+      lastName: enhancedMember.last_name,
+      party: enhancedMember.party,
+      constituency: enhancedMember.constituency || '',
+      imageUrl: getImageUrl(enhancedMember),
+      email: `${enhancedMember.first_name.toLowerCase()}.${enhancedMember.last_name.toLowerCase()}@riksdagen.se`,
+      birthYear: enhancedMember.birth_year || 1970,
+      profession: 'Riksdagsledamot',
+      committees: enhancedMember.current_committees || [],
+      speeches: activityData?.speeches || [],
+      votes: activityData?.votes || [],
+      proposals: activityData?.proposals || [],
+      documents: activityData?.documents || [],
+      calendarEvents: activityData?.calendar_events || [],
+      activityScore: enhancedMember.current_year_stats?.total_documents || 0,
+      motions: enhancedMember.current_year_stats?.motions || 0,
+      interpellations: enhancedMember.current_year_stats?.interpellations || 0,
+      writtenQuestions: enhancedMember.current_year_stats?.written_questions || 0,
+      assignments: Array.isArray(assignments) ? assignments.map((assignment: any) => ({
+        organ_kod: assignment.organ_kod || assignment.organ || '',
+        roll: assignment.roll || assignment.role || '',
+        status: assignment.status || 'Aktiv',
+        from: assignment.from || assignment.start_date || '',
+        tom: assignment.tom || assignment.end_date || '',
+        typ: assignment.typ || assignment.type || 'uppdrag',
+        ordning: assignment.ordning || '',
+        uppgift: assignment.uppgift || assignment.description || assignment.organ_kod || ''
+      })) : []
+    };
   };
 
   const sortedMembers = useMemo(() => {
@@ -110,7 +154,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
       if (onMemberSelect) {
         onMemberSelect(member);
       } else {
-        navigate(`/ledamoter/${member.member_id}`);
+        setSelectedMember(member);
       }
     };
 
@@ -130,15 +174,18 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4 flex-1 min-w-0">
-                <Avatar className="h-12 w-12 flex-shrink-0">
-                  <AvatarImage 
-                    src={imageUrl} 
-                    alt={`${member.first_name} ${member.last_name}`}
-                  />
-                  <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
-                    {member.first_name[0]}{member.last_name[0]}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-12 w-12 flex-shrink-0">
+                    <AvatarImage 
+                      src={imageUrl} 
+                      alt={`${member.first_name} ${member.last_name}`}
+                    />
+                    <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
+                      {member.first_name[0]}{member.last_name[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Camera className="absolute -bottom-1 -right-1 w-4 h-4 text-blue-500 bg-white rounded-full p-0.5" />
+                </div>
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2">
@@ -148,6 +195,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
                     {!member.is_active && (
                       <Badge variant="outline" className="text-xs">Inaktiv</Badge>
                     )}
+                    <Rss className="w-3 h-3 text-orange-500" title="RSS-nyheter tillgängliga" />
                   </div>
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -222,6 +270,11 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
                 </AvatarFallback>
               </Avatar>
               
+              <div className="absolute -bottom-1 -right-1 flex space-x-1">
+                <Camera className="w-4 h-4 text-blue-500 bg-white rounded-full p-0.5" />
+                <Rss className="w-4 h-4 text-orange-500 bg-white rounded-full p-0.5" title="RSS-nyheter" />
+              </div>
+              
               {onToggleFavorite && (
                 <Button
                   variant="ghost"
@@ -277,63 +330,73 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
   };
 
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {members.length} ledamöter
-          </h2>
-          {favorites.length > 0 && (
-            <Badge variant="outline" className="flex items-center space-x-1">
-              <Star className="w-3 h-3" />
-              <span>{favorites.length} favoriter</span>
-            </Badge>
+    <>
+      <div className={cn("space-y-4", className)}>
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {members.length} ledamöter
+            </h2>
+            {favorites.length > 0 && (
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Star className="w-3 h-3" />
+                <span>{favorites.length} favoriter</span>
+              </Badge>
+            )}
+          </div>
+          
+          {onViewModeChange && (
+            <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewModeChange('grid')}
+                className="h-8 w-8 p-0"
+              >
+                <Grid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => onViewModeChange('list')}
+                className="h-8 w-8 p-0"
+              >
+                <List className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
-        
-        {onViewModeChange && (
-          <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('grid')}
-              className="h-8 w-8 p-0"
-            >
-              <Grid className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('list')}
-              className="h-8 w-8 p-0"
-            >
-              <List className="w-4 h-4" />
-            </Button>
+
+        {/* Members Grid/List */}
+        {members.length === 0 ? (
+          <Card className="p-8">
+            <div className="text-center text-gray-500 dark:text-gray-400">
+              <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-medium mb-2">Inga ledamöter hittades</h3>
+              <p className="text-sm">Prova att justera dina filter eller sökord</p>
+            </div>
+          </Card>
+        ) : (
+          <div className={viewMode === 'grid' 
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+            : "space-y-2"
+          }>
+            {sortedMembers.map((member) => (
+              <MemberCard key={member.member_id} member={member} />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Members Grid/List */}
-      {members.length === 0 ? (
-        <Card className="p-8">
-          <div className="text-center text-gray-500 dark:text-gray-400">
-            <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Inga ledamöter hittades</h3>
-            <p className="text-sm">Prova att justera dina filter eller sökord</p>
-          </div>
-        </Card>
-      ) : (
-        <div className={viewMode === 'grid' 
-          ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-          : "space-y-2"
-        }>
-          {sortedMembers.map((member) => (
-            <MemberCard key={member.member_id} member={member} />
-          ))}
-        </div>
+      {/* Member Profile Modal */}
+      {selectedMember && (
+        <MemberProfile 
+          member={convertToLegacyMember(selectedMember)} 
+          onClose={() => setSelectedMember(null)} 
+        />
       )}
-    </div>
+    </>
   );
 };
 

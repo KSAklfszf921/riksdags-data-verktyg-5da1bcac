@@ -29,7 +29,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     sortOrder: 'asc'
   });
 
-  // Load members data from Supabase
+  // Load enhanced members data from Supabase with full functionality
   const { members: allMembers, loading, error } = useEnhancedMembers(1, 1000, 'current');
 
   // Extract unique values for filter options
@@ -49,14 +49,15 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     return { parties, constituencies, committees };
   }, [allMembers]);
 
-  // Filter and sort members
+  // Enhanced filtering with full data support
   const filteredMembers = useMemo(() => {
     let filtered = allMembers.filter(member => {
-      // Search filter
+      // Search filter - search in name, party, constituency
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
-        if (!fullName.includes(searchTerm)) return false;
+        const searchableText = `${fullName} ${member.party.toLowerCase()} ${(member.constituency || '').toLowerCase()}`;
+        if (!searchableText.includes(searchTerm)) return false;
       }
 
       // Party filter
@@ -98,7 +99,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
       return true;
     });
 
-    // Sort
+    // Enhanced sorting with activity data
     filtered.sort((a, b) => {
       let comparison = 0;
       
@@ -140,7 +141,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
     );
   }, []);
 
-  // Generate quick stats
+  // Enhanced statistics with real activity data
   const stats = useMemo(() => {
     const partyStats = filteredMembers.reduce((acc, member) => {
       acc[member.party] = (acc[member.party] || 0) + 1;
@@ -159,11 +160,17 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
       .reduce((sum, m) => sum + (new Date().getFullYear() - (m.birth_year || 0)), 0) / 
       filteredMembers.filter(m => m.birth_year).length;
 
+    const totalActivity = filteredMembers.reduce((sum, m) => {
+      return sum + (m.current_year_stats?.total_documents || 0);
+    }, 0);
+
     return {
       total: filteredMembers.length,
       parties: Object.keys(partyStats).length,
       averageAge: isNaN(averageAge) ? 0 : Math.round(averageAge),
-      genderDistribution: genderStats
+      genderDistribution: genderStats,
+      totalActivity: totalActivity,
+      avgActivity: filteredMembers.length > 0 ? Math.round(totalActivity / filteredMembers.length) : 0
     };
   }, [filteredMembers]);
 
@@ -180,7 +187,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
 
   return (
     <div className={`space-y-6 ${className}`}>
-      {/* Quick Stats */}
+      {/* Enhanced Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
           <CardContent className="p-4">
@@ -216,9 +223,9 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
               <Activity className="w-5 h-5 text-purple-600" />
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  {loading ? '...' : stats.averageAge || '-'}
+                  {loading ? '...' : stats.avgActivity || '-'}
                 </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Medelålder</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Snitt aktivitet</p>
               </div>
             </div>
           </CardContent>
@@ -249,7 +256,7 @@ const EnhancedMembersPage: React.FC<EnhancedMembersPageProps> = ({
         compact={isMobile}
       />
 
-      {/* Members Grid */}
+      {/* Enhanced Members Grid with full data */}
       <EnhancedMemberGrid
         members={filteredMembers}
         loading={loading}
