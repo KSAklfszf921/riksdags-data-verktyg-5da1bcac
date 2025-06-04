@@ -43,8 +43,14 @@ export const useSyncMonitor = () => {
 
       if (error) throw error;
 
-      const activeSyncs = (data || []).filter(sync => sync.status === 'running');
-      const recentSyncs = (data || []).slice(0, 10);
+      // Type assertion to ensure proper typing
+      const typedData = (data || []).map(item => ({
+        ...item,
+        status: item.status as 'pending' | 'running' | 'completed' | 'failed'
+      }));
+
+      const activeSyncs = typedData.filter(sync => sync.status === 'running');
+      const recentSyncs = typedData.slice(0, 10);
 
       setState({
         activeSyncs,
