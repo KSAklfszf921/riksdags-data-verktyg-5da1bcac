@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -233,6 +232,47 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }, 500);
   };
 
+  // Function to clean HTML from text
+  const stripHtml = (html: string): string => {
+    if (!html) return '';
+    
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Get the text content without HTML tags
+    let text = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Clean up common HTML entities and extra whitespace
+    text = text
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return text;
+  };
+
+  // Function to extract clean title from potentially HTML-laden title
+  const cleanTitle = (title: string): string => {
+    if (!title) return '';
+    
+    // Strip HTML tags first
+    let cleanedTitle = stripHtml(title);
+    
+    // Remove common RSS feed prefixes and suffixes
+    cleanedTitle = cleanedTitle
+      .replace(/^.*?:\s*/, '') // Remove "Source:" prefix
+      .replace(/\s*-\s*[^-]*$/, '') // Remove "- Source" suffix
+      .trim();
+    
+    return cleanedTitle;
+  };
+
   // Format date for display
   const formatDate = (dateString: string): string => {
     try {
@@ -293,7 +333,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
 
   // Truncate text to specified length
   const truncateText = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
+    if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength).trim() + '...';
   };
 
@@ -420,85 +460,90 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
             )}
             
             {/* News Items */}
-            {displayedItems.map((item, index) => (
-              <article
-                key={`${item.link}-${index}`}
-                className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"
-              >
-                <div className="flex flex-col space-y-4">
-                  {/* Header with title and source */}
-                  <div className="flex flex-col space-y-2">
-                    <h3 className="text-lg font-bold text-gray-900 leading-tight">
-                      {item.title}
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 text-sm text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{formatDate(item.pub_date)}</span>
+            {displayedItems.map((item, index) => {
+              const cleanedTitle = cleanTitle(item.title);
+              const cleanedDescription = stripHtml(item.description);
+              
+              return (
+                <article
+                  key={`${item.link}-${index}`}
+                  className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"
+                >
+                  <div className="flex flex-col space-y-4">
+                    {/* Header with title and source */}
+                    <div className="flex flex-col space-y-2">
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                        {cleanedTitle || 'Utan titel'}
+                      </h3>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3 text-sm text-gray-500">
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatDate(item.pub_date)}</span>
+                          </div>
+                          <span>•</span>
+                          <span className="font-medium">
+                            {getSourceDomain(item.link)}
+                          </span>
+                          {item.created_at && dataSource === 'database' && (
+                            <>
+                              <span>•</span>
+                              <span className="text-xs text-gray-400">
+                                Sparad: {formatDate(item.created_at)}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <span>•</span>
-                        <span className="font-medium">
-                          {getSourceDomain(item.link)}
-                        </span>
-                        {item.created_at && dataSource === 'database' && (
-                          <>
-                            <span>•</span>
-                            <span className="text-xs text-gray-400">
-                              Sparad: {formatDate(item.created_at)}
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Content with image and description */}
-                  <div className="flex flex-col md:flex-row gap-4">
-                    {item.image_url && (
-                      <div className="md:w-48 flex-shrink-0">
-                        <img
-                          src={item.image_url}
-                          alt={item.title}
-                          className="w-full h-32 md:h-28 object-cover rounded-lg"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div className="flex-1 space-y-3">
-                      {item.description && (
-                        <p className="text-gray-700 text-sm leading-relaxed">
-                          {truncateText(item.description, 300)}
-                        </p>
+                    {/* Content with image and description */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                      {item.image_url && (
+                        <div className="md:w-48 flex-shrink-0">
+                          <img
+                            src={item.image_url}
+                            alt={cleanedTitle}
+                            className="w-full h-32 md:h-28 object-cover rounded-lg"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                            }}
+                          />
+                        </div>
                       )}
-                      
-                      {/* Action button */}
-                      <div className="flex justify-start">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          asChild
-                          className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-300"
-                        >
-                          <a
-                            href={item.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center space-x-2"
+                      <div className="flex-1 space-y-3">
+                        {cleanedDescription && (
+                          <p className="text-gray-700 text-sm leading-relaxed">
+                            {truncateText(cleanedDescription, 300)}
+                          </p>
+                        )}
+                        
+                        {/* Action button */}
+                        <div className="flex justify-start">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            asChild
+                            className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-300"
                           >
-                            <span>Läs artikel</span>
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
+                            <a
+                              href={item.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-2"
+                            >
+                              <span>Läs artikel</span>
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
 
             {/* Load More Button */}
             {allNewsItems.length > displayedItems.length && (
