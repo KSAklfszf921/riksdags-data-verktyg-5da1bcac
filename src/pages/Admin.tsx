@@ -1,258 +1,273 @@
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Badge } from '../components/ui/badge';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { PageHeader } from '../components/PageHeader';
+import { useResponsive } from '../hooks/use-responsive';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Settings, 
   Database, 
-  TestTube, 
+  RefreshCw, 
   Calendar, 
-  Clock, 
+  Users, 
+  FileText, 
+  BarChart3,
   Activity,
   CheckCircle,
   AlertCircle,
-  RefreshCw,
-  Loader2
-} from "lucide-react";
-import { PageHeader } from "../components/PageHeader";
-import { useResponsive } from "../hooks/use-responsive";
-import CalendarTestRunner from '../components/CalendarTestRunner';
-import EnhancedTestRunner from '../components/EnhancedTestRunner';
-import VoteAnalysisTestRunner from '../components/VoteAnalysisTestRunner';
-import DocumentAnalysisTestRunner from '../components/DocumentAnalysisTestRunner';
-import SpeechAnalysisTestRunner from '../components/SpeechAnalysisTestRunner';
-import MemberAnalysisTestRunner from '../components/MemberAnalysisTestRunner';
-import LanguageAnalysisBatchRunner from '../components/LanguageAnalysisBatchRunner';
-import NewsManagementTool from '../components/NewsManagementTool';
-import DatabaseInitializer from '../components/DatabaseInitializer';
-import CalendarDataManager from '../components/CalendarDataManager';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from "@/components/ui/use-toast";
+  Clock,
+  TrendingUp,
+  Zap
+} from 'lucide-react';
 
 const Admin = () => {
-  const { isMobile } = useResponsive();
+  const [loading, setLoading] = useState(false);
+  const [syncResults, setSyncResults] = useState<{ [key: string]: any }>({});
   const { toast } = useToast();
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [cronJobs, setCronJobs] = React.useState<any[]>([]);
-  const [loadingCronJobs, setLoadingCronJobs] = React.useState(true);
+  const { isMobile } = useResponsive();
 
-  const loadCronJobs = async () => {
+  const triggerDataSync = async (syncType: string, functionName: string) => {
+    setLoading(true);
     try {
-      setLoadingCronJobs(true);
+      console.log(`Triggering ${syncType} sync...`);
       
-      // Query the cron.job table to get current cron jobs
-      const { data, error } = await supabase
-        .from('cron.job' as any)
-        .select('*');
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: { 
+          manual_trigger: true,
+          triggered_by: 'admin_panel'
+        }
+      });
+
+      if (error) throw error;
+
+      setSyncResults(prev => ({
+        ...prev,
+        [syncType]: {
+          success: true,
+          timestamp: new Date().toISOString(),
+          data: data
+        }
+      }));
+
+      toast({
+        title: `${syncType} sync lyckades`,
+        description: "Data har uppdaterats framgångsrikt",
+      });
+
+    } catch (error) {
+      console.error(`${syncType} sync error:`, error);
       
-      if (error) {
-        console.error('Error loading cron jobs:', error);
-        setCronJobs([]);
-      } else {
-        setCronJobs(data || []);
-      }
-    } catch (err) {
-      console.error('Error loading cron jobs:', err);
-      setCronJobs([]);
+      setSyncResults(prev => ({
+        ...prev,
+        [syncType]: {
+          success: false,
+          timestamp: new Date().toISOString(),
+          error: error.message
+        }
+      }));
+
+      toast({
+        title: `${syncType} sync misslyckades`,
+        description: error.message,
+        variant: "destructive"
+      });
     } finally {
-      setLoadingCronJobs(false);
+      setLoading(false);
     }
   };
 
-  React.useEffect(() => {
-    loadCronJobs();
-  }, []);
-
-  const triggerManualSync = async (type: 'comprehensive' | 'calendar') => {
-    setRefreshing(true);
-    
-    try {
-      const functionName = type === 'comprehensive' ? 'fetch-party-data' : 'fetch-calendar-data';
-      
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { manual_trigger: true, triggered_by: 'admin_panel' }
-      });
-      
-      if (error) {
-        console.error(`Error triggering ${type} sync:`, error);
-        throw error;
-      }
-      
-      console.log(`${type} sync response:`, data);
-      
-      toast({
-        title: "Synkronisering startad",
-        description: `${type === 'comprehensive' ? 'Komplett' : 'Kalender'} datasynkronisering har startats`,
-      });
-      
-    } catch (err) {
-      console.error(`Error triggering ${type} sync:`, err);
-      toast({
-        title: "Fel",
-        description: `Kunde inte starta ${type === 'comprehensive' ? 'komplett' : 'kalender'} synkronisering`,
-        variant: "destructive",
-      });
-    } finally {
-      setRefreshing(false);
+  const syncOperations = [
+    {
+      id: 'calendar',
+      title: 'Kalenderdata',
+      description: 'Hämtar senaste kalenderhändelser',
+      functionName: 'fetch-calendar-data',
+      icon: Calendar,
+      color: 'text-blue-600'
+    },
+    {
+      id: 'party',
+      title: 'Partidata',
+      description: 'Uppdaterar partiinformation och medlemmar',
+      functionName: 'daily-party-data-sync',
+      icon: Users,
+      color: 'text-green-600'
+    },
+    {
+      id: 'comprehensive',
+      title: 'Omfattande data',
+      description: 'Hämtar dokument, anföranden och voteringar',
+      functionName: 'fetch-comprehensive-data',
+      icon: Database,
+      color: 'text-purple-600'
+    },
+    {
+      id: 'toplists',
+      title: 'Topplistor',
+      description: 'Genererar cachade topplistor',
+      functionName: 'fetch-toplists-data',
+      icon: BarChart3,
+      color: 'text-orange-600'
     }
+  ];
+
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString('sv-SE');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
         <PageHeader
-          title="Admin Panel"
-          description="Hantera databaser, testa API:er och övervaka systemstatus"
+          title="Administratörspanel"
+          description="Hantera datasynkronisering och systemövervakning"
           icon={<Settings className="w-6 h-6 text-white" />}
         />
 
-        {/* Automated Sync Status */}
-        <Card className="mb-6 border-green-200 bg-green-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-green-800">
-              <Clock className="w-5 h-5" />
-              <span>Automatisk Datasynkronisering</span>
-            </CardTitle>
-            <CardDescription className="text-green-700">
-              Systemet hämtar automatiskt data varje timme från Riksdagens API
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="p-4 bg-white rounded-lg border border-green-200">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-green-800">Komplett Datasynk</h4>
-                  <Badge variant="default" className="bg-green-100 text-green-800">
-                    Varje timme :00
-                  </Badge>
-                </div>
-                <p className="text-sm text-green-600 mb-3">
-                  Hämtar partier, ledamöter, dokument, voteringar, anföranden och kalenderdata
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => triggerManualSync('comprehensive')}
-                  disabled={refreshing}
-                  className="w-full"
-                >
-                  {refreshing ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  Kör manuellt nu
-                </Button>
-              </div>
-
-              <div className="p-4 bg-white rounded-lg border border-green-200">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-green-800">Kalenderdata Backup</h4>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    Varje timme :30
-                  </Badge>
-                </div>
-                <p className="text-sm text-green-600 mb-3">
-                  Extra säkerhetssynkronisering för kritisk kalenderdata
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => triggerManualSync('calendar')}
-                  disabled={refreshing}
-                  className="w-full"
-                >
-                  {refreshing ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  Kör manuellt nu
-                </Button>
-              </div>
-            </div>
-
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                Automatisk datasynkronisering är aktiv. Cron-jobb körs varje timme för att hålla databasen uppdaterad.
-                {cronJobs.length > 0 && ` ${cronJobs.length} aktiva cron-jobb är konfigurerade.`}
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-
-        {/* Cron Jobs Status */}
-        {cronJobs.length > 0 && (
-          <Card className="mb-6">
+        <div className="space-y-6">
+          {/* System Status Overview */}
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Activity className="w-5 h-5" />
-                <span>Aktiva Cron-jobb</span>
+                <span>Systemstatus</span>
+                <Badge className="bg-green-100 text-green-800">
+                  <Zap className="w-3 h-3 mr-1" />
+                  Optimerad
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {loadingCronJobs ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  <span>Laddar cron-jobb...</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {cronJobs.map((job, index) => (
-                    <div key={job.jobid || index} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{job.jobname}</h4>
-                          <p className="text-sm text-gray-600">Schedule: {job.schedule}</p>
-                        </div>
-                        <Badge variant={job.active ? "default" : "secondary"}>
-                          {job.active ? "Aktiv" : "Inaktiv"}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <Alert className="border-blue-200">
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <span className="font-medium">Automatiska datauppdateringar aktiverade:</span>
+                    <ul className="list-disc list-inside space-y-1 text-sm">
+                      <li>Topplistor: Schemaläggs dagligen för optimal prestanda</li>
+                      <li>Partianalys: Cachad data uppdateras automatiskt</li>
+                      <li>Kalenderdata: Hämtas regelbundet för aktuell information</li>
+                      <li>Medlemsdata: Kontinuerlig synkronisering med riksdagen</li>
+                    </ul>
+                  </div>
+                </AlertDescription>
+              </Alert>
             </CardContent>
           </Card>
-        )}
 
-        <Separator className="my-8" />
+          <Tabs defaultValue="sync" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="sync">Datasynkronisering</TabsTrigger>
+              <TabsTrigger value="status">Synkroniseringsstatus</TabsTrigger>
+            </TabsList>
 
-        {/* Database Management Section */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-2 mb-4">
-            <Database className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-gray-900">Databashantering</h2>
-          </div>
-          <div className="grid gap-6">
-            <CalendarDataManager />
-            <DatabaseInitializer />
-          </div>
-        </div>
+            <TabsContent value="sync" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <RefreshCw className="w-5 h-5" />
+                    <span>Manuell datasynkronisering</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {syncOperations.map((operation) => {
+                      const Icon = operation.icon;
+                      const result = syncResults[operation.id];
+                      
+                      return (
+                        <Card key={operation.id} className="relative">
+                          <CardHeader className="pb-3">
+                            <CardTitle className={`text-lg flex items-center space-x-2 ${operation.color}`}>
+                              <Icon className="w-5 h-5" />
+                              <span>{operation.title}</span>
+                            </CardTitle>
+                            <CardDescription>{operation.description}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <Button
+                              onClick={() => triggerDataSync(operation.id, operation.functionName)}
+                              disabled={loading}
+                              className="w-full"
+                              variant="outline"
+                            >
+                              {loading ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                                  Synkroniserar...
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                  Starta synkronisering
+                                </>
+                              )}
+                            </Button>
+                            
+                            {result && (
+                              <div className={`text-xs p-2 rounded ${
+                                result.success 
+                                  ? 'bg-green-50 text-green-700 border border-green-200' 
+                                  : 'bg-red-50 text-red-700 border border-red-200'
+                              }`}>
+                                <div className="flex items-center space-x-1">
+                                  {result.success ? (
+                                    <CheckCircle className="w-3 h-3" />
+                                  ) : (
+                                    <AlertCircle className="w-3 h-3" />
+                                  )}
+                                  <span className="font-medium">
+                                    {result.success ? 'Lyckades' : 'Misslyckades'}
+                                  </span>
+                                </div>
+                                <div className="mt-1 flex items-center space-x-1">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{formatTimestamp(result.timestamp)}</span>
+                                </div>
+                                {result.error && (
+                                  <div className="mt-1 text-xs">{result.error}</div>
+                                )}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-        <Separator className="my-8" />
-
-        {/* Testing Tools Section */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-2 mb-4">
-            <TestTube className="w-6 h-6 text-purple-600" />
-            <h2 className="text-2xl font-bold text-gray-900">Testverktyg</h2>
-          </div>
-          <div className="grid gap-6">
-            <NewsManagementTool />
-            <CalendarTestRunner />
-            <EnhancedTestRunner />
-            <VoteAnalysisTestRunner />
-            <DocumentAnalysisTestRunner />
-            <SpeechAnalysisTestRunner />
-            <MemberAnalysisTestRunner />
-            <LanguageAnalysisBatchRunner />
-          </div>
+            <TabsContent value="status" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="w-5 h-5" />
+                    <span>Senaste synkroniseringar</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <Database className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Automatisk övervakning
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      Systemet övervakar automatiskt alla schemalagda synkroniseringar.
+                    </p>
+                    <div className="text-sm text-gray-500">
+                      <p>Kontrollera loggar i Supabase Dashboard för detaljerad information</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

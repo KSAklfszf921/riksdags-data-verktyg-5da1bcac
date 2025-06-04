@@ -12,7 +12,7 @@ const Partianalys = () => {
       <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
         <PageHeader
           title="Partianalys"
-          description="Analysera riksdagens partier - demografi, utskott och aktivitet (optimerad med cache)"
+          description="Analysera riksdagens partier med automatiskt uppdaterad data - demografi, utskott och aktivitet"
           icon={<Users className="w-6 h-6 text-white" />}
         />
 

@@ -1,5 +1,5 @@
 
-import { HomeIcon, Users, FileText, Vote, MessageSquare, Calendar, BarChart3, Languages, Settings } from "lucide-react";
+import { HomeIcon, Users, FileText, Vote, MessageSquare, Calendar, BarChart3, Settings } from "lucide-react";
 import Index from "./pages/Index";
 import Ledamoter from "./pages/Ledamoter";
 import Dokument from "./pages/Dokument";
@@ -8,7 +8,6 @@ import Anforanden from "./pages/Anforanden";
 import Kalender from "./pages/Kalender";
 import Partianalys from "./pages/Partianalys";
 import Topplistor from "./pages/Topplistor";
-import SprakAnalys from "./pages/SprakAnalys";
 import Admin from "./pages/Admin";
 
 export const navItems = [
@@ -59,12 +58,6 @@ export const navItems = [
     to: "/topplistor", 
     icon: <BarChart3 className="h-4 w-4" />,
     page: <Topplistor />,
-  },
-  {
-    title: "Språkanalys",
-    to: "/sprakanalys",
-    icon: <Languages className="h-4 w-4" />,
-    page: <SprakAnalys />,
   },
   {
     title: "Admin",
