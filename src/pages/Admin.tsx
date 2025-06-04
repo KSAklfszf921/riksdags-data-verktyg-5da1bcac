@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Database, Users, BarChart3, Settings, Zap } from "lucide-react";
+import { Shield, Database, Users, BarChart3, Settings, Zap, Vote } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import MasterSyncTool from "../components/MasterSyncTool";
 import DataValidationDashboard from "../components/DataValidationDashboard";
 import DataQualityDashboard from "../components/DataQualityDashboard";
 import DatabaseInitializer from "../components/DatabaseInitializer";
 import EnhancedAdminDashboard from "../components/EnhancedAdminDashboard";
+import EnhancedVotingTool from "../components/EnhancedVotingTool";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState("enhanced");
@@ -23,10 +24,14 @@ const Admin = () => {
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="enhanced" className="flex items-center space-x-2">
               <Zap className="w-4 h-4" />
               <span>Enhanced</span>
+            </TabsTrigger>
+            <TabsTrigger value="voting" className="flex items-center space-x-2">
+              <Vote className="w-4 h-4" />
+              <span>Voteringar</span>
             </TabsTrigger>
             <TabsTrigger value="sync" className="flex items-center space-x-2">
               <Database className="w-4 h-4" />
@@ -52,6 +57,10 @@ const Admin = () => {
 
           <TabsContent value="enhanced">
             <EnhancedAdminDashboard />
+          </TabsContent>
+
+          <TabsContent value="voting">
+            <EnhancedVotingTool />
           </TabsContent>
 
           <TabsContent value="sync">
