@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,20 +31,23 @@ const EnhancedMembersPage: React.FC = () => {
     gender: [],
     constituency: [],
     committee: [],
+    status: 'all',
     ageRange: [20, 80],
     activeOnly: true,
     sortBy: 'name',
     sortOrder: 'asc'
   });
 
-  // Load members with enhanced data
-  const { members, loading, error } = useEnhancedMembers(1, 1000, 'current');
+  // Load members with enhanced data, adjusting status filter
+  const memberStatus = filters.status === 'all' ? 'all' : 
+                      filters.status === 'active' ? 'current' : 'former';
+  const { members, loading, error } = useEnhancedMembers(1, 1000, memberStatus);
 
-  // Check if data needs synchronization (many empty first_name fields indicate incomplete data)
+  // Check if data needs synchronization
   const needsSync = useMemo(() => {
     if (members.length === 0) return false;
     const emptyNames = members.filter(m => !m.first_name || m.first_name.trim() === '').length;
-    return (emptyNames / members.length) > 0.1; // More than 10% have empty names
+    return (emptyNames / members.length) > 0.1;
   }, [members]);
 
   // Extract available filter options
@@ -111,8 +113,9 @@ const EnhancedMembersPage: React.FC = () => {
       return memberAge >= filters.ageRange[0] && memberAge <= filters.ageRange[1];
     });
 
-    // Active status filter
-    if (filters.activeOnly) {
+    // Status is now handled by the useEnhancedMembers hook
+    // but we keep the activeOnly filter for backward compatibility
+    if (filters.activeOnly && filters.status === 'all') {
       filtered = filtered.filter(member => member.is_active);
     }
 
@@ -221,7 +224,7 @@ const EnhancedMembersPage: React.FC = () => {
         <MemberDataSynchronizer />
       )}
 
-      {/* Header with tabs */}
+      {/* Header with tabs and status summary */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -242,6 +245,22 @@ const EnhancedMembersPage: React.FC = () => {
                 </Button>
               )}
             </div>
+          </div>
+
+          {/* Status summary */}
+          <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+            <Badge variant="outline">
+              Totalt: {members.length} ledamöter
+            </Badge>
+            <Badge variant="outline">
+              Aktiva: {members.filter(m => m.is_active).length}
+            </Badge>
+            <Badge variant="outline">
+              Tidigare: {members.filter(m => !m.is_active).length}
+            </Badge>
+            <Badge variant="outline">
+              Filtrerade: {displayMembers.length}
+            </Badge>
           </div>
         </CardHeader>
         

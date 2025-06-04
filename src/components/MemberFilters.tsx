@@ -1,14 +1,15 @@
 
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Slider } from "@/components/ui/slider";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Filter, X, Search, Users, MapPin, Calendar, RotateCcw, Activity } from "lucide-react";
-import { cn } from '@/lib/utils';
+import { Search, Filter, X, RotateCcw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface MemberFilter {
   search: string;
@@ -16,9 +17,10 @@ export interface MemberFilter {
   gender: string[];
   constituency: string[];
   committee: string[];
+  status: 'all' | 'active' | 'former';
   ageRange: [number, number];
   activeOnly: boolean;
-  sortBy: string;
+  sortBy: 'name' | 'party' | 'age' | 'constituency' | 'activity';
   sortOrder: 'asc' | 'desc';
 }
 
@@ -28,8 +30,8 @@ interface MemberFiltersProps {
   availableParties: string[];
   availableConstituencies: string[];
   availableCommittees: string[];
-  className?: string;
   compact?: boolean;
+  className?: string;
 }
 
 const MemberFilters: React.FC<MemberFiltersProps> = ({
@@ -38,204 +40,362 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
   availableParties,
   availableConstituencies,
   availableCommittees,
-  className = "",
-  compact = false
+  compact = false,
+  className
 }) => {
-  const [isExpanded, setIsExpanded] = useState(!compact);
+  const updateFilter = (key: keyof MemberFilter, value: any) => {
+    onFiltersChange({ ...filters, [key]: value });
+  };
 
-  const updateFilter = useCallback((key: keyof MemberFilter, value: any) => {
-    onFiltersChange({
-      ...filters,
-      [key]: value
-    });
-  }, [filters, onFiltersChange]);
-
-  const toggleArrayFilter = useCallback((key: 'party' | 'gender' | 'constituency' | 'committee', value: string) => {
-    const currentArray = filters[key];
-    const newArray = currentArray.includes(value)
-      ? currentArray.filter(item => item !== value)
-      : [...currentArray, value];
-    updateFilter(key, newArray);
-  }, [filters, updateFilter]);
-
-  const clearAllFilters = useCallback(() => {
+  const resetFilters = () => {
     onFiltersChange({
       search: '',
       party: [],
       gender: [],
       constituency: [],
       committee: [],
+      status: 'all',
       ageRange: [20, 80],
       activeOnly: true,
       sortBy: 'name',
       sortOrder: 'asc'
     });
-  }, [onFiltersChange]);
-
-  const getActiveFilterCount = () => {
-    let count = 0;
-    if (filters.search) count++;
-    if (filters.party.length > 0) count++;
-    if (filters.gender.length > 0) count++;
-    if (filters.constituency.length > 0) count++;
-    if (filters.committee.length > 0) count++;
-    if (filters.ageRange[0] !== 20 || filters.ageRange[1] !== 80) count++;
-    if (!filters.activeOnly) count++;
-    return count;
   };
 
-  const sortOptions = [
-    { value: 'name', label: 'Namn' },
-    { value: 'party', label: 'Parti' },
-    { value: 'age', label: 'Ålder' },
-    { value: 'constituency', label: 'Valkrets' },
-    { value: 'activity', label: 'Aktivitet' }
-  ];
-
-  // Committee name mapping for better display
-  const COMMITTEE_MAPPING: { [key: string]: string } = {
-    'AU': 'Arbetsmarknadsutskottet',
-    'CU': 'Civilutskottet',
-    'FiU': 'Finansutskottet',
-    'FöU': 'Försvarsutskottet',
-    'JuU': 'Justitieutskottet',
-    'KU': 'Konstitutionsutskottet',
-    'KrU': 'Kulturutskottet',
-    'MjU': 'Miljö- och jordbruksutskottet',
-    'NU': 'Näringsutskottet',
-    'SkU': 'Skatteutskottet',
-    'SfU': 'Socialförsäkringsutskottet',
-    'SoU': 'Socialutskottet',
-    'TU': 'Trafikutskottet',
-    'UbU': 'Utbildningsutskottet',
-    'UU': 'Utrikesutskottet',
-    'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
-    'EUN': 'EU-nämnden',
-    'SäU': 'Säkerhetsutskottet'
+  const addPartyFilter = (party: string) => {
+    if (!filters.party.includes(party)) {
+      updateFilter('party', [...filters.party, party]);
+    }
   };
 
-  const getCommitteeDisplayName = (code: string) => {
-    return COMMITTEE_MAPPING[code] || code;
+  const removePartyFilter = (party: string) => {
+    updateFilter('party', filters.party.filter(p => p !== party));
   };
 
-  if (compact && !isExpanded) {
+  const addConstituencyFilter = (constituency: string) => {
+    if (!filters.constituency.includes(constituency)) {
+      updateFilter('constituency', [...filters.constituency, constituency]);
+    }
+  };
+
+  const removeConstituencyFilter = (constituency: string) => {
+    updateFilter('constituency', filters.constituency.filter(c => c !== constituency));
+  };
+
+  const addCommitteeFilter = (committee: string) => {
+    if (!filters.committee.includes(committee)) {
+      updateFilter('committee', [...filters.committee, committee]);
+    }
+  };
+
+  const removeCommitteeFilter = (committee: string) => {
+    updateFilter('committee', filters.committee.filter(c => c !== committee));
+  };
+
+  if (compact) {
     return (
-      <div className={cn("flex items-center space-x-2", className)}>
-        <Button
-          variant="outline"
-          onClick={() => setIsExpanded(true)}
-          className="flex items-center space-x-2"
-        >
-          <Filter className="w-4 h-4" />
-          <span>Filter</span>
-          {getActiveFilterCount() > 0 && (
-            <Badge variant="secondary" className="ml-1">
-              {getActiveFilterCount()}
-            </Badge>
+      <Card className={className}>
+        <CardContent className="p-4 space-y-4">
+          {/* Enhanced status filter */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Status</Label>
+            <Select value={filters.status} onValueChange={(value: 'all' | 'active' | 'former') => updateFilter('status', value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Välj status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alla ledamöter</SelectItem>
+                <SelectItem value="active">Aktiva ledamöter</SelectItem>
+                <SelectItem value="former">Tidigare ledamöter</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Parti</Label>
+              <Select value="" onValueChange={addPartyFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Lägg till parti" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableParties.filter(party => !filters.party.includes(party)).map(party => (
+                    <SelectItem key={party} value={party}>{party}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Sortering</Label>
+              <Select value={filters.sortBy} onValueChange={(value: any) => updateFilter('sortBy', value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Namn</SelectItem>
+                  <SelectItem value="party">Parti</SelectItem>
+                  <SelectItem value="age">Ålder</SelectItem>
+                  <SelectItem value="constituency">Valkrets</SelectItem>
+                  <SelectItem value="activity">Aktivitet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Selected filters */}
+          {(filters.party.length > 0 || filters.constituency.length > 0 || filters.committee.length > 0) && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Aktiva filter</Label>
+              <div className="flex flex-wrap gap-1">
+                {filters.party.map(party => (
+                  <Badge key={party} variant="secondary" className="text-xs">
+                    {party}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 ml-1"
+                      onClick={() => removePartyFilter(party)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+                {filters.constituency.map(constituency => (
+                  <Badge key={constituency} variant="secondary" className="text-xs">
+                    {constituency}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 ml-1"
+                      onClick={() => removeConstituencyFilter(constituency)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+                {filters.committee.map(committee => (
+                  <Badge key={committee} variant="secondary" className="text-xs">
+                    {committee}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 ml-1"
+                      onClick={() => removeCommitteeFilter(committee)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
           )}
-        </Button>
-        
-        <Select value={filters.sortBy} onValueChange={(value) => updateFilter('sortBy', value)}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map(option => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => updateFilter('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc')}
-        >
-          {filters.sortOrder === 'asc' ? '↑' : '↓'}
-        </Button>
-      </div>
+
+          <Button onClick={resetFilters} variant="outline" size="sm" className="w-full">
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Rensa filter
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <Card className={cn("bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm", className)}>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center space-x-2">
-            <Filter className="w-5 h-5" />
-            <span>Filter och sortering</span>
-          </CardTitle>
-          <div className="flex items-center space-x-2">
-            {getActiveFilterCount() > 0 && (
-              <Badge variant="secondary">
-                {getActiveFilterCount()} aktiva filter
-              </Badge>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearAllFilters}
-              className="text-xs"
-            >
-              <RotateCcw className="w-3 h-3 mr-1" />
-              Rensa
-            </Button>
-            {compact && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Filter className="w-5 h-5" />
+          <span>Filter</span>
+        </CardTitle>
       </CardHeader>
-      
       <CardContent className="space-y-6">
         {/* Search */}
         <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center space-x-1">
-            <Search className="w-4 h-4" />
-            <span>Sök ledamot</span>
-          </label>
-          <Input
-            placeholder="Sök på namn, parti eller valkrets..."
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-          />
+          <Label htmlFor="search">Sök</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              id="search"
+              placeholder="Sök efter namn, parti eller valkrets..."
+              value={filters.search}
+              onChange={(e) => updateFilter('search', e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
 
-        {/* Sort */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Enhanced Status Filter */}
+        <div className="space-y-2">
+          <Label>Medlemsstatus</Label>
+          <Select value={filters.status} onValueChange={(value: 'all' | 'active' | 'former') => updateFilter('status', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Välj status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alla ledamöter</SelectItem>
+              <SelectItem value="active">Aktiva ledamöter</SelectItem>
+              <SelectItem value="former">Tidigare ledamöter</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Party filters */}
+        <div className="space-y-2">
+          <Label>Parti</Label>
+          <Select value="" onValueChange={addPartyFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Välj parti" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableParties.filter(party => !filters.party.includes(party)).map(party => (
+                <SelectItem key={party} value={party}>{party}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filters.party.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {filters.party.map(party => (
+                <Badge key={party} variant="secondary">
+                  {party}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 ml-1"
+                    onClick={() => removePartyFilter(party)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Gender filter */}
+        <div className="space-y-2">
+          <Label>Kön</Label>
           <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center space-x-1">
-              <Activity className="w-4 h-4" />
-              <span>Sortera efter</span>
-            </label>
-            <Select value={filters.sortBy} onValueChange={(value) => updateFilter('sortBy', value)}>
+            {['man', 'kvinna'].map(gender => (
+              <div key={gender} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`gender-${gender}`}
+                  checked={filters.gender.includes(gender)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      updateFilter('gender', [...filters.gender, gender]);
+                    } else {
+                      updateFilter('gender', filters.gender.filter(g => g !== gender));
+                    }
+                  }}
+                />
+                <Label htmlFor={`gender-${gender}`} className="text-sm">
+                  {gender === 'man' ? 'Man' : 'Kvinna'}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Constituency filters */}
+        <div className="space-y-2">
+          <Label>Valkrets</Label>
+          <Select value="" onValueChange={addConstituencyFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Välj valkrets" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableConstituencies.filter(c => !filters.constituency.includes(c)).map(constituency => (
+                <SelectItem key={constituency} value={constituency}>{constituency}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filters.constituency.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {filters.constituency.map(constituency => (
+                <Badge key={constituency} variant="secondary">
+                  {constituency}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 ml-1"
+                    onClick={() => removeConstituencyFilter(constituency)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Committee filters */}
+        <div className="space-y-2">
+          <Label>Utskott</Label>
+          <Select value="" onValueChange={addCommitteeFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Välj utskott" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableCommittees.filter(c => !filters.committee.includes(c)).map(committee => (
+                <SelectItem key={committee} value={committee}>{committee}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filters.committee.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {filters.committee.map(committee => (
+                <Badge key={committee} variant="secondary">
+                  {committee}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 ml-1"
+                    onClick={() => removeCommitteeFilter(committee)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Age range */}
+        <div className="space-y-2">
+          <Label>Åldersintervall</Label>
+          <div className="px-2">
+            <Slider
+              value={filters.ageRange}
+              onValueChange={(value) => updateFilter('ageRange', value as [number, number])}
+              max={90}
+              min={18}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-sm text-gray-500 mt-1">
+              <span>{filters.ageRange[0]} år</span>
+              <span>{filters.ageRange[1]} år</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Sorting */}
+        <div className="space-y-2">
+          <Label>Sortering</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={filters.sortBy} onValueChange={(value: any) => updateFilter('sortBy', value)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {sortOptions.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
+                <SelectItem value="name">Namn</SelectItem>
+                <SelectItem value="party">Parti</SelectItem>
+                <SelectItem value="age">Ålder</SelectItem>
+                <SelectItem value="constituency">Valkrets</SelectItem>
+                <SelectItem value="activity">Aktivitet</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Ordning</label>
-            <Select 
-              value={filters.sortOrder} 
-              onValueChange={(value: 'asc' | 'desc') => updateFilter('sortOrder', value)}
-            >
+            <Select value={filters.sortOrder} onValueChange={(value: any) => updateFilter('sortOrder', value)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -247,148 +407,11 @@ const MemberFilters: React.FC<MemberFiltersProps> = ({
           </div>
         </div>
 
-        {/* Parties */}
-        {availableParties.length > 0 && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center space-x-1">
-              <Users className="w-4 h-4" />
-              <span>Partier</span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {availableParties.map(party => (
-                <Badge
-                  key={party}
-                  variant={filters.party.includes(party) ? "default" : "outline"}
-                  className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900"
-                  onClick={() => toggleArrayFilter('party', party)}
-                >
-                  {party}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Gender */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Kön</label>
-          <div className="flex space-x-4">
-            {['man', 'kvinna'].map(gender => (
-              <div key={gender} className="flex items-center space-x-2">
-                <Checkbox
-                  id={gender}
-                  checked={filters.gender.includes(gender)}
-                  onCheckedChange={() => toggleArrayFilter('gender', gender)}
-                />
-                <label htmlFor={gender} className="text-sm capitalize">
-                  {gender}
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Age Range */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium flex items-center space-x-1">
-            <Calendar className="w-4 h-4" />
-            <span>Åldersintervall: {filters.ageRange[0]} - {filters.ageRange[1]} år</span>
-          </label>
-          <Slider
-            value={filters.ageRange}
-            onValueChange={(value) => updateFilter('ageRange', value as [number, number])}
-            max={80}
-            min={20}
-            step={1}
-            className="w-full"
-          />
-        </div>
-
-        {/* Constituencies */}
-        {availableConstituencies.length > 0 && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center space-x-1">
-              <MapPin className="w-4 h-4" />
-              <span>Valkrets</span>
-            </label>
-            <Select onValueChange={(value) => toggleArrayFilter('constituency', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Välj valkrets..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableConstituencies.map(constituency => (
-                  <SelectItem key={constituency} value={constituency}>
-                    {constituency}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {filters.constituency.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {filters.constituency.map(constituency => (
-                  <Badge 
-                    key={constituency} 
-                    variant="secondary"
-                    className="cursor-pointer"
-                    onClick={() => toggleArrayFilter('constituency', constituency)}
-                  >
-                    {constituency}
-                    <X className="w-3 h-3 ml-1" />
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Committees */}
-        {availableCommittees.length > 0 && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center space-x-1">
-              <Users className="w-4 h-4" />
-              <span>Utskott</span>
-            </label>
-            <Select onValueChange={(value) => toggleArrayFilter('committee', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Välj utskott..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableCommittees.map(committee => (
-                  <SelectItem key={committee} value={committee}>
-                    {getCommitteeDisplayName(committee)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {filters.committee.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {filters.committee.map(committee => (
-                  <Badge 
-                    key={committee} 
-                    variant="secondary"
-                    className="cursor-pointer"
-                    onClick={() => toggleArrayFilter('committee', committee)}
-                  >
-                    {getCommitteeDisplayName(committee)}
-                    <X className="w-3 h-3 ml-1" />
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Active Only */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="activeOnly"
-            checked={filters.activeOnly}
-            onCheckedChange={(checked) => updateFilter('activeOnly', checked)}
-          />
-          <label htmlFor="activeOnly" className="text-sm">
-            Visa endast aktiva ledamöter
-          </label>
-        </div>
+        {/* Reset button */}
+        <Button onClick={resetFilters} variant="outline" className="w-full">
+          <RotateCcw className="w-4 h-4 mr-2" />
+          Rensa alla filter
+        </Button>
       </CardContent>
     </Card>
   );

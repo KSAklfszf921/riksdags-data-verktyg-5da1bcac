@@ -343,17 +343,24 @@ export type Database = {
           birth_year: number | null
           committee_assignments: Json | null
           constituency: string | null
+          contact_info: Json | null
           created_at: string
           current_committees: string[] | null
+          date_from: string | null
+          date_to: string | null
+          education: string | null
           first_name: string
           gender: string | null
           id: string
           image_urls: Json | null
           is_active: boolean | null
           last_name: string
+          last_sync_at: string | null
           member_id: string
           party: string
+          profession: string | null
           riksdag_status: string | null
+          status_history: Json | null
           updated_at: string
         }
         Insert: {
@@ -362,17 +369,24 @@ export type Database = {
           birth_year?: number | null
           committee_assignments?: Json | null
           constituency?: string | null
+          contact_info?: Json | null
           created_at?: string
           current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
           first_name: string
           gender?: string | null
           id?: string
           image_urls?: Json | null
           is_active?: boolean | null
           last_name: string
+          last_sync_at?: string | null
           member_id: string
           party: string
+          profession?: string | null
           riksdag_status?: string | null
+          status_history?: Json | null
           updated_at?: string
         }
         Update: {
@@ -381,17 +395,24 @@ export type Database = {
           birth_year?: number | null
           committee_assignments?: Json | null
           constituency?: string | null
+          contact_info?: Json | null
           created_at?: string
           current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
           first_name?: string
           gender?: string | null
           id?: string
           image_urls?: Json | null
           is_active?: boolean | null
           last_name?: string
+          last_sync_at?: string | null
           member_id?: string
           party?: string
+          profession?: string | null
           riksdag_status?: string | null
+          status_history?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -614,10 +635,102 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      enhanced_member_view: {
+        Row: {
+          active_assignments_count: number | null
+          activity_data: Json | null
+          assignments: Json | null
+          birth_year: number | null
+          committee_assignments: Json | null
+          constituency: string | null
+          contact_info: Json | null
+          created_at: string | null
+          current_age: number | null
+          current_committees: string[] | null
+          date_from: string | null
+          date_to: string | null
+          education: string | null
+          first_name: string | null
+          gender: string | null
+          id: string | null
+          image_urls: Json | null
+          is_active: boolean | null
+          last_name: string | null
+          last_sync_at: string | null
+          member_id: string | null
+          party: string | null
+          profession: string | null
+          riksdag_status: string | null
+          status_history: Json | null
+          total_documents: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          active_assignments_count?: never
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          current_age?: never
+          current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
+          first_name?: string | null
+          gender?: string | null
+          id?: string | null
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string | null
+          last_sync_at?: string | null
+          member_id?: string | null
+          party?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          status_history?: Json | null
+          total_documents?: never
+          updated_at?: string | null
+        }
+        Update: {
+          active_assignments_count?: never
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          contact_info?: Json | null
+          created_at?: string | null
+          current_age?: never
+          current_committees?: string[] | null
+          date_from?: string | null
+          date_to?: string | null
+          education?: string | null
+          first_name?: string | null
+          gender?: string | null
+          id?: string | null
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string | null
+          last_sync_at?: string | null
+          member_id?: string | null
+          party?: string | null
+          profession?: string | null
+          riksdag_status?: string | null
+          status_history?: Json | null
+          total_documents?: never
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      update_member_active_status: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

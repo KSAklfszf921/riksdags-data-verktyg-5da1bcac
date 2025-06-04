@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllMembers, fetchMemberDetails, RiksdagMember, RiksdagMemberDetails } from '@/services/riksdagApi';
 import { toast } from "sonner";
-import { RefreshCw, Database, Users, CheckCircle, AlertCircle, Image } from "lucide-react";
+import { RefreshCw, Database, Users, CheckCircle, AlertCircle, Image, UserCheck } from "lucide-react";
 
 interface SyncStats {
   totalMembers: number;
@@ -16,6 +16,7 @@ interface SyncStats {
   errors: number;
   currentMember?: string;
   imagesProcessed: number;
+  statusUpdates: number;
 }
 
 const MemberDataSynchronizer: React.FC = () => {
@@ -25,11 +26,11 @@ const MemberDataSynchronizer: React.FC = () => {
     processedMembers: 0,
     successfulUpdates: 0,
     errors: 0,
-    imagesProcessed: 0
+    imagesProcessed: 0,
+    statusUpdates: 0
   });
   const [logs, setLogs] = useState<string[]>([]);
 
-  // Enhanced logging with timestamp and color indicators
   const addLog = (message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const timestamp = new Date().toLocaleTimeString();
     let prefix = '';
@@ -54,14 +55,30 @@ const MemberDataSynchronizer: React.FC = () => {
     console.log(logMessage);
   };
 
+  const updateMemberActiveStatus = async () => {
+    try {
+      addLog('Uppdaterar medlemsstatus baserat på uppdrag...', 'info');
+      
+      const { error } = await supabase.rpc('update_member_active_status');
+      
+      if (error) {
+        throw error;
+      }
+      
+      addLog('Medlemsstatus uppdaterad framgångsrikt', 'success');
+      return true;
+    } catch (error) {
+      addLog(`Fel vid uppdatering av medlemsstatus: ${error}`, 'error');
+      return false;
+    }
+  };
+
   const updateMemberInDatabase = async (member: RiksdagMember, details?: RiksdagMemberDetails) => {
     try {
-      // Validate member data
       if (!member.intressent_id) {
         throw new Error('Missing member ID');
       }
       
-      // Prepare image URLs with validation
       const imageUrls: Record<string, string> = {};
       if (member.bild_url_80 && typeof member.bild_url_80 === 'string') {
         imageUrls['80'] = member.bild_url_80;
@@ -73,26 +90,30 @@ const MemberDataSynchronizer: React.FC = () => {
         imageUrls['max'] = member.bild_url_max;
       }
 
-      // Track if we found images
       if (Object.keys(imageUrls).length > 0) {
         setStats(prev => ({ ...prev, imagesProcessed: prev.imagesProcessed + 1 }));
       }
 
-      // Prepare committee data with fallback
       const currentCommittees = details?.assignments
         ?.filter(assignment => assignment.typ === 'uppdrag' && !assignment.tom)
         ?.map(assignment => assignment.organ_kod) || [];
 
-      // Ensure member has at least basic info if details are missing
       const firstName = member.tilltalsnamn || '';
       const lastName = member.efternamn || '';
       
-      // Convert assignments to match the database type (Json)
       const assignmentsForDb = details?.assignments ? 
         JSON.parse(JSON.stringify(details.assignments)) : 
         [];
 
-      // Prepare member data with validated fields
+      // Enhanced biographical data extraction
+      const statusHistory = details?.assignments?.map(assignment => ({
+        from: assignment.from,
+        to: assignment.tom,
+        organ: assignment.organ_kod,
+        role: assignment.roll,
+        type: assignment.typ
+      })) || [];
+
       const memberData = {
         member_id: member.intressent_id,
         first_name: firstName,
@@ -105,7 +126,11 @@ const MemberDataSynchronizer: React.FC = () => {
         riksdag_status: member.status || 'Okänd',
         current_committees: currentCommittees.length > 0 ? currentCommittees : null,
         image_urls: Object.keys(imageUrls).length > 0 ? imageUrls : null,
-        assignments: assignmentsForDb, // Now properly converted to Json
+        assignments: assignmentsForDb,
+        date_from: member.datum_from || null,
+        date_to: member.datum_tom || null,
+        status_history: statusHistory.length > 0 ? statusHistory : null,
+        last_sync_at: new Date().toISOString(),
         activity_data: {
           motions: 0,
           speeches: 0,
@@ -115,7 +140,6 @@ const MemberDataSynchronizer: React.FC = () => {
         }
       };
 
-      // Upsert member data
       const { error } = await supabase
         .from('member_data')
         .upsert(memberData, { 
@@ -134,7 +158,6 @@ const MemberDataSynchronizer: React.FC = () => {
     }
   };
 
-  // New function: retry logic for API calls
   const fetchWithRetry = async <T,>(
     fetchFn: () => Promise<T>,
     maxRetries: number = 3,
@@ -146,24 +169,23 @@ const MemberDataSynchronizer: React.FC = () => {
     while (retries <= maxRetries) {
       try {
         if (retries > 0) {
-          addLog(`Retry attempt ${retries}/${maxRetries} for ${description}`, 'warning');
-          // Exponential backoff
+          addLog(`Försök ${retries}/${maxRetries} för ${description}`, 'warning');
           await new Promise(resolve => setTimeout(resolve, 500 * Math.pow(2, retries)));
         }
         
         const result = await fetchFn();
         if (retries > 0) {
-          addLog(`Retry successful for ${description}`, 'success');
+          addLog(`Lyckades efter återförsök för ${description}`, 'success');
         }
         return result;
       } catch (err) {
         error = err;
-        addLog(`Attempt ${retries + 1} failed for ${description}: ${err}`, 'error');
+        addLog(`Försök ${retries + 1} misslyckades för ${description}: ${err}`, 'error');
         retries++;
       }
     }
     
-    addLog(`All ${maxRetries} retry attempts failed for ${description}`, 'error');
+    addLog(`Alla ${maxRetries} återförsök misslyckades för ${description}`, 'error');
     throw error;
   };
 
@@ -174,14 +196,14 @@ const MemberDataSynchronizer: React.FC = () => {
       processedMembers: 0,
       successfulUpdates: 0,
       errors: 0,
-      imagesProcessed: 0
+      imagesProcessed: 0,
+      statusUpdates: 0
     });
     setLogs([]);
 
     try {
       addLog('Startar fullständig synkronisering av medlemsdata...', 'info');
       
-      // Fetch all members with retry
       addLog('Hämtar alla ledamöter från Riksdag API...', 'info');
       
       let allMembers: RiksdagMember[];
@@ -189,11 +211,11 @@ const MemberDataSynchronizer: React.FC = () => {
         allMembers = await fetchWithRetry(
           () => fetchAllMembers(),
           3,
-          "fetching all members"
+          "hämtning av alla ledamöter"
         ) || [];
         
         if (allMembers.length === 0) {
-          throw new Error('No members returned from API');
+          throw new Error('Inga ledamöter returnerades från API');
         }
       } catch (error) {
         addLog(`Kritiskt fel vid hämtning av ledamöter: ${error}`, 'error');
@@ -205,7 +227,6 @@ const MemberDataSynchronizer: React.FC = () => {
       setStats(prev => ({ ...prev, totalMembers: allMembers.length }));
       addLog(`Hittade ${allMembers.length} ledamöter att bearbeta`, 'success');
 
-      // Process members in batches to avoid overwhelming the API
       const batchSize = 3;
       for (let i = 0; i < allMembers.length; i += batchSize) {
         const batch = allMembers.slice(i, i + batchSize);
@@ -219,25 +240,21 @@ const MemberDataSynchronizer: React.FC = () => {
             
             addLog(`Bearbetar: ${member.tilltalsnamn || 'Okänd'} ${member.efternamn || 'Ledamot'} (${member.parti || 'Okänt parti'})`, 'info');
             
-            // Fetch detailed member information with retry
             let details: RiksdagMemberDetails | null = null;
             try {
               details = await fetchWithRetry(
                 () => fetchMemberDetails(member.intressent_id),
                 2,
-                `fetching details for ${member.tilltalsnamn} ${member.efternamn}`
+                `hämtning av detaljer för ${member.tilltalsnamn} ${member.efternamn}`
               );
             } catch (error) {
               addLog(`Kan inte hämta detaljer för ${member.tilltalsnamn} ${member.efternamn}: ${error}`, 'warning');
-              // Continue with basic member data even if details fail
             }
             
-            // Fallback handling for missing details
             if (!details) {
               addLog(`Använder grundläggande information för ${member.tilltalsnamn} ${member.efternamn} - detaljinformation saknas`, 'warning');
             }
             
-            // Update database
             await updateMemberInDatabase(member, details || undefined);
             
             setStats(prev => ({ 
@@ -258,10 +275,16 @@ const MemberDataSynchronizer: React.FC = () => {
           }
         }));
 
-        // Add delay between batches
         if (i + batchSize < allMembers.length) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
+      }
+
+      // Update member active status using the database function
+      addLog('Uppdaterar medlemsstatus...', 'info');
+      const statusUpdateSuccess = await updateMemberActiveStatus();
+      if (statusUpdateSuccess) {
+        setStats(prev => ({ ...prev, statusUpdates: prev.successfulUpdates }));
       }
 
       addLog('Synkronisering komplett!', 'success');
@@ -284,13 +307,13 @@ const MemberDataSynchronizer: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Database className="w-5 h-5" />
-            <span>Medlemsdata Synkronisering</span>
+            <span>Förbättrad Medlemsdata Synkronisering</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
-              Synkroniserar all medlemsdata från Riksdag API till Supabase
+              Synkroniserar all medlemsdata med förbättrad statusinformation och biografiska data
             </p>
             <Button 
               onClick={runFullSync} 
@@ -318,7 +341,7 @@ const MemberDataSynchronizer: React.FC = () => {
                 </p>
               )}
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-5 gap-4">
                 <div className="text-center">
                   <div className="text-lg font-semibold text-green-600">{stats.successfulUpdates}</div>
                   <div className="text-xs text-gray-500">Uppdaterade</div>
@@ -330,6 +353,10 @@ const MemberDataSynchronizer: React.FC = () => {
                 <div className="text-center">
                   <div className="text-lg font-semibold text-blue-600">{stats.imagesProcessed}</div>
                   <div className="text-xs text-gray-500">Bilder</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-purple-600">{stats.statusUpdates}</div>
+                  <div className="text-xs text-gray-500">Status</div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-semibold text-blue-600">{stats.totalMembers}</div>
@@ -346,12 +373,38 @@ const MemberDataSynchronizer: React.FC = () => {
                 <div>
                   <h4 className="text-sm font-medium text-green-800">Synkronisering slutförd</h4>
                   <p className="text-xs text-green-600">
-                    {stats.successfulUpdates} ledamöter uppdaterade, {stats.imagesProcessed} bilder processade, {stats.errors} fel
+                    {stats.successfulUpdates} ledamöter uppdaterade, {stats.imagesProcessed} bilder processade, {stats.statusUpdates} statusuppdateringar, {stats.errors} fel
                   </p>
                 </div>
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Enhanced status update button */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <UserCheck className="w-5 h-5" />
+            <span>Statusuppdatering</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Uppdatera medlemsstatus baserat på aktiva uppdrag
+            </p>
+            <Button 
+              onClick={updateMemberActiveStatus} 
+              disabled={isRunning}
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <UserCheck className="w-4 h-4" />
+              <span>Uppdatera Status</span>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
