@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Search, Filter, Loader2, AlertCircle, Plus } from "lucide-react";
 import { partyInfo } from "../data/mockMembers";
-import { Member } from "../types/member";
 import MemberCard from "../components/MemberCard";
-import MemberProfile from "../components/MemberProfile";
+import EnhancedMemberProfile from "../components/EnhancedMemberProfile";
 import MemberAutocomplete from "../components/MemberAutocomplete";
 import { PageHeader } from "../components/PageHeader";
-import { useMembers, useCommittees, getCommitteeName, getCommitteeCode } from "../hooks/useMembers";
+import { useEnhancedMembers, EnhancedMember } from "../hooks/useEnhancedMembers";
+import { useCommittees, getCommitteeCode } from "../hooks/useMembers";
 import { useResponsive } from "../hooks/use-responsive";
 import { RiksdagMember } from "../services/riksdagApi";
 
@@ -21,14 +20,14 @@ const Ledamoter = () => {
   const [selectedConstituency, setSelectedConstituency] = useState<string>("all");
   const [selectedCommittee, setSelectedCommittee] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("name");
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedMember, setSelectedMember] = useState<EnhancedMember | null>(null);
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
   const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
   const [currentPage, setCurrentPage] = useState(1);
 
   const { isMobile, isTablet } = useResponsive();
 
-  const { members, loading, error, totalCount, hasMore } = useMembers(
+  const { members, loading, error, totalCount, hasMore } = useEnhancedMembers(
     currentPage, 
     20, 
     memberStatus, 
@@ -37,7 +36,7 @@ const Ledamoter = () => {
   const { committees } = useCommittees();
 
   // Hämta unika valkretsar från riktig data
-  const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
+  const constituencies = Array.from(new Set(members.map(member => member.constituency).filter(Boolean))).sort();
 
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
   const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
@@ -47,10 +46,10 @@ const Ledamoter = () => {
     .filter(member => {
       // Om autocomplete-filter är aktivt, visa bara den valda ledamoten
       if (autocompleteFilter) {
-        return member.id === autocompleteFilter.intressent_id;
+        return member.member_id === autocompleteFilter.intressent_id;
       }
 
-      const fullName = `${member.firstName} ${member.lastName}`.toLowerCase();
+      const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
       const matchesSearch = searchTerm === "" || fullName.includes(searchTerm.toLowerCase());
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
@@ -60,7 +59,8 @@ const Ledamoter = () => {
       if (selectedCommittee !== "all") {
         // Convert committee name to code for matching
         const committeeCodeToMatch = getCommitteeCode(selectedCommittee);
-        matchesCommittee = member.committees.includes(committeeCodeToMatch);
+        const memberCommittees = member.current_committees || [];
+        matchesCommittee = memberCommittees.includes(committeeCodeToMatch);
       }
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
@@ -68,13 +68,15 @@ const Ledamoter = () => {
     .sort((a, b) => {
       switch (sortBy) {
         case "name":
-          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+          return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
         case "party":
           return a.party.localeCompare(b.party);
         case "constituency":
-          return a.constituency.localeCompare(b.constituency);
+          return (a.constituency || '').localeCompare(b.constituency || '');
         case "activity":
-          return b.activityScore - a.activityScore;
+          const aActivity = (a.current_year_stats?.total_documents || 0);
+          const bActivity = (b.current_year_stats?.total_documents || 0);
+          return bActivity - aActivity;
         default:
           return 0;
       }
@@ -113,12 +115,39 @@ const Ledamoter = () => {
     setAutocompleteFilter(null);
   };
 
+  // Convert enhanced member to legacy member format for MemberCard
+  const convertToLegacyMember = (enhancedMember: EnhancedMember) => {
+    const imageUrls = enhancedMember.image_urls as any;
+    return {
+      id: enhancedMember.member_id,
+      firstName: enhancedMember.first_name,
+      lastName: enhancedMember.last_name,
+      party: enhancedMember.party,
+      constituency: enhancedMember.constituency || '',
+      imageUrl: imageUrls?.medium || imageUrls?.large || imageUrls?.small || '',
+      email: `${enhancedMember.first_name.toLowerCase()}.${enhancedMember.last_name.toLowerCase()}@riksdagen.se`,
+      birthYear: enhancedMember.birth_year || 1970,
+      profession: 'Riksdagsledamot',
+      committees: enhancedMember.current_committees || [],
+      speeches: [],
+      votes: [],
+      proposals: [],
+      documents: [],
+      calendarEvents: [],
+      activityScore: (enhancedMember.current_year_stats?.total_documents || 0) * 0.5,
+      motions: enhancedMember.current_year_stats?.motions || 0,
+      interpellations: enhancedMember.current_year_stats?.interpellations || 0,
+      writtenQuestions: enhancedMember.current_year_stats?.written_questions || 0,
+      assignments: []
+    };
+  };
+
   if (loading && currentPage === 1) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600">Laddar ledamöter...</p>
+          <p className="text-gray-600">Laddar förbättrade ledamöter...</p>
         </div>
       </div>
     );
@@ -149,11 +178,11 @@ const Ledamoter = () => {
         <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'} ${isMobile ? 'py-0' : 'py-8'}`}>
           <PageHeader
             title="Ledamöter"
-            description="Utforska riksdagsledamöter och deras aktuella uppdrag"
+            description="Utforska riksdagsledamöter med detaljerad årsstatistik och aktivitetsdata"
             icon={<Users className="w-6 h-6 text-white" />}
           />
 
-          {/* Status väljare - Mobile optimized */}
+          {/* Status väljare */}
           <Card className={`mb-6 ${isMobile ? 'mx-0' : ''}`}>
             <CardHeader className={isMobile ? 'pb-3' : ''}>
               <CardTitle className="flex items-center space-x-2 text-lg">
@@ -162,7 +191,7 @@ const Ledamoter = () => {
               </CardTitle>
               {!isMobile && (
                 <CardDescription>
-                  Välj vilken kategori av ledamöter du vill visa
+                  Välj vilken kategori av ledamöter du vill visa (nu med förbättrad årsstatistik)
                 </CardDescription>
               )}
             </CardHeader>
@@ -196,7 +225,7 @@ const Ledamoter = () => {
             </CardContent>
           </Card>
 
-          {/* Search and filter section - Mobile optimized */}
+          {/* Search and filter section */}
           <Card className={`mb-6 ${isMobile ? 'mx-0' : ''}`}>
             <CardHeader className={isMobile ? 'pb-3' : ''}>
               <CardTitle className="flex items-center space-x-2 text-lg">
@@ -271,7 +300,7 @@ const Ledamoter = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alla valkretsar</SelectItem>
-                      {constituencies.filter(constituency => constituency && constituency.trim() !== "").map((constituency) => (
+                      {constituencies.map((constituency) => (
                         <SelectItem key={constituency} value={constituency}>
                           {constituency}
                         </SelectItem>
@@ -315,7 +344,7 @@ const Ledamoter = () => {
                       <SelectItem value="name">Namn</SelectItem>
                       <SelectItem value="party">Parti</SelectItem>
                       <SelectItem value="constituency">Valkrets</SelectItem>
-                      <SelectItem value="activity">Aktivitetspoäng</SelectItem>
+                      <SelectItem value="activity">Aktivitet (dokument i år)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -356,7 +385,7 @@ const Ledamoter = () => {
             </CardContent>
           </Card>
 
-          {/* Results counter */}
+          {/* Results counter with enhanced info */}
           <div className={`mb-4 ${isMobile ? 'px-0' : ''}`}>
             <p className="text-gray-600 text-sm">
               Visar {filteredAndSortedMembers.length} av {totalCount} ledamöter
@@ -364,11 +393,12 @@ const Ledamoter = () => {
               {memberStatus === 'former' && ' (tidigare)'}
               {memberStatus === 'all' && ' (alla)'}
               {selectedCommittee !== "all" && ` i ${selectedCommittee}`}
+              <span className="ml-2 text-blue-600">• Nu med detaljerad årsstatistik</span>
             </p>
           </div>
         </div>
 
-        {/* Member grid - Responsive */}
+        {/* Member grid */}
         <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'}`}>
           <div className={`grid ${
             isMobile 
@@ -379,8 +409,8 @@ const Ledamoter = () => {
           }`}>
             {filteredAndSortedMembers.map((member) => (
               <MemberCard
-                key={member.id}
-                member={member}
+                key={member.member_id}
+                member={convertToLegacyMember(member)}
                 onClick={() => setSelectedMember(member)}
               />
             ))}
@@ -426,9 +456,9 @@ const Ledamoter = () => {
         </div>
       </div>
 
-      {/* Member profile modal */}
+      {/* Enhanced member profile modal */}
       {selectedMember && (
-        <MemberProfile
+        <EnhancedMemberProfile
           member={selectedMember}
           onClose={() => setSelectedMember(null)}
         />

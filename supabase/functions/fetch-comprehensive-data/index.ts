@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
@@ -68,7 +67,6 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
         const text = await response.text()
         console.log(`Response preview: ${text.substring(0, 200)}...`)
         
-        // If it's HTML, the endpoint might not exist or be temporarily down
         if (contentType?.includes('text/html')) {
           throw new Error(`Endpoint returned HTML instead of JSON - possibly down or incorrect URL`)
         }
@@ -83,7 +81,6 @@ async function fetchWithRetry(url: string, maxRetries = 3): Promise<any> {
       console.error(`❌ Fetch attempt ${i + 1} failed:`, error)
       if (i === maxRetries) throw error
       
-      // Progressive backoff: 1s, 2s, 3s
       const delay = 1000 * (i + 1)
       console.log(`⏱️ Waiting ${delay}ms before retry...`)
       await new Promise(resolve => setTimeout(resolve, delay))
@@ -130,7 +127,7 @@ async function fetchAllDocumentsForYear(year: number): Promise<RiksdagDocument[]
   let allDocuments: RiksdagDocument[] = []
   let page = 1
   let hasMore = true
-  const maxPages = 50 // Safety limit to prevent infinite loops
+  const maxPages = 50
   
   while (hasMore && page <= maxPages) {
     const { documents, hasMore: morePages } = await fetchDocumentsPaginated(year, page)
@@ -221,6 +218,223 @@ async function storeDocuments(documents: RiksdagDocument[]): Promise<number> {
   return stored
 }
 
+async function fetchMemberData(): Promise<number> {
+  console.log(`👥 === STARTING ENHANCED MEMBER DATA SYNC ===`)
+  
+  try {
+    // Fetch ALL members (current and former)
+    const url = `${BASE_URL}/personlista?utformat=json&sz=2000`
+    const data = await fetchWithRetry(url)
+    
+    if (data.error) {
+      console.warn(`⚠️ Member API error: ${data.error}`)
+      return 0
+    }
+    
+    if (!data.personlista?.person) {
+      console.log(`⚠️ No members found`)
+      return 0
+    }
+    
+    const members = Array.isArray(data.personlista.person) 
+      ? data.personlista.person 
+      : [data.personlista.person]
+    
+    console.log(`👥 Found ${members.length} total members (current and former)`)
+    
+    // Process members with enhanced data including yearly statistics
+    let stored = 0
+    const batchSize = 25 // Smaller batches for enhanced processing
+    
+    for (let i = 0; i < members.length; i += batchSize) {
+      const batch = members.slice(i, i + batchSize)
+      console.log(`📦 Processing member batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(members.length/batchSize)}`)
+      
+      const enhancedMembers = []
+      
+      for (const member of batch) {
+        try {
+          // Fetch detailed assignments for each member
+          const memberDetailUrl = `${BASE_URL}/person/${member.intressent_id}?utformat=json`
+          let assignments = []
+          let currentCommittees = []
+          
+          try {
+            const memberDetailData = await fetchWithRetry(memberDetailUrl)
+            if (memberDetailData.person?.personuppdrag?.uppdrag) {
+              const uppdragList = Array.isArray(memberDetailData.person.personuppdrag.uppdrag)
+                ? memberDetailData.person.personuppdrag.uppdrag
+                : [memberDetailData.person.personuppdrag.uppdrag]
+              
+              assignments = uppdragList.map(uppdrag => ({
+                organ_kod: uppdrag.organ_kod,
+                roll: uppdrag.roll_kod,
+                status: uppdrag.status,
+                from: uppdrag.from,
+                tom: uppdrag.tom,
+                typ: uppdrag.typ,
+                ordning: uppdrag.ordning,
+                uppgift: uppdrag.uppgift
+              }))
+              
+              // Extract current committees (active assignments)
+              const currentDate = new Date()
+              currentCommittees = assignments
+                .filter(assignment => {
+                  const endDate = assignment.tom ? new Date(assignment.tom) : null
+                  return (!endDate || endDate > currentDate) && 
+                         assignment.organ_kod !== 'Kammaren' && 
+                         assignment.organ_kod !== 'kam'
+                })
+                .map(assignment => assignment.organ_kod)
+            }
+          } catch (error) {
+            console.warn(`⚠️ Could not fetch details for member ${member.efternamn}:`, error.message)
+          }
+          
+          // Calculate yearly document statistics
+          const yearlyStats = await calculateYearlyStats(member.intressent_id)
+          
+          const enhancedMember = {
+            member_id: member.intressent_id,
+            first_name: member.tilltalsnamn || member.fornamn || '',
+            last_name: member.efternamn || '',
+            party: member.parti || '',
+            constituency: member.valkrets || null,
+            gender: member.kon || null,
+            birth_year: member.fodd_ar ? parseInt(member.fodd_ar) : null,
+            riksdag_status: member.status || null,
+            is_active: member.status === 'Tjänstgörande' || member.status === null || member.status === '',
+            current_committees: currentCommittees,
+            assignments: assignments,
+            committee_assignments: assignments,
+            image_urls: {
+              small: member.bild_url_80,
+              medium: member.bild_url_192,
+              large: member.bild_url_max
+            },
+            activity_data: {
+              yearly_stats: yearlyStats,
+              last_updated: new Date().toISOString()
+            },
+            updated_at: new Date().toISOString()
+          }
+          
+          enhancedMembers.push(enhancedMember)
+          
+          // Small delay to avoid overwhelming the API
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
+        } catch (error) {
+          console.error(`💥 Error processing member ${member.efternamn}:`, error)
+        }
+      }
+      
+      // Store enhanced member batch
+      try {
+        const { data: insertData, error } = await supabase
+          .from('member_data')
+          .upsert(enhancedMembers, { onConflict: 'member_id' })
+          .select('id')
+        
+        if (!error) {
+          stored += insertData?.length || 0
+          console.log(`✅ Enhanced member batch stored: ${insertData?.length || 0}`)
+        } else {
+          console.error(`❌ Enhanced member batch error:`, error)
+        }
+      } catch (error) {
+        console.error(`💥 Enhanced member database error:`, error)
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+    
+    console.log(`🎉 Enhanced member sync complete: ${stored} members stored with yearly statistics`)
+    return stored
+  } catch (error) {
+    console.error(`💥 Enhanced member sync failed:`, error)
+    return 0
+  }
+}
+
+async function calculateYearlyStats(memberId: string): Promise<any> {
+  const currentYear = new Date().getFullYear()
+  const stats: any = {}
+  
+  try {
+    // Calculate stats for current year and previous 2 years
+    for (let year = currentYear - 2; year <= currentYear; year++) {
+      const fromDate = `${year}-01-01`
+      const toDate = year === currentYear ? 
+        new Date().toISOString().split('T')[0] : 
+        `${year}-12-31`
+      
+      const docUrl = `${BASE_URL}/dokumentlista/?utformat=json&f=intressent&id=${memberId}&from=${fromDate}&tom=${toDate}&sz=1000`
+      
+      try {
+        const docData = await fetchWithRetry(docUrl)
+        
+        let documents = []
+        if (docData.dokumentlista?.dokument) {
+          documents = Array.isArray(docData.dokumentlista.dokument)
+            ? docData.dokumentlista.dokument
+            : [docData.dokumentlista.dokument]
+        }
+        
+        stats[year] = {
+          motions: documents.filter(doc => doc.typ === 'mot').length,
+          interpellations: documents.filter(doc => doc.typ === 'ip').length,
+          written_questions: documents.filter(doc => doc.typ === 'fr').length,
+          total_documents: documents.length
+        }
+        
+        console.log(`📊 Member ${memberId} year ${year}: ${stats[year].total_documents} documents`)
+        
+      } catch (error) {
+        console.warn(`⚠️ Could not fetch documents for ${memberId} year ${year}:`, error.message)
+        stats[year] = {
+          motions: 0,
+          interpellations: 0,
+          written_questions: 0,
+          total_documents: 0
+        }
+      }
+      
+      // Small delay between year requests
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+    
+    // Try to get speech count for current year
+    try {
+      const currentRiksdagYear = `${currentYear}/${(currentYear + 1).toString().slice(-2)}`
+      const speechUrl = `${BASE_URL}/anforandelista?utformat=json&rm=${encodeURIComponent(currentRiksdagYear)}&f=intressent&id=${memberId}&sz=1000`
+      
+      const speechData = await fetchWithRetry(speechUrl)
+      let speechCount = 0
+      
+      if (speechData.anforandelista?.anforande) {
+        const speeches = Array.isArray(speechData.anforandelista.anforande)
+          ? speechData.anforandelista.anforande
+          : [speechData.anforandelista.anforande]
+        speechCount = speeches.length
+      }
+      
+      if (stats[currentYear]) {
+        stats[currentYear].speeches = speechCount
+      }
+      
+    } catch (error) {
+      console.warn(`⚠️ Could not fetch speeches for ${memberId}:`, error.message)
+    }
+    
+  } catch (error) {
+    console.error(`💥 Error calculating yearly stats for ${memberId}:`, error)
+  }
+  
+  return stats
+}
+
 async function fetchCalendarData(): Promise<number> {
   console.log(`📅 === STARTING CALENDAR DATA SYNC ===`)
   
@@ -229,7 +443,6 @@ async function fetchCalendarData(): Promise<number> {
     const fromDate = new Date(currentDate.getFullYear() - 1, 0, 1).toISOString().split('T')[0]
     const toDate = new Date(currentDate.getFullYear() + 1, 11, 31).toISOString().split('T')[0]
     
-    // Fixed URL - removed trailing slash and corrected endpoint
     const url = `${BASE_URL}/aktivitetslista?utformat=json&from=${fromDate}&tom=${toDate}&sz=1000`
     
     console.log(`📅 Fetching calendar data from ${fromDate} to ${toDate}`)
@@ -300,84 +513,11 @@ async function fetchCalendarData(): Promise<number> {
   }
 }
 
-async function fetchMemberData(): Promise<number> {
-  console.log(`👥 === STARTING MEMBER DATA SYNC ===`)
-  
-  try {
-    const url = `${BASE_URL}/personlista?utformat=json&sz=1000`
-    const data = await fetchWithRetry(url)
-    
-    if (data.error) {
-      console.warn(`⚠️ Member API error: ${data.error}`)
-      return 0
-    }
-    
-    if (!data.personlista?.person) {
-      console.log(`⚠️ No members found`)
-      return 0
-    }
-    
-    const members = Array.isArray(data.personlista.person) 
-      ? data.personlista.person 
-      : [data.personlista.person]
-    
-    console.log(`👥 Found ${members.length} members`)
-    
-    let stored = 0
-    const batchSize = 50
-    
-    for (let i = 0; i < members.length; i += batchSize) {
-      const batch = members.slice(i, i + batchSize)
-      
-      const membersToStore = batch.map((member: any) => ({
-        member_id: member.intressent_id || member.id,
-        first_name: member.fornamn || '',
-        last_name: member.efternamn || '',
-        party: member.parti || '',
-        constituency: member.valkrets || null,
-        gender: member.kon || null,
-        birth_year: member.fodd_ar ? parseInt(member.fodd_ar) : null,
-        riksdag_status: member.status || null,
-        is_active: member.status === 'Tjänstgörande' || true,
-        updated_at: new Date().toISOString()
-      }))
-      
-      try {
-        const { data: insertData, error } = await supabase
-          .from('member_data')
-          .upsert(membersToStore, { onConflict: 'member_id' })
-          .select('id')
-        
-        if (!error) {
-          stored += insertData?.length || 0
-          console.log(`✅ Member batch stored: ${insertData?.length || 0}`)
-        } else {
-          console.error(`❌ Member batch error:`, error)
-        }
-      } catch (error) {
-        console.error(`💥 Member database error:`, error)
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 200))
-    }
-    
-    console.log(`🎉 Member sync complete: ${stored} members stored`)
-    return stored
-  } catch (error) {
-    console.error(`💥 Member sync failed:`, error)
-    return 0
-  }
-}
-
 async function fetchSpeechData(): Promise<number> {
   console.log(`🎤 === STARTING SPEECH DATA SYNC ===`)
   
   try {
-    // Use correct Riksdag year format: 2024/25 for current session
     const currentYear = new Date().getFullYear()
-    const riksdagYear = `${currentYear}/${(currentYear + 1).toString().slice(-2)}`
-    
-    // Try multiple years to get more data
     const years = [
       `${currentYear}/${(currentYear + 1).toString().slice(-2)}`,
       `${currentYear - 1}/${currentYear.toString().slice(-2)}`,
@@ -410,7 +550,7 @@ async function fetchSpeechData(): Promise<number> {
         console.log(`🎤 Found ${speeches.length} speeches for ${year}`)
         
         let yearStored = 0
-        const batchSize = 30 // Smaller batch for speeches due to larger data
+        const batchSize = 30
         
         for (let i = 0; i < speeches.length; i += batchSize) {
           const batch = speeches.slice(i, i + batchSize)
@@ -472,7 +612,6 @@ async function fetchVoteData(): Promise<number> {
   console.log(`🗳️ === STARTING VOTE DATA SYNC ===`)
   
   try {
-    // Use correct Riksdag year format and try multiple years
     const currentYear = new Date().getFullYear()
     const years = [
       `${currentYear}/${(currentYear + 1).toString().slice(-2)}`,
@@ -601,7 +740,7 @@ Deno.serve(async (req) => {
     const triggeredBy = body.triggered_by || 'cron'
     const debugMode = body.debug_mode || false
     
-    console.log(`🚀 Starting comprehensive data sync`)
+    console.log(`🚀 Starting enhanced comprehensive data sync`)
     console.log(`📋 Trigger info: manual=${manualTrigger}, by=${triggeredBy}, debug=${debugMode}`)
     
     await updateSyncStatus('comprehensive', 'running')
@@ -618,7 +757,6 @@ Deno.serve(async (req) => {
     }
     
     try {
-      // Test database connection
       console.log(`🔍 Testing database connection...`)
       const { count, error } = await supabase
         .from('document_data')
@@ -627,10 +765,20 @@ Deno.serve(async (req) => {
       if (error) throw error
       console.log(`✅ Database connection OK. Current document count: ${count}`)
       
-      // 1. DOCUMENTS - Extended year range and improved pagination
-      console.log(`📄 === STARTING DOCUMENT SYNC ===`)
+      // 1. ENHANCED MEMBER DATA - Now processes ALL members with yearly statistics
+      console.log(`\n👥 === STARTING ENHANCED MEMBER DATA SYNC ===`)
+      try {
+        stats.members_stored = await fetchMemberData()
+      } catch (error) {
+        const errorMsg = `Enhanced member sync error: ${error.message}`
+        console.error(`💥 ${errorMsg}`)
+        stats.errors.push(errorMsg)
+      }
+      
+      // 2. DOCUMENTS - Extended year range
+      console.log(`\n📄 === STARTING DOCUMENT SYNC ===`)
       const currentYear = new Date().getFullYear()
-      const startYear = 2010 // Extended from 2020 to get much more historical data
+      const startYear = 2010
       
       for (let year = startYear; year <= currentYear; year++) {
         try {
@@ -654,7 +802,6 @@ Deno.serve(async (req) => {
           
           stats.years_processed++
           
-          // Shorter wait between years for faster processing
           if (year < currentYear) {
             console.log(`⏱️ Waiting 1 second before next year...`)
             await new Promise(resolve => setTimeout(resolve, 1000))
@@ -666,8 +813,8 @@ Deno.serve(async (req) => {
         }
       }
       
-      // 2. CALENDAR DATA - Fixed API endpoint
-      console.log(`\n📅 === MOVING TO CALENDAR DATA ===`)
+      // 3. CALENDAR DATA
+      console.log(`\n📅 === STARTING CALENDAR DATA SYNC ===`)
       try {
         stats.calendar_events_stored = await fetchCalendarData()
       } catch (error) {
@@ -676,18 +823,8 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
-      // 3. MEMBER DATA - Improved error handling
-      console.log(`\n👥 === MOVING TO MEMBER DATA ===`)
-      try {
-        stats.members_stored = await fetchMemberData()
-      } catch (error) {
-        const errorMsg = `Member sync error: ${error.message}`
-        console.error(`💥 ${errorMsg}`)
-        stats.errors.push(errorMsg)
-      }
-      
-      // 4. SPEECH DATA - Fixed Riksdag year format and multiple years
-      console.log(`\n🎤 === MOVING TO SPEECH DATA ===`)
+      // 4. SPEECH DATA
+      console.log(`\n🎤 === STARTING SPEECH DATA SYNC ===`)
       try {
         stats.speeches_stored = await fetchSpeechData()
       } catch (error) {
@@ -696,8 +833,8 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
-      // 5. VOTE DATA - Fixed Riksdag year format and multiple years
-      console.log(`\n🗳️ === MOVING TO VOTE DATA ===`)
+      // 5. VOTE DATA
+      console.log(`\n🗳️ === STARTING VOTE DATA SYNC ===`)
       try {
         stats.votes_stored = await fetchVoteData()
       } catch (error) {
@@ -706,10 +843,26 @@ Deno.serve(async (req) => {
         stats.errors.push(errorMsg)
       }
       
+      // 6. TRIGGER TOPLISTS AND PARTY DATA SYNC
+      console.log(`\n📊 === TRIGGERING TOPLISTS AND PARTY DATA SYNC ===`)
+      try {
+        const { error: toplistsError } = await supabase.functions.invoke('fetch-toplists-data')
+        if (toplistsError) {
+          console.error('❌ Error triggering toplists sync:', toplistsError)
+          stats.errors.push(`Toplists sync error: ${toplistsError.message}`)
+        } else {
+          console.log('✅ Toplists and party data sync triggered successfully')
+        }
+      } catch (error) {
+        const errorMsg = `Toplists trigger error: ${error.message}`
+        console.error(`💥 ${errorMsg}`)
+        stats.errors.push(errorMsg)
+      }
+      
       const duration = Date.now() - startTime
       stats.sync_duration_ms = duration
       
-      console.log(`\n🎯 === COMPREHENSIVE SYNC COMPLETED ===`)
+      console.log(`\n🎯 === ENHANCED COMPREHENSIVE SYNC COMPLETED ===`)
       console.log(`⏱️ Duration: ${duration}ms`)
       console.log(`📊 Final stats:`, stats)
       
@@ -721,15 +874,15 @@ Deno.serve(async (req) => {
         console.log(`📈 Final document count in database: ${finalDocCount}`)
         stats.final_document_count = finalDocCount
         
-        const { count: finalCalCount } = await supabase
-          .from('calendar_data')
-          .select('*', { count: 'exact', head: true })
-        console.log(`📅 Final calendar count in database: ${finalCalCount}`)
-        
         const { count: finalMemberCount } = await supabase
           .from('member_data')
           .select('*', { count: 'exact', head: true })
         console.log(`👥 Final member count in database: ${finalMemberCount}`)
+        
+        const { count: finalCalCount } = await supabase
+          .from('calendar_data')
+          .select('*', { count: 'exact', head: true })
+        console.log(`📅 Final calendar count in database: ${finalCalCount}`)
         
         const { count: finalSpeechCount } = await supabase
           .from('speech_data')
@@ -748,15 +901,15 @@ Deno.serve(async (req) => {
       
       const response = {
         success: true,
-        message: 'Comprehensive data sync completed successfully',
+        message: 'Enhanced comprehensive data sync completed successfully',
         stats,
         duration: `${duration}ms`,
         triggered_by: triggeredBy,
         improvements_implemented: [
+          'Enhanced member data sync with ALL members (current and former)',
+          'Added yearly statistics for each member (motions, questions, speeches per year)',
           'Extended document year range to 2010-2025',
-          'Fixed calendar API endpoint URL',
-          'Corrected Riksdag year format for speeches and votes',
-          'Added multi-year fetching for speeches and votes',
+          'Integrated toplists and party data sync',
           'Improved error handling and recovery',
           'Enhanced API retry logic with progressive backoff',
           'Added better logging and monitoring',
@@ -766,7 +919,7 @@ Deno.serve(async (req) => {
           start_time: new Date(startTime).toISOString(),
           end_time: new Date().toISOString(),
           years_range: `${startYear}-${currentYear}`,
-          data_types_processed: ['documents', 'calendar', 'members', 'speeches', 'votes']
+          data_types_processed: ['enhanced_members', 'documents', 'calendar', 'speeches', 'votes', 'toplists', 'party_data']
         } : undefined
       }
       
@@ -782,7 +935,7 @@ Deno.serve(async (req) => {
     }
     
   } catch (error) {
-    console.error('💥 Comprehensive sync failed:', error)
+    console.error('💥 Enhanced comprehensive sync failed:', error)
     console.error('Error stack:', error.stack)
     
     await updateSyncStatus('comprehensive', 'failed', null, error.message)
@@ -790,7 +943,7 @@ Deno.serve(async (req) => {
     const errorResponse = {
       success: false,
       error: error.message,
-      message: 'Comprehensive data sync failed',
+      message: 'Enhanced comprehensive data sync failed',
       error_details: {
         stack: error.stack,
         timestamp: new Date().toISOString()
