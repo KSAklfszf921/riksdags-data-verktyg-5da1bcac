@@ -189,4 +189,20 @@ export class ComprehensiveTestSuite extends EnhancedTester {
     console.log('✅ Comprehensive testing completed');
     this.printResults();
   }
+
+  printResults(): void {
+    console.log(`\n📊 ${this.name} Results:`);
+    console.log(`Total tests: ${this.results.length}`);
+    console.log(`Passed: ${this.results.filter(r => r.success).length}`);
+    console.log(`Failed: ${this.results.filter(r => !r.success).length}`);
+    console.log(`Success rate: ${((this.results.filter(r => r.success).length / this.results.length) * 100).toFixed(1)}%`);
+    
+    const failedTests = this.results.filter(r => !r.success);
+    if (failedTests.length > 0) {
+      console.log('\n❌ Failed tests:');
+      failedTests.forEach(test => {
+        console.log(`  - ${test.name}: ${test.message}`);
+      });
+    }
+  }
 }

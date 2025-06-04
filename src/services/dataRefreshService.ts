@@ -238,3 +238,10 @@ export class DataRefreshService {
     }
   }
 }
+
+// Export the functions that DatabaseInitializer needs
+export const initializeAllDatabases = DataRefreshService.initializeAllDatabases;
+export const refreshAllData = DataRefreshService.refreshAllData;
+export const refreshSpecificDataType = DataRefreshService.refreshSpecificDataType;
+export const getComprehensiveDataStatus = DataRefreshService.getComprehensiveDataStatus;
+export const formatDataStatusMessage = DataRefreshService.formatDataStatusMessage;

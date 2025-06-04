@@ -259,7 +259,7 @@ export class SupabaseDataService {
           console.error(`Error fetching latest update for ${table}:`, latestError);
         }
 
-        const lastUpdate = latestData?.[0]?.updated_at || null;
+        const lastUpdate = latestData && latestData.length > 0 ? latestData[0].updated_at : null;
         const hoursOld = lastUpdate ? 
           (Date.now() - new Date(lastUpdate).getTime()) / (1000 * 60 * 60) : null;
 
