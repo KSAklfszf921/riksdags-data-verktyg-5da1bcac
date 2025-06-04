@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 const BASE_URL = 'https://data.riksdagen.se';
@@ -7,6 +6,21 @@ interface RateLimiter {
   requests: number[];
   maxRequests: number;
   timeWindow: number;
+}
+
+// Add interface for the API response structure
+interface CalendarApiResponse {
+  kalender?: {
+    händelse?: any | any[];
+  };
+  kalenderlista?: {
+    kalender?: any | any[];
+  };
+}
+
+// Type guard to check if data has the expected calendar structure
+function isCalendarApiResponse(data: unknown): data is CalendarApiResponse {
+  return typeof data === 'object' && data !== null;
 }
 
 class CalendarApiService {
@@ -135,7 +149,7 @@ class CalendarApiService {
       });
 
       const url = `${BASE_URL}/kalender/?${queryParams.toString()}`;
-      const data = await this.fetchWithRetry(url, 5, 3000);
+      const data = await this.fetchWithRetry<CalendarApiResponse>(url, 5, 3000);
       
       if (!data) {
         console.log('API request failed, returning mock data');
@@ -144,18 +158,24 @@ class CalendarApiService {
 
       let events: any[] = [];
       
-      if (data.kalender?.händelse) {
-        events = Array.isArray(data.kalender.händelse) 
-          ? data.kalender.händelse 
-          : [data.kalender.händelse];
-      } else if (data.kalenderlista?.kalender) {
-        const kalenderData = Array.isArray(data.kalenderlista.kalender) 
-          ? data.kalenderlista.kalender 
-          : [data.kalenderlista.kalender];
-        
-        events = kalenderData.flatMap(k => 
-          k.händelse ? (Array.isArray(k.händelse) ? k.händelse : [k.händelse]) : []
-        );
+      // Use type guard to safely check the response structure
+      if (isCalendarApiResponse(data)) {
+        if (data.kalender?.händelse) {
+          events = Array.isArray(data.kalender.händelse) 
+            ? data.kalender.händelse 
+            : [data.kalender.händelse];
+        } else if (data.kalenderlista?.kalender) {
+          const kalenderData = Array.isArray(data.kalenderlista.kalender) 
+            ? data.kalenderlista.kalender 
+            : [data.kalenderlista.kalender];
+          
+          events = kalenderData.flatMap(k => 
+            k.händelse ? (Array.isArray(k.händelse) ? k.händelse : [k.händelse]) : []
+          );
+        }
+      } else {
+        console.log('Unexpected API response structure, returning mock data');
+        return this.getMockEvents();
       }
 
       console.log(`Successfully fetched ${events.length} calendar events`);
