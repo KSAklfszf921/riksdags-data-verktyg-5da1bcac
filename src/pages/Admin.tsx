@@ -100,11 +100,12 @@ const Admin = () => {
     },
     {
       id: 'comprehensive',
-      title: 'Omfattande data',
-      description: 'Hämtar dokument, anföranden och voteringar',
+      title: 'Omfattande data (dokument, anföranden, voteringar)',
+      description: 'Hämtar dokument från 2022 framåt, medlemmar, anföranden och voteringar - detta fyller document_data tabellen',
       functionName: 'fetch-comprehensive-data',
       icon: Database,
-      color: 'text-purple-600'
+      color: 'text-purple-600',
+      priority: true
     },
     {
       id: 'toplists',
@@ -130,6 +131,38 @@ const Admin = () => {
         />
 
         <div className="space-y-6">
+          {/* Priority Alert for Document Data */}
+          <Card className="border-purple-200 bg-purple-50">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-purple-800">
+                <Database className="w-5 h-5" />
+                <span>Populera document_data tabellen</span>
+                <Badge className="bg-purple-100 text-purple-800">
+                  <Zap className="w-3 h-3 mr-1" />
+                  Rekommenderat först
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Alert className="border-purple-200 bg-white">
+                <AlertCircle className="h-4 w-4 text-purple-600" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <span className="font-medium text-purple-900">
+                      Starta med "Omfattande data" för att fylla document_data tabellen:
+                    </span>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-purple-800">
+                      <li>Hämtar dokument från Riksdagen API (2022 framåt)</li>
+                      <li>Lagrar i document_data tabellen</li>
+                      <li>Inkluderar även medlemmar, anföranden och voteringar</li>
+                      <li>Kan ta flera minuter att slutföra</li>
+                    </ul>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+
           {/* System Status Overview */}
           <Card>
             <CardHeader>
@@ -181,11 +214,16 @@ const Admin = () => {
                       const result = syncResults[operation.id];
                       
                       return (
-                        <Card key={operation.id} className="relative">
+                        <Card key={operation.id} className={`relative ${operation.priority ? 'ring-2 ring-purple-200 bg-purple-50' : ''}`}>
                           <CardHeader className="pb-3">
                             <CardTitle className={`text-lg flex items-center space-x-2 ${operation.color}`}>
                               <Icon className="w-5 h-5" />
                               <span>{operation.title}</span>
+                              {operation.priority && (
+                                <Badge className="bg-purple-100 text-purple-800 text-xs">
+                                  Prioritet
+                                </Badge>
+                              )}
                             </CardTitle>
                             <CardDescription>{operation.description}</CardDescription>
                           </CardHeader>
@@ -193,8 +231,8 @@ const Admin = () => {
                             <Button
                               onClick={() => triggerDataSync(operation.id, operation.functionName)}
                               disabled={loading}
-                              className="w-full"
-                              variant="outline"
+                              className={`w-full ${operation.priority ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                              variant={operation.priority ? "default" : "outline"}
                             >
                               {loading ? (
                                 <>
@@ -231,6 +269,12 @@ const Admin = () => {
                                 </div>
                                 {result.error && (
                                   <div className="mt-1 text-xs">{result.error}</div>
+                                )}
+                                {result.success && result.data?.stats && (
+                                  <div className="mt-1 text-xs">
+                                    Dokument: {result.data.stats.documents_stored || 0}, 
+                                    Medlemmar: {result.data.stats.members_stored || 0}
+                                  </div>
                                 )}
                               </div>
                             )}
