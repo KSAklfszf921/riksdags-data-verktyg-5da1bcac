@@ -9,6 +9,38 @@ export class RiksdagApiError extends Error {
   }
 }
 
+// Add missing interface definitions
+export interface RiksdagMember {
+  intressent_id: string;
+  tilltalsnamn: string;
+  efternamn: string;
+  parti: string;
+  valkrets: string;
+  kon: string;
+  fodd_ar: string;
+  yrke?: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
+  status?: string;
+  rdlstatus?: string;
+}
+
+export interface RiksdagMemberDetails extends RiksdagMember {
+  assignments: Array<{
+    organ_kod: string;
+    roll: string;
+    status: string;
+    from: string;
+    tom: string;
+    typ: string;
+    ordning?: string;
+    uppgift: string;
+  }>;
+  email?: string;
+  biography?: string;
+}
+
 const handleApiResponse = async (response: Response) => {
   if (response.status === 413) {
     throw new RiksdagApiError('För stort svar - begränsa tidsintervall eller dela upp anropet', 413);
@@ -467,7 +499,7 @@ export const fetchSpeechText = async (speechId: string): Promise<string> => {
   }
 };
 
-export const fetchMemberContentForAnalysis = async (memberId: string): Promise<{
+export const fetchMemberContentForAnalysis = async (memberId: string, limit: number = 15): Promise<{
   speeches: RiksdagSpeech[];
   documents: RiksdagDocument[];
 }> => {

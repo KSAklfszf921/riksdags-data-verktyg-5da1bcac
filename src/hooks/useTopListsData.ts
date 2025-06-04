@@ -6,7 +6,9 @@ export interface TopListMember {
   id: string;
   name: string;
   party: string;
-  activityCount: number;
+  constituency: string;
+  imageUrl?: string;
+  count: number;
 }
 
 interface TopListsData {
@@ -40,7 +42,8 @@ export const useTopListsData = (): TopListsData => {
           id: member.intressent_id,
           name: `${member.tilltalsnamn} ${member.efternamn}`,
           party: member.parti,
-          activityCount: Math.floor(Math.random() * 100) + 50 // Mock data
+          constituency: member.valkrets,
+          count: Math.floor(Math.random() * 100) + 50 // Mock data
         }));
 
         setData({

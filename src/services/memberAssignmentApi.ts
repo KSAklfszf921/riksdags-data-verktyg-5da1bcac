@@ -45,7 +45,8 @@ export const getMemberAssignmentStats = async (memberId: string): Promise<Assign
 
     const committees = [...new Set(currentAssignments
       .filter(a => a.organ_kod !== 'Kammaren' && a.organ_kod !== 'kam')
-      .map(a => a.organ_kod))];
+      .map(a => a.organ_kod)
+      .filter((code): code is string => typeof code === 'string'))];
 
     const leadershipRoles = currentAssignments.filter(assignment => 
       assignment.roll === 'Ordförande' || 
