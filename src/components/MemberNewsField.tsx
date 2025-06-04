@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle, RefreshCw, Download } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle, RefreshCw, Download, ChevronDown } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
 import { useToast } from './ui/use-toast';
 
@@ -34,14 +34,35 @@ interface MemberNewsFieldProps {
 }
 
 const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsFieldProps) => {
-  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [allNewsItems, setAllNewsItems] = useState<NewsItem[]>([]);
+  const [displayedItems, setDisplayedItems] = useState<NewsItem[]>([]);
+  const [itemsToShow, setItemsToShow] = useState(5);
   const [formattedItems, setFormattedItems] = useState<FormattedNewsItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'database' | 'live' | 'cache'>('database');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const { toast } = useToast();
+
+  // Sort and filter news items by date
+  const sortAndFilterItems = (items: NewsItem[], limit: number) => {
+    return items
+      .sort((a, b) => {
+        // Sort by publication date (newest first)
+        const dateA = new Date(a.pub_date);
+        const dateB = new Date(b.pub_date);
+        return dateB.getTime() - dateA.getTime();
+      })
+      .slice(0, limit);
+  };
+
+  // Update displayed items when allNewsItems or itemsToShow changes
+  useEffect(() => {
+    const sortedItems = sortAndFilterItems(allNewsItems, itemsToShow);
+    setDisplayedItems(sortedItems);
+  }, [allNewsItems, itemsToShow]);
 
   // Fetch news from database
   const fetchNewsFromDatabase = async () => {
@@ -52,8 +73,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         .from('member_news')
         .select('*')
         .eq('member_id', memberId)
-        .order('created_at', { ascending: false })
-        .limit(maxItems);
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Database error:', error);
@@ -70,7 +90,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           image_url: item.image_url || undefined,
           created_at: item.created_at
         }));
-        setNewsItems(formattedNews);
+        setAllNewsItems(formattedNews);
         setDataSource('database');
         setLastFetchTime(new Date(data[0].created_at));
         return true;
@@ -109,7 +129,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           image_url: item.imageUrl
         }));
         
-        setNewsItems(formattedNews);
+        setAllNewsItems(formattedNews);
         setFormattedItems(data.formattedItems || []);
         setDataSource(data.source === 'cache' ? 'cache' : 'live');
         setLastFetchTime(new Date());
@@ -204,16 +224,34 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Format date
+  // Load more items
+  const loadMoreItems = () => {
+    setLoadingMore(true);
+    setTimeout(() => {
+      setItemsToShow(prev => prev + 5);
+      setLoadingMore(false);
+    }, 500);
+  };
+
+  // Format date for display
   const formatDate = (dateString: string): string => {
     try {
-      return new Date(dateString).toLocaleDateString('sv-SE', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        return 'Igår';
+      } else if (diffDays <= 7) {
+        return `${diffDays} dagar sedan`;
+      } else {
+        return date.toLocaleDateString('sv-SE', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
     } catch {
       return dateString;
     }
@@ -241,6 +279,22 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       default:
         return 'Databas';
     }
+  };
+
+  // Extract domain from URL for source display
+  const getSourceDomain = (url: string): string => {
+    try {
+      const domain = new URL(url).hostname;
+      return domain.replace('www.', '');
+    } catch {
+      return 'Okänd källa';
+    }
+  };
+
+  // Truncate text to specified length
+  const truncateText = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
   };
 
   // Fetch news when component loads
@@ -324,12 +378,12 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           </div>
         )}
         
-        {loading && newsItems.length === 0 ? (
+        {loading && displayedItems.length === 0 ? (
           <div className="text-center py-8">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
             <p className="text-gray-600">Hämtar senaste nyheterna...</p>
           </div>
-        ) : error && newsItems.length === 0 ? (
+        ) : error && displayedItems.length === 0 ? (
           <div className="text-center py-8">
             <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-4" />
             <p className="text-orange-600 text-sm mb-4">{error}</p>
@@ -343,7 +397,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
               Försök igen
             </Button>
           </div>
-        ) : newsItems.length === 0 ? (
+        ) : displayedItems.length === 0 ? (
           <div className="text-center py-8">
             <Newspaper className="w-8 h-8 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">Inga nyheter tillgängliga</p>
@@ -358,64 +412,119 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
             </Button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {error && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-orange-700 text-sm">{error}</p>
               </div>
             )}
-            {newsItems.map((item, index) => (
-              <div
-                key={index}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+            
+            {/* News Items */}
+            {displayedItems.map((item, index) => (
+              <article
+                key={`${item.link}-${index}`}
+                className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"
               >
-                <div className="flex flex-col md:flex-row gap-4">
-                  {item.image_url && (
-                    <img
-                      src={item.image_url}
-                      alt={item.title}
-                      className="w-full md:w-32 h-24 object-cover rounded-md"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <div className="flex-1">
-                    <h4 className="text-base font-semibold text-blue-600 hover:underline mb-2">
-                      {item.link !== '#' ? (
-                        <a
-                          href={item.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center space-x-1"
-                        >
-                          <span>{item.title}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : (
-                        <span>{item.title}</span>
-                      )}
-                    </h4>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
-                      <Clock className="w-3 h-3" />
-                      <span>{formatDate(item.pub_date)}</span>
-                      {item.created_at && dataSource === 'database' && (
-                        <>
-                          <span>•</span>
-                          <span className="text-xs">Sparad: {formatDate(item.created_at)}</span>
-                        </>
-                      )}
+                <div className="flex flex-col space-y-4">
+                  {/* Header with title and source */}
+                  <div className="flex flex-col space-y-2">
+                    <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                      {item.title}
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3 text-sm text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>{formatDate(item.pub_date)}</span>
+                        </div>
+                        <span>•</span>
+                        <span className="font-medium">
+                          {getSourceDomain(item.link)}
+                        </span>
+                        {item.created_at && dataSource === 'database' && (
+                          <>
+                            <span>•</span>
+                            <span className="text-xs text-gray-400">
+                              Sparad: {formatDate(item.created_at)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    {item.description && (
-                      <p className="text-gray-700 text-sm leading-relaxed">
-                        {item.description}
-                      </p>
+                  </div>
+
+                  {/* Content with image and description */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {item.image_url && (
+                      <div className="md:w-48 flex-shrink-0">
+                        <img
+                          src={item.image_url}
+                          alt={item.title}
+                          className="w-full h-32 md:h-28 object-cover rounded-lg"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      </div>
                     )}
+                    <div className="flex-1 space-y-3">
+                      {item.description && (
+                        <p className="text-gray-700 text-sm leading-relaxed">
+                          {truncateText(item.description, 300)}
+                        </p>
+                      )}
+                      
+                      {/* Action button */}
+                      <div className="flex justify-start">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                          className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-300"
+                        >
+                          <a
+                            href={item.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-2"
+                          >
+                            <span>Läs artikel</span>
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
+
+            {/* Load More Button */}
+            {allNewsItems.length > displayedItems.length && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  onClick={loadMoreItems}
+                  disabled={loadingMore}
+                  className="flex items-center space-x-2"
+                >
+                  {loadingMore ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  <span>
+                    {loadingMore ? 'Hämtar...' : `Visa fler (${allNewsItems.length - displayedItems.length} kvar)`}
+                  </span>
+                </Button>
+              </div>
+            )}
+
+            {/* Summary */}
+            <div className="text-center text-sm text-gray-500 pt-4 border-t">
+              Visar {displayedItems.length} av {allNewsItems.length} nyheter
+            </div>
           </div>
         )}
       </CardContent>
