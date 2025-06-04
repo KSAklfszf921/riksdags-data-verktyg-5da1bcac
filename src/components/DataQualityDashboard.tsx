@@ -17,15 +17,22 @@ const DataQualityDashboard: React.FC = () => {
     try {
       const migratedCount = await runMigration();
       toast.success(`Migration completed! ${migratedCount} members migrated to enhanced profiles.`);
+      // Refresh the page to show updated metrics
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
     } catch (error) {
       toast.error('Migration failed. Please check the logs.');
+      console.error('Migration error:', error);
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     // Force reload by triggering a re-render
-    window.location.reload();
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   if (loading) {
@@ -49,13 +56,25 @@ const DataQualityDashboard: React.FC = () => {
             <AlertTriangle className="w-5 h-5" />
             <span>{error || 'Could not load data quality metrics'}</span>
           </div>
+          <div className="mt-4">
+            <Button 
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span>Retry</span>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
-  // Check if enhanced_member_profiles table is empty
+  // Check if enhanced_member_profiles table is empty or has very few records
   const isEnhancedTableEmpty = metrics.totalMembers === 0;
+  const hasLowDataCount = metrics.totalMembers > 0 && metrics.totalMembers < 50; // Threshold for "needs migration"
 
   const qualityColor = metrics.averageCompleteness >= 80 ? 'green' : 
                      metrics.averageCompleteness >= 60 ? 'yellow' : 'red';
@@ -63,17 +82,25 @@ const DataQualityDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Enhanced profiles migration notice */}
-      {isEnhancedTableEmpty && (
+      {(isEnhancedTableEmpty || hasLowDataCount) && (
         <Card className="border-blue-200 bg-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-blue-800">
               <Info className="w-5 h-5" />
-              <span>Enhanced Member Profiles Not Set Up</span>
+              <span>
+                {isEnhancedTableEmpty 
+                  ? 'Enhanced Member Profiles Not Set Up' 
+                  : 'Enhanced Member Profiles Need Data Migration'
+                }
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-blue-700 mb-4">
-              The enhanced member profiles system is not yet populated with data. Run the migration below to transfer existing member data to the new enhanced system for improved data quality tracking.
+              {isEnhancedTableEmpty 
+                ? 'The enhanced member profiles system is not yet populated with data. Run the migration below to transfer existing member data to the new enhanced system for improved data quality tracking.'
+                : `Only ${metrics.totalMembers} enhanced member profiles found. Run the migration to ensure all member data is properly transferred to the enhanced system.`
+              }
             </p>
             <Button 
               onClick={handleMigration}
@@ -88,7 +115,9 @@ const DataQualityDashboard: React.FC = () => {
               ) : (
                 <>
                   <Database className="w-4 h-4" />
-                  <span>Set Up Enhanced Profiles</span>
+                  <span>
+                    {isEnhancedTableEmpty ? 'Set Up Enhanced Profiles' : 'Complete Migration'}
+                  </span>
                 </>
               )}
             </Button>
@@ -96,7 +125,7 @@ const DataQualityDashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* Main metrics - only show if we have data */}
+      {/* Main metrics - always show if we have data */}
       {!isEnhancedTableEmpty && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
@@ -105,6 +134,11 @@ const DataQualityDashboard: React.FC = () => {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Members</p>
                   <div className="text-2xl font-bold">{metrics.totalMembers}</div>
+                  {hasLowDataCount && (
+                    <Badge variant="outline" className="mt-2 text-xs">
+                      Migration needed
+                    </Badge>
+                  )}
                 </div>
                 <Users className="w-8 h-8 text-blue-600" />
               </div>
@@ -191,7 +225,9 @@ const DataQualityDashboard: React.FC = () => {
           <p className="text-sm text-muted-foreground">
             {isEnhancedTableEmpty 
               ? "Set up the enhanced member profiles system for improved data quality and performance."
-              : "Migrate additional member data to the enhanced member profiles system."
+              : hasLowDataCount
+              ? "Complete the migration to ensure all member data is in the enhanced system."
+              : "The enhanced member profiles system is set up and contains member data."
             }
           </p>
           
@@ -199,6 +235,7 @@ const DataQualityDashboard: React.FC = () => {
             <Button 
               onClick={handleMigration}
               disabled={migrationStatus.running}
+              variant={isEnhancedTableEmpty || hasLowDataCount ? "default" : "outline"}
               className="flex items-center space-x-2"
             >
               {migrationStatus.running ? (
@@ -209,7 +246,14 @@ const DataQualityDashboard: React.FC = () => {
               ) : (
                 <>
                   <Database className="w-4 h-4" />
-                  <span>{isEnhancedTableEmpty ? 'Set Up System' : 'Run Migration'}</span>
+                  <span>
+                    {isEnhancedTableEmpty 
+                      ? 'Set Up System' 
+                      : hasLowDataCount 
+                      ? 'Complete Migration' 
+                      : 'Re-run Migration'
+                    }
+                  </span>
                 </>
               )}
             </Button>

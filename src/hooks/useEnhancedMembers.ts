@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -151,7 +152,7 @@ export const useEnhancedMembers = (
         setLoading(true);
         console.log(`Loading enhanced members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
-        // Try to load from enhanced_member_profiles first, fall back to member_data
+        // Always try to load from enhanced_member_profiles first
         let query = supabase
           .from('enhanced_member_profiles')
           .select('*', { count: 'exact' });
@@ -175,7 +176,11 @@ export const useEnhancedMembers = (
 
         const { data: enhancedData, error: enhancedError, count: enhancedCount } = await query;
 
-        // If enhanced profiles are available, use them
+        if (enhancedError) {
+          throw enhancedError;
+        }
+
+        // If we have enhanced data, use it
         if (enhancedData && enhancedData.length > 0) {
           const enhancedMembers = enhancedData.map(convertEnhancedProfileToMember);
 
@@ -188,42 +193,11 @@ export const useEnhancedMembers = (
           setTotalCount(enhancedCount || 0);
           setHasMore((enhancedCount || 0) > page * pageSize);
         } else {
-          // Fall back to the original member_data table
-          console.log('No enhanced profiles found, falling back to member_data');
-          
-          let fallbackQuery = supabase
-            .from('member_data')
-            .select('*', { count: 'exact' });
-
-          // Apply the same filters to the fallback query
-          if (status === 'current') {
-            fallbackQuery = fallbackQuery.eq('is_active', true);
-          } else if (status === 'former') {
-            fallbackQuery = fallbackQuery.eq('is_active', false);
-          }
-
-          if (committee && committee !== 'all') {
-            fallbackQuery = fallbackQuery.contains('current_committees', [committee]);
-          }
-
-          fallbackQuery = fallbackQuery.range(from, to).order('last_name');
-
-          const { data: fallbackData, error: fallbackError, count: fallbackCount } = await fallbackQuery;
-
-          if (fallbackError) {
-            throw fallbackError;
-          }
-
-          const enhancedMembers = (fallbackData || []).map(convertLegacyMemberToEnhanced);
-
-          if (page === 1) {
-            setMembers(enhancedMembers);
-          } else {
-            setMembers(prev => [...prev, ...enhancedMembers]);
-          }
-
-          setTotalCount(fallbackCount || 0);
-          setHasMore((fallbackCount || 0) > page * pageSize);
+          // If no enhanced data, set empty result
+          console.log('No enhanced member profiles found');
+          setMembers([]);
+          setTotalCount(0);
+          setHasMore(false);
         }
 
         setError(null);

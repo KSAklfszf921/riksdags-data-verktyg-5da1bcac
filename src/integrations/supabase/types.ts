@@ -573,6 +573,13 @@ export type Database = {
             referencedRelation: "enhanced_member_profiles"
             referencedColumns: ["member_id"]
           },
+          {
+            foreignKeyName: "member_data_quality_log_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "enhanced_member_view"
+            referencedColumns: ["member_id"]
+          },
         ]
       }
       member_news: {
@@ -675,6 +682,13 @@ export type Database = {
             columns: ["member_id"]
             isOneToOne: false
             referencedRelation: "enhanced_member_profiles"
+            referencedColumns: ["member_id"]
+          },
+          {
+            foreignKeyName: "member_sync_status_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "enhanced_member_view"
             referencedColumns: ["member_id"]
           },
         ]
@@ -873,6 +887,7 @@ export type Database = {
           created_at: string | null
           current_age: number | null
           current_committees: string[] | null
+          data_completeness_score: number | null
           date_from: string | null
           date_to: string | null
           education: string | null
@@ -884,7 +899,9 @@ export type Database = {
           last_name: string | null
           last_sync_at: string | null
           member_id: string | null
+          missing_fields: string[] | null
           party: string | null
+          primary_image_url: string | null
           profession: string | null
           riksdag_status: string | null
           status_history: Json | null
@@ -896,14 +913,15 @@ export type Database = {
           activity_data?: Json | null
           assignments?: Json | null
           birth_year?: number | null
-          committee_assignments?: Json | null
+          committee_assignments?: never
           constituency?: string | null
-          contact_info?: Json | null
+          contact_info?: never
           created_at?: string | null
           current_age?: never
           current_committees?: string[] | null
-          date_from?: string | null
-          date_to?: string | null
+          data_completeness_score?: number | null
+          date_from?: never
+          date_to?: never
           education?: string | null
           first_name?: string | null
           gender?: string | null
@@ -913,7 +931,9 @@ export type Database = {
           last_name?: string | null
           last_sync_at?: string | null
           member_id?: string | null
+          missing_fields?: string[] | null
           party?: string | null
+          primary_image_url?: string | null
           profession?: string | null
           riksdag_status?: string | null
           status_history?: Json | null
@@ -925,14 +945,15 @@ export type Database = {
           activity_data?: Json | null
           assignments?: Json | null
           birth_year?: number | null
-          committee_assignments?: Json | null
+          committee_assignments?: never
           constituency?: string | null
-          contact_info?: Json | null
+          contact_info?: never
           created_at?: string | null
           current_age?: never
           current_committees?: string[] | null
-          date_from?: string | null
-          date_to?: string | null
+          data_completeness_score?: number | null
+          date_from?: never
+          date_to?: never
           education?: string | null
           first_name?: string | null
           gender?: string | null
@@ -942,7 +963,9 @@ export type Database = {
           last_name?: string | null
           last_sync_at?: string | null
           member_id?: string | null
+          missing_fields?: string[] | null
           party?: string | null
+          primary_image_url?: string | null
           profession?: string | null
           riksdag_status?: string | null
           status_history?: Json | null
