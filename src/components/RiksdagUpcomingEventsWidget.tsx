@@ -8,6 +8,8 @@ import {
   fetchUpcomingEvents,
   formatEventDate, 
   formatEventTime,
+  getEventTitle,
+  getEventTypeDescription,
   type CachedCalendarData 
 } from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
@@ -172,8 +174,13 @@ const RiksdagUpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {event.summary || event.aktivitet || 'Händelse'}
+                        {getEventTitle(event)}
                       </h4>
+                      {getEventTypeDescription(event) && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {getEventTypeDescription(event)}
+                        </div>
+                      )}
                       {event.plats && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <MapPin className="w-3 h-3 mr-1" />
@@ -183,7 +190,7 @@ const RiksdagUpcomingEventsWidget = () => {
                       <div className="flex items-center space-x-1 mt-1">
                         {event.typ && (
                           <Badge variant="outline" className="text-xs">
-                            {event.typ}
+                            {getEventTypeDescription(event) || event.typ}
                           </Badge>
                         )}
                       </div>

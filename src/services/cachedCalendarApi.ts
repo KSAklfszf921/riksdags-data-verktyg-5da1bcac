@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -271,4 +270,51 @@ export const isEventUpcoming = (dateString: string | null): boolean => {
   } catch {
     return false;
   }
+};
+
+// Add new utility function to get proper event title
+export const getEventTitle = (event: CachedCalendarData): string => {
+  // Priority order: summary -> aktivitet -> typ + organ -> fallback
+  if (event.summary && event.summary.trim() !== '') {
+    return event.summary;
+  }
+  
+  if (event.aktivitet && event.aktivitet.trim() !== '') {
+    return event.aktivitet;
+  }
+  
+  // Combine typ and organ for more descriptive titles
+  if (event.typ && event.organ) {
+    return `${event.typ} - ${event.organ}`;
+  }
+  
+  if (event.typ && event.typ.trim() !== '') {
+    return event.typ;
+  }
+  
+  if (event.organ && event.organ.trim() !== '') {
+    return `${event.organ} möte`;
+  }
+  
+  return 'Kalenderhändelse';
+};
+
+// Add function to get event type description
+export const getEventTypeDescription = (event: CachedCalendarData): string => {
+  if (event.typ) {
+    const typeDescriptions: { [key: string]: string } = {
+      'sammanträde': 'Sammanträde',
+      'debatt': 'Debatt',
+      'hearing': 'Hearing',
+      'konferens': 'Konferens',
+      'studiebesök': 'Studiebesök',
+      'möte': 'Möte',
+      'votering': 'Votering',
+      'frågestund': 'Frågestund'
+    };
+    
+    return typeDescriptions[event.typ.toLowerCase()] || event.typ;
+  }
+  
+  return '';
 };

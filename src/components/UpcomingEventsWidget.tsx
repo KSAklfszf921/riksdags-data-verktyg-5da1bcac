@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,9 @@ import {
   fetchRecentActivities,
   formatEventDate, 
   formatEventTime, 
-  isEventToday, 
+  isEventToday,
+  getEventTitle,
+  getEventTypeDescription,
   type CachedCalendarData 
 } from '../services/cachedCalendarApi';
 import { useNavigate } from 'react-router-dom';
@@ -85,6 +86,10 @@ const UpcomingEventsWidget = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const formatActivityTitle = (activity: CachedCalendarData) => {
+    return getEventTitle(activity);
   };
 
   const formatActivityTime = (activity: CachedCalendarData) => {
@@ -211,8 +216,13 @@ const UpcomingEventsWidget = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {item.summary || item.aktivitet || 'Händelse'}
+                        {getEventTitle(item)}
                       </h4>
+                      {getEventTypeDescription(item) && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {getEventTypeDescription(item)}
+                        </div>
+                      )}
                       {item.plats && (
                         <div className="flex items-center text-xs text-gray-500 mt-1">
                           <MapPin className="w-3 h-3 mr-1" />

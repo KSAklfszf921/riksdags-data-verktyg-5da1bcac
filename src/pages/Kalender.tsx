@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Calendar, Loader2, RefreshCw, AlertCircle, CheckCircle, Database, Clock
 import { PageHeader } from "../components/PageHeader";
 import { useResponsive } from "../hooks/use-responsive";
 import EnhancedCalendar from '../components/EnhancedCalendar';
-import { fetchCachedCalendarData, fetchRecentActivities, getCalendarDataFreshness, CachedCalendarData } from '../services/cachedCalendarApi';
+import { fetchCachedCalendarData, fetchRecentActivities, getCalendarDataFreshness, getEventTitle, CachedCalendarData } from '../services/cachedCalendarApi';
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 
@@ -129,7 +128,7 @@ const Kalender = () => {
   };
 
   const formatActivityTitle = (activity: CachedCalendarData) => {
-    return activity.summary || activity.aktivitet || 'Händelse';
+    return getEventTitle(activity);
   };
 
   const formatActivityTime = (activity: CachedCalendarData) => {
@@ -199,7 +198,7 @@ const Kalender = () => {
                   <div key={activity.id || index} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
                     <div className="flex-1">
                       <h4 className="font-medium text-green-800 truncate">
-                        {formatActivityTitle(activity)}
+                        {getEventTitle(activity)}
                       </h4>
                       {activity.organ && (
                         <Badge variant="secondary" className="mt-1 text-xs bg-green-100 text-green-700">
