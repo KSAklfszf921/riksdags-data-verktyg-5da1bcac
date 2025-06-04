@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Vote, Activity, TestTube, Server, Settings, Heart } from "lucide-react";
+import { Shield, Vote, Activity, TestTube, Server, Settings, Heart, Workflow } from "lucide-react";
 import { PageHeader } from "../components/PageHeader";
 import MasterControlPanel from "../components/MasterControlPanel";
 import EnhancedVotingTool from "../components/EnhancedVotingTool";
@@ -14,9 +14,10 @@ import SecurityAuditLog from "../components/SecurityAuditLog";
 import SecurityIncidentResponse from "../components/SecurityIncidentResponse";
 import SystemHealthMonitor from "../components/SystemHealthMonitor";
 import EnhancedMemberDataSync from "../components/EnhancedMemberDataSync";
+import MasterDiagnosticsWorkflow from "../components/MasterDiagnosticsWorkflow";
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState("health");
+  const [activeTab, setActiveTab] = useState("diagnostics");
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
@@ -28,7 +29,11 @@ const Admin = () => {
         />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-8">
+            <TabsTrigger value="diagnostics" className="flex items-center space-x-2">
+              <Workflow className="w-4 h-4" />
+              <span>Diagnostik</span>
+            </TabsTrigger>
             <TabsTrigger value="health" className="flex items-center space-x-2">
               <Heart className="w-4 h-4" />
               <span>Systemhälsa</span>
@@ -58,6 +63,10 @@ const Admin = () => {
               <span>Inställningar</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="diagnostics">
+            <MasterDiagnosticsWorkflow />
+          </TabsContent>
 
           <TabsContent value="health">
             <div className="space-y-6">
