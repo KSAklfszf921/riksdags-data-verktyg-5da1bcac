@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { EdgeFunctionTester } from '@/utils/edgeFunctionTester';
 
 interface SyncStatus {
   endpoint: string;
@@ -49,6 +48,15 @@ interface SyncLogEntry {
   message: string;
   status: 'info' | 'success' | 'warning' | 'error';
   details?: any;
+}
+
+interface SyncStats {
+  documents_stored?: number;
+  members_processed?: number;
+  calendar_events_stored?: number;
+  speeches_processed?: number;
+  votes_processed?: number;
+  [key: string]: any;
 }
 
 const SYNC_ENDPOINTS = [
@@ -211,6 +219,12 @@ const MasterSyncTool: React.FC = () => {
               progress = 100;
               clearInterval(pollingInterval);
               
+              // Type cast the stats properly
+              const stats = status.stats as SyncStats;
+              const recordsProcessed = stats?.documents_stored || 
+                                     stats?.members_processed || 
+                                     stats?.calendar_events_stored || 0;
+              
               setSyncStatuses(prev => ({
                 ...prev,
                 [endpointId]: {
@@ -219,9 +233,7 @@ const MasterSyncTool: React.FC = () => {
                   progress: 100,
                   message: 'Completed successfully',
                   endTime: new Date(status.completed_at || new Date()),
-                  recordsProcessed: status.stats?.documents_stored || 
-                                  status.stats?.members_processed || 
-                                  status.stats?.calendar_events_stored || 0
+                  recordsProcessed
                 }
               }));
               
@@ -646,6 +658,9 @@ const MasterSyncTool: React.FC = () => {
                             error: <AlertCircle className="h-4 w-4" />,
                           };
                           
+                          // Type cast details properly
+                          const details = entry.details as SyncStats;
+                          
                           return (
                             <div 
                               key={entry.id} 
@@ -663,20 +678,20 @@ const MasterSyncTool: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
-                                {entry.details && (
+                                {details && (
                                   <Badge variant="outline" className="text-xs">
-                                    {entry.details.documents_stored || 
-                                     entry.details.members_processed || 
-                                     entry.details.speeches_processed ||
-                                     entry.details.votes_processed ||
-                                     entry.details.calendar_events_stored || 0} records
+                                    {details.documents_stored || 
+                                     details.members_processed || 
+                                     details.speeches_processed ||
+                                     details.votes_processed ||
+                                     details.calendar_events_stored || 0} records
                                   </Badge>
                                 )}
                               </div>
                               
-                              {entry.details && Object.keys(entry.details).length > 0 && (
+                              {details && Object.keys(details).length > 0 && (
                                 <div className="mt-2 text-xs grid grid-cols-2 gap-x-4 gap-y-1">
-                                  {Object.entries(entry.details).map(([key, value]) => (
+                                  {Object.entries(details).map(([key, value]) => (
                                     key !== 'errors_count' && value !== 0 && (
                                       <div key={key} className="flex justify-between">
                                         <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
@@ -733,7 +748,7 @@ const SyncSystemStats: React.FC = () => {
   const fetchSystemStats = async () => {
     setLoading(true);
     try {
-      const tables = [
+      const validTables = [
         'document_data',
         'member_data',
         'speech_data',
@@ -742,10 +757,10 @@ const SyncSystemStats: React.FC = () => {
         'party_data',
         'language_analysis',
         'member_news'
-      ];
+      ] as const;
       
       const results = await Promise.all(
-        tables.map(async (table) => {
+        validTables.map(async (table) => {
           const { count, error } = await supabase
             .from(table)
             .select('*', { count: 'exact', head: true });

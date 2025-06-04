@@ -2,6 +2,12 @@
 import { supabase } from '@/integrations/supabase/client';
 import { EdgeFunctionTester, TestResult } from './edgeFunctionTester';
 
+interface SyncStats {
+  total_records?: number;
+  processed_records?: number;
+  [key: string]: any;
+}
+
 export class SyncProgressTester extends EdgeFunctionTester {
   
   async testSyncProgress(syncType: string): Promise<TestResult> {
@@ -34,10 +40,10 @@ export class SyncProgressTester extends EdgeFunctionTester {
       if (syncRecord.status === 'completed') {
         progress = 100;
       } else if (syncRecord.stats) {
-        // Try to estimate progress based on stats
-        // This is a simple implementation - you may want to enhance it based on specific sync types
-        if (syncRecord.stats.total_records && syncRecord.stats.processed_records) {
-          progress = Math.round((syncRecord.stats.processed_records / syncRecord.stats.total_records) * 100);
+        // Try to estimate progress based on stats with proper type casting
+        const stats = syncRecord.stats as SyncStats;
+        if (stats && typeof stats === 'object' && stats.total_records && stats.processed_records) {
+          progress = Math.round((stats.processed_records / stats.total_records) * 100);
         } else {
           // Fallback to time-based estimation
           const startTime = new Date(syncRecord.started_at).getTime();
