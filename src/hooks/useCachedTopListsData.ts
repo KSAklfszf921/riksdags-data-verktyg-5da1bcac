@@ -38,14 +38,14 @@ export const useCachedTopListsData = (riksdagsYear: string = '2024/25', topN: nu
 
       console.log('Loading cached top lists data...');
       
-      // Use direct SQL query since cached_toplists is not in the generated types yet
+      // Query the cached_toplists table
       const { data, error } = await supabase
-        .from('cached_toplists' as any)
+        .from('cached_toplists')
         .select('*')
         .eq('riksdags_year', riksdagsYear)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         throw error;
       }
 
@@ -58,7 +58,7 @@ export const useCachedTopListsData = (riksdagsYear: string = '2024/25', topN: nu
         return;
       }
 
-      const cachedData = data.data;
+      const cachedData = data.data as any;
       
       // Trim to requested number
       const trimToTopN = (list: TopListMember[]) => list.slice(0, topN);
