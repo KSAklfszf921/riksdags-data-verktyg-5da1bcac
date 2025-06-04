@@ -1,145 +1,123 @@
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { searchDocuments, DocumentSearchParams, RiksdagDocument } from '../services/riksdagApi';
 
-interface UseDocumentSearchResult {
-  documents: RiksdagDocument[];
-  totalCount: number;
-  loading: boolean;
-  error: string | null;
-  searchDocuments: (params: DocumentSearchParams) => Promise<void>;
-  loadMore: () => Promise<void>;
-  hasMore: boolean;
-  currentPage: number;
-  resetSearch: () => void;
-  // Add missing properties
-  searchParams: DocumentSearchParams;
-  selectedParties: string[];
-  hasSearched: boolean;
-  updateSearchParams: (key: keyof DocumentSearchParams, value: any) => void;
-  toggleParty: (party: string) => void;
-  handleSearch: (reset?: boolean) => Promise<void>;
-  handlePageChange: (page: number) => void;
-}
-
-export const useDocumentSearch = (initialMemberId?: string): UseDocumentSearchResult => {
+export const useDocumentSearch = (initialMemberId?: string) => {
+  const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
+    iid: initialMemberId,
+    sort: 'datum',
+    sortorder: 'desc',
+    sz: 20
+  });
   const [documents, setDocuments] = useState<RiksdagDocument[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
-    p: 1,
-    iid: initialMemberId
-  });
   const [selectedParties, setSelectedParties] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasSearched, setHasSearched] = useState(false);
-  const lastSearchParams = useRef<DocumentSearchParams>({
-    p: 1
-  });
 
-  const updateSearchParams = useCallback((key: keyof DocumentSearchParams, value: any) => {
-    setSearchParams(prev => ({ ...prev, [key]: value }));
-  }, []);
+  // Only auto-search if we have a member ID
+  useEffect(() => {
+    if (initialMemberId) {
+      handleSearch(true);
+    }
+  }, [initialMemberId]);
 
-  const toggleParty = useCallback((party: string) => {
-    setSelectedParties(prev => {
-      const newParties = prev.includes(party) 
-        ? prev.filter(p => p !== party)
-        : [...prev, party];
-      
-      // Update search params with new parties
-      setSearchParams(prevParams => ({ ...prevParams, parti: newParties }));
-      return newParties;
-    });
-  }, []);
+  // Live search when parameters change (but only after first manual search)
+  useEffect(() => {
+    if (!hasSearched) return;
+    
+    const timeoutId = setTimeout(() => {
+      if (searchParams.searchTerm || selectedParties.length > 0 || 
+          searchParams.doktyp || searchParams.org || searchParams.fromDate || 
+          searchParams.toDate || searchParams.rm || searchParams.bet) {
+        handleSearch(true);
+      }
+    }, 500);
 
-  const searchDocumentsInternal = useCallback(async (params: DocumentSearchParams) => {
+    return () => clearTimeout(timeoutId);
+  }, [searchParams, selectedParties, hasSearched]);
+
+  const handleSearch = async (resetPage = false) => {
     setLoading(true);
     setError(null);
+    setHasSearched(true);
+    
+    if (resetPage) {
+      setCurrentPage(1);
+    }
     
     try {
-      // Store search params for loadMore functionality
-      lastSearchParams.current = { ...params, p: 1 };
-      setCurrentPage(1);
+      const params = {
+        ...searchParams,
+        parti: selectedParties.length > 0 ? selectedParties : undefined,
+        sz: 20
+      };
+      
+      console.log('Searching with params:', params);
       
       const result = await searchDocuments(params);
       setDocuments(result.documents);
       setTotalCount(result.totalCount);
-      setHasSearched(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setDocuments([]);
-      setTotalCount(0);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleSearch = useCallback(async (reset = false) => {
-    if (reset) {
-      setCurrentPage(1);
-      setSearchParams(prev => ({ ...prev, p: 1 }));
-    }
-    await searchDocumentsInternal(searchParams);
-  }, [searchParams, searchDocumentsInternal]);
-
-  const loadMore = useCallback(async () => {
-    if (loading || documents.length >= totalCount) return;
-    
-    setLoading(true);
-    
-    try {
-      const nextPage = currentPage + 1;
-      const result = await searchDocuments({
-        ...lastSearchParams.current,
-        p: nextPage
-      });
       
-      setDocuments(prev => [...prev, ...result.documents]);
-      setCurrentPage(nextPage);
+      console.log('Search results:', result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError('Kunde inte söka dokument');
+      console.error('Error searching documents:', err);
     } finally {
       setLoading(false);
     }
-  }, [loading, documents.length, totalCount, currentPage]);
+  };
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-    setSearchParams(prev => ({ ...prev, p: page }));
-    searchDocumentsInternal({ ...searchParams, p: page });
-  }, [searchParams, searchDocumentsInternal]);
+  const updateSearchParams = (key: keyof DocumentSearchParams, value: any) => {
+    console.log('Updating search param:', key, value);
+    setSearchParams(prev => ({ 
+      ...prev, 
+      [key]: value === '' ? undefined : value 
+    }));
+  };
 
-  const resetSearch = useCallback(() => {
+  const toggleParty = (party: string) => {
+    setSelectedParties(prev => 
+      prev.includes(party) 
+        ? prev.filter(p => p !== party)
+        : [...prev, party]
+    );
+  };
+
+  const resetSearch = () => {
+    setSearchParams({
+      sort: 'datum',
+      sortorder: 'desc',
+      sz: 20
+    });
+    setSelectedParties([]);
+    setCurrentPage(1);
     setDocuments([]);
     setTotalCount(0);
-    setError(null);
-    setCurrentPage(1);
     setHasSearched(false);
-    setSelectedParties([]);
-    setSearchParams({ p: 1, iid: initialMemberId });
-    lastSearchParams.current = { p: 1 };
-  }, [initialMemberId]);
+  };
 
-  const hasMore = documents.length < totalCount && !loading;
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Note: Actual pagination would require API support for page offset
+    console.log('Page change requested:', page);
+  };
 
   return {
+    searchParams,
     documents,
     totalCount,
     loading,
     error,
-    searchDocuments: searchDocumentsInternal,
-    loadMore,
-    hasMore,
-    currentPage,
-    resetSearch,
-    searchParams,
     selectedParties,
+    currentPage,
     hasSearched,
     updateSearchParams,
     toggleParty,
     handleSearch,
+    resetSearch,
     handlePageChange
   };
 };

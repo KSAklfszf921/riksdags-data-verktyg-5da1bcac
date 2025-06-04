@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { useCachedTopListsData } from '../hooks/useCachedTopListsData';
+import { useTopListsData } from '../hooks/useTopListsData';
 import TopListCard from '../components/TopListCard';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -9,7 +9,6 @@ import { Badge } from '../components/ui/badge';
 import { useToast } from '../hooks/use-toast';
 import { PageHeader } from '../components/PageHeader';
 import { useResponsive } from '../hooks/use-responsive';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   FileText, 
   MessageSquare, 
@@ -20,15 +19,12 @@ import {
   Calendar,
   Trophy,
   Download,
-  Share2,
-  Clock,
-  Database
+  Share2
 } from 'lucide-react';
 
 const Topplistor = () => {
   const [selectedYear, setSelectedYear] = useState('2024/25');
   const [topCount, setTopCount] = useState(10);
-  const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
   const { isMobile, isTablet } = useResponsive();
   
@@ -41,7 +37,7 @@ const Topplistor = () => {
     error, 
     lastUpdated,
     refreshData 
-  } = useCachedTopListsData(selectedYear, topCount);
+  } = useTopListsData(selectedYear, topCount);
 
   const availableYears = [
     '2024/25',
@@ -57,49 +53,8 @@ const Topplistor = () => {
     refreshData();
     toast({
       title: "Uppdaterar data",
-      description: "Hämtar senaste cachade informationen...",
+      description: "Hämtar senaste informationen från riksdagen...",
     });
-  };
-
-  const handleManualSync = async () => {
-    setSyncing(true);
-    try {
-      toast({
-        title: "Startar datasynkronisering",
-        description: "Hämtar ny data från Riksdagen...",
-      });
-
-      const { error } = await supabase.functions.invoke('fetch-toplists-data', {
-        body: { 
-          manualSync: true,
-          timestamp: new Date().toISOString()
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      toast({
-        title: "Synkronisering slutförd",
-        description: "Topplistorna har uppdaterats med senaste data.",
-      });
-
-      // Refresh the data after sync
-      setTimeout(() => {
-        refreshData();
-      }, 2000);
-
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast({
-        title: "Synkronisering misslyckades",
-        description: "Kunde inte hämta ny data. Försök igen senare.",
-        variant: "destructive"
-      });
-    } finally {
-      setSyncing(false);
-    }
   };
 
   const shareUrl = () => {
@@ -149,20 +104,21 @@ const Topplistor = () => {
       <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
         <PageHeader
           title="Topplistor"
-          description="De mest aktiva riksdagsledamöterna - data uppdateras automatiskt dagligen"
+          description="Upptäck de mest aktiva riksdagsledamöterna baserat på deras parlamentariska aktivitet"
           icon={<Trophy className="w-6 h-6 text-white" />}
         >
+          {/* Info Card - now inside PageHeader children for mobile */}
           {isMobile && (
             <Card className="border-blue-200 bg-blue-50 mb-4">
               <CardContent className="pt-4">
                 <div className="flex items-start space-x-2 text-blue-700">
-                  <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <p className="font-medium mb-1">Förbättrad databehandling</p>
-                    <p>Data från riksdagen analyseras med avancerade algoritmer och uppdateras automatiskt varje natt.</p>
+                    <p className="font-medium mb-1">Data uppdateras automatiskt</p>
+                    <p>Motioner, anföranden, interpellationer och skriftliga frågor från riksdagen.</p>
                     {lastUpdated && (
                       <p className="mt-1 text-xs opacity-75">
-                        Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
+                        Uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
                       </p>
                     )}
                   </div>
@@ -172,45 +128,45 @@ const Topplistor = () => {
           )}
         </PageHeader>
 
+        {/* Info Card for tablet/desktop */}
         {!isMobile && (
           <Card className="mb-6 border-blue-200 bg-blue-50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center space-x-2 text-blue-800 text-lg">
-                <Database className="w-5 h-5" />
-                <span>Förbättrad databehandling och automatisk uppdatering</span>
+                <Info className="w-5 h-5" />
+                <span>Om Topplistorna</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-blue-700">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-semibold mb-2">Förbättrade datakällor:</h4>
+                  <h4 className="font-semibold mb-2">Datakällor:</h4>
                   <ul className="space-y-1 text-xs">
-                    <li>• Motioner: Förslag från riksdagsledamöter med förbättrad filtrering</li>
-                    <li>• Anföranden: Tal i riksdagens kammare med årlig uppdelning</li>
-                    <li>• Interpellationer: Frågor till ministrar med förbättrad spårning</li>
-                    <li>• Skriftliga frågor: Frågor till regeringen med noggrann räkning</li>
+                    <li>• Motioner: Förslag från riksdagsledamöter</li>
+                    <li>• Anföranden: Tal i riksdagens kammare</li>
+                    <li>• Interpellationer: Frågor till ministrar</li>
+                    <li>• Skriftliga frågor: Frågor till regeringen</li>
                   </ul>
                 </div>
                 <div>
-                  <h4 className="font-semibold mb-2">Automatisk datahantering:</h4>
-                  <div className="text-xs space-y-1">
-                    <p>• Data synkroniseras automatiskt varje natt</p>
-                    <p>• Förbättrade algoritmer för noggrannare räkning</p>
-                    <p>• Validering mot medlemsdatabasen</p>
-                    <p>• Hantering av dubbletter och fel</p>
+                  <h4 className="font-semibold mb-2">Uppdatering:</h4>
+                  <p className="text-xs">
+                    Data cachar i 24 timmar för optimal prestanda. 
                     {lastUpdated && (
-                      <p className="mt-2 font-medium">
+                      <span className="block mt-1">
                         Senast uppdaterad: {lastUpdated.toLocaleString('sv-SE')}
-                      </p>
+                      </span>
                     )}
-                  </div>
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
 
+        {/* Mobile-optimized Controls */}
         <div className={`mb-6 ${isMobile ? 'space-y-4' : 'flex flex-wrap items-center gap-4'}`}>
+          {/* Filter controls */}
           <div className={`${isMobile ? 'grid grid-cols-2 gap-3' : 'flex items-center space-x-4'}`}>
             <div className="flex items-center space-x-2">
               <Calendar className="w-4 h-4 text-gray-500" />
@@ -243,7 +199,8 @@ const Topplistor = () => {
             </div>
           </div>
 
-          <div className={`${isMobile ? 'grid grid-cols-2 gap-2' : 'flex space-x-2'}`}>
+          {/* Action buttons */}
+          <div className={`${isMobile ? 'grid grid-cols-3 gap-2' : 'flex space-x-2'}`}>
             <Button 
               onClick={handleRefresh} 
               variant="outline" 
@@ -253,17 +210,6 @@ const Topplistor = () => {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {!isMobile && <span>Uppdatera</span>}
-            </Button>
-
-            <Button 
-              onClick={handleManualSync} 
-              variant="outline" 
-              size={isMobile ? "sm" : "default"}
-              disabled={syncing || loading}
-              className="flex items-center justify-center space-x-2"
-            >
-              <Database className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-              {!isMobile && <span>{syncing ? 'Synkar...' : 'Synka'}</span>}
             </Button>
             
             <Button 
@@ -290,9 +236,9 @@ const Topplistor = () => {
         </div>
 
         {error && (
-          <Card className="border-orange-200 bg-orange-50 mb-6">
+          <Card className="border-red-200 bg-red-50 mb-6">
             <CardContent className="pt-6">
-              <div className="flex items-center space-x-2 text-orange-700">
+              <div className="flex items-center space-x-2 text-red-700">
                 <Info className="w-5 h-5" />
                 <span className="text-sm">{error}</span>
               </div>
@@ -300,24 +246,24 @@ const Topplistor = () => {
           </Card>
         )}
 
-        {(loading || syncing) && motions.length === 0 && speeches.length === 0 && (
+        {/* Loading indicator for initial load */}
+        {loading && motions.length === 0 && speeches.length === 0 && (
           <div className="flex justify-center items-center py-8">
             <div className="flex flex-col items-center">
               <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mb-4" />
-              <p className="text-gray-600">
-                {syncing ? 'Synkroniserar data från Riksdagen...' : 'Laddar cachade topplistor...'}
-              </p>
+              <p className="text-gray-600">Hämtar topplistor...</p>
             </div>
           </div>
         )}
 
+        {/* Top Lists Grid - responsive layout */}
         <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : isTablet ? 'grid-cols-1 lg:grid-cols-2' : 'md:grid-cols-2'}`}>
           <TopListCard
             title="Flest Motioner"
             members={motions}
             icon={<FileText className="w-5 h-5 text-blue-600" />}
             unit="motioner"
-            loading={loading || syncing}
+            loading={loading}
           />
 
           <TopListCard
@@ -325,7 +271,7 @@ const Topplistor = () => {
             members={speeches}
             icon={<MessageSquare className="w-5 h-5 text-green-600" />}
             unit="anföranden"
-            loading={loading || syncing}
+            loading={loading}
           />
 
           <TopListCard
@@ -333,7 +279,7 @@ const Topplistor = () => {
             members={interpellations}
             icon={<HelpCircle className="w-5 h-5 text-purple-600" />}
             unit="interpellationer"
-            loading={loading || syncing}
+            loading={loading}
           />
 
           <TopListCard
@@ -341,11 +287,12 @@ const Topplistor = () => {
             members={writtenQuestions}
             icon={<Edit3 className="w-5 h-5 text-orange-600" />}
             unit="frågor"
-            loading={loading || syncing}
+            loading={loading}
           />
         </div>
 
-        {!loading && !syncing && !error && (
+        {/* Summary Stats - mobile optimized */}
+        {!loading && !error && (
           <Card className="mt-8">
             <CardHeader className="pb-3">
               <CardTitle className={isMobile ? "text-lg" : "text-xl"}>Sammanfattning</CardTitle>

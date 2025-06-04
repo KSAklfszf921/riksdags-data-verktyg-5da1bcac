@@ -9,60 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      automated_sync_status: {
-        Row: {
-          completed_at: string | null
-          error_message: string | null
-          id: string
-          started_at: string
-          stats: Json | null
-          status: string
-          sync_type: string
-        }
-        Insert: {
-          completed_at?: string | null
-          error_message?: string | null
-          id?: string
-          started_at?: string
-          stats?: Json | null
-          status: string
-          sync_type: string
-        }
-        Update: {
-          completed_at?: string | null
-          error_message?: string | null
-          id?: string
-          started_at?: string
-          stats?: Json | null
-          status?: string
-          sync_type?: string
-        }
-        Relationships: []
-      }
-      cached_toplists: {
-        Row: {
-          created_at: string
-          data: Json
-          id: string
-          riksdags_year: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          data: Json
-          id?: string
-          riksdags_year: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          data?: Json
-          id?: string
-          riksdags_year?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       calendar_data: {
         Row: {
           aktivitet: string | null
@@ -243,120 +189,6 @@ export type Database = {
         }
         Relationships: []
       }
-      enhanced_member_profiles: {
-        Row: {
-          activity_summary: Json | null
-          assignments: Json | null
-          birth_date: string | null
-          birth_year: number | null
-          committee_history: Json | null
-          constituency: string | null
-          created_at: string | null
-          current_committees: string[] | null
-          data_completeness_score: number | null
-          data_quality_issues: Json | null
-          education: string | null
-          email: string | null
-          first_name: string
-          full_name: string | null
-          gender: string | null
-          id: string
-          image_urls: Json | null
-          is_active: boolean | null
-          last_name: string
-          last_sync_at: string | null
-          latest_activity_date: string | null
-          member_id: string
-          missing_fields: string[] | null
-          party: string
-          phone: string | null
-          primary_image_url: string | null
-          profession: string | null
-          riksdag_status: string | null
-          social_media: Json | null
-          status_history: Json | null
-          sync_source: string | null
-          sync_version: string | null
-          updated_at: string | null
-          website_url: string | null
-          yearly_activity: Json | null
-        }
-        Insert: {
-          activity_summary?: Json | null
-          assignments?: Json | null
-          birth_date?: string | null
-          birth_year?: number | null
-          committee_history?: Json | null
-          constituency?: string | null
-          created_at?: string | null
-          current_committees?: string[] | null
-          data_completeness_score?: number | null
-          data_quality_issues?: Json | null
-          education?: string | null
-          email?: string | null
-          first_name?: string
-          full_name?: string | null
-          gender?: string | null
-          id?: string
-          image_urls?: Json | null
-          is_active?: boolean | null
-          last_name?: string
-          last_sync_at?: string | null
-          latest_activity_date?: string | null
-          member_id: string
-          missing_fields?: string[] | null
-          party: string
-          phone?: string | null
-          primary_image_url?: string | null
-          profession?: string | null
-          riksdag_status?: string | null
-          social_media?: Json | null
-          status_history?: Json | null
-          sync_source?: string | null
-          sync_version?: string | null
-          updated_at?: string | null
-          website_url?: string | null
-          yearly_activity?: Json | null
-        }
-        Update: {
-          activity_summary?: Json | null
-          assignments?: Json | null
-          birth_date?: string | null
-          birth_year?: number | null
-          committee_history?: Json | null
-          constituency?: string | null
-          created_at?: string | null
-          current_committees?: string[] | null
-          data_completeness_score?: number | null
-          data_quality_issues?: Json | null
-          education?: string | null
-          email?: string | null
-          first_name?: string
-          full_name?: string | null
-          gender?: string | null
-          id?: string
-          image_urls?: Json | null
-          is_active?: boolean | null
-          last_name?: string
-          last_sync_at?: string | null
-          latest_activity_date?: string | null
-          member_id?: string
-          missing_fields?: string[] | null
-          party?: string
-          phone?: string | null
-          primary_image_url?: string | null
-          profession?: string | null
-          riksdag_status?: string | null
-          social_media?: Json | null
-          status_history?: Json | null
-          sync_source?: string | null
-          sync_version?: string | null
-          updated_at?: string | null
-          website_url?: string | null
-          yearly_activity?: Json | null
-        }
-        Relationships: []
-      }
       language_analysis: {
         Row: {
           analysis_date: string
@@ -450,56 +282,65 @@ export type Database = {
         }
         Relationships: []
       }
-      member_data_quality_log: {
+      member_data: {
         Row: {
-          detected_at: string | null
+          activity_data: Json | null
+          assignments: Json | null
+          birth_year: number | null
+          committee_assignments: Json | null
+          constituency: string | null
+          created_at: string
+          current_committees: string[] | null
+          first_name: string
+          gender: string | null
           id: string
-          issue_description: string
-          issue_type: string
+          image_urls: Json | null
+          is_active: boolean | null
+          last_name: string
           member_id: string
-          resolution_notes: string | null
-          resolved: boolean | null
-          resolved_at: string | null
-          severity: string | null
+          party: string
+          riksdag_status: string | null
+          updated_at: string
         }
         Insert: {
-          detected_at?: string | null
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          created_at?: string
+          current_committees?: string[] | null
+          first_name: string
+          gender?: string | null
           id?: string
-          issue_description: string
-          issue_type: string
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name: string
           member_id: string
-          resolution_notes?: string | null
-          resolved?: boolean | null
-          resolved_at?: string | null
-          severity?: string | null
+          party: string
+          riksdag_status?: string | null
+          updated_at?: string
         }
         Update: {
-          detected_at?: string | null
+          activity_data?: Json | null
+          assignments?: Json | null
+          birth_year?: number | null
+          committee_assignments?: Json | null
+          constituency?: string | null
+          created_at?: string
+          current_committees?: string[] | null
+          first_name?: string
+          gender?: string | null
           id?: string
-          issue_description?: string
-          issue_type?: string
+          image_urls?: Json | null
+          is_active?: boolean | null
+          last_name?: string
           member_id?: string
-          resolution_notes?: string | null
-          resolved?: boolean | null
-          resolved_at?: string | null
-          severity?: string | null
+          party?: string
+          riksdag_status?: string | null
+          updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "member_data_quality_log_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "enhanced_member_profiles"
-            referencedColumns: ["member_id"]
-          },
-          {
-            foreignKeyName: "member_data_quality_log_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "enhanced_member_view"
-            referencedColumns: ["member_id"]
-          },
-        ]
+        Relationships: []
       }
       member_news: {
         Row: {
@@ -509,7 +350,9 @@ export type Database = {
           image_url: string | null
           link: string
           member_id: string
+          member_name: string
           pub_date: string
+          source: string | null
           title: string
           updated_at: string
         }
@@ -520,7 +363,9 @@ export type Database = {
           image_url?: string | null
           link: string
           member_id: string
+          member_name: string
           pub_date: string
+          source?: string | null
           title: string
           updated_at?: string
         }
@@ -531,86 +376,13 @@ export type Database = {
           image_url?: string | null
           link?: string
           member_id?: string
+          member_name?: string
           pub_date?: string
+          source?: string | null
           title?: string
           updated_at?: string
         }
         Relationships: []
-      }
-      member_sync_status: {
-        Row: {
-          assignments_updated: boolean | null
-          completed_at: string | null
-          created_at: string | null
-          current_step: string | null
-          data_updated: boolean | null
-          error_message: string | null
-          id: string
-          images_updated: boolean | null
-          max_retries: number | null
-          member_id: string
-          retry_count: number | null
-          started_at: string | null
-          status: string | null
-          steps_completed: number | null
-          steps_total: number | null
-          sync_batch_id: string
-          sync_type: string
-        }
-        Insert: {
-          assignments_updated?: boolean | null
-          completed_at?: string | null
-          created_at?: string | null
-          current_step?: string | null
-          data_updated?: boolean | null
-          error_message?: string | null
-          id?: string
-          images_updated?: boolean | null
-          max_retries?: number | null
-          member_id: string
-          retry_count?: number | null
-          started_at?: string | null
-          status?: string | null
-          steps_completed?: number | null
-          steps_total?: number | null
-          sync_batch_id: string
-          sync_type: string
-        }
-        Update: {
-          assignments_updated?: boolean | null
-          completed_at?: string | null
-          created_at?: string | null
-          current_step?: string | null
-          data_updated?: boolean | null
-          error_message?: string | null
-          id?: string
-          images_updated?: boolean | null
-          max_retries?: number | null
-          member_id?: string
-          retry_count?: number | null
-          started_at?: string | null
-          status?: string | null
-          steps_completed?: number | null
-          steps_total?: number | null
-          sync_batch_id?: string
-          sync_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "member_sync_status_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "enhanced_member_profiles"
-            referencedColumns: ["member_id"]
-          },
-          {
-            foreignKeyName: "member_sync_status_member_id_fkey"
-            columns: ["member_id"]
-            isOneToOne: false
-            referencedRelation: "enhanced_member_view"
-            referencedColumns: ["member_id"]
-          },
-        ]
       }
       party_data: {
         Row: {
@@ -660,27 +432,78 @@ export type Database = {
         }
         Relationships: []
       }
-      user_roles: {
+      speech_data: {
         Row: {
-          created_at: string | null
+          anf_klockslag: string | null
+          anforande_id: string | null
+          anforande_nummer: string | null
+          anforande_url_html: string | null
+          anforandedatum: string | null
+          anforandetext: string | null
+          anforandetyp: string | null
+          content_summary: string | null
+          created_at: string
           id: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at: string | null
-          user_id: string
+          intressent_id: string | null
+          kammaraktivitet: string | null
+          metadata: Json | null
+          namn: string | null
+          party: string | null
+          rel_dok_beteckning: string | null
+          rel_dok_id: string | null
+          rel_dok_titel: string | null
+          speech_id: string
+          talare: string | null
+          updated_at: string
+          word_count: number | null
         }
         Insert: {
-          created_at?: string | null
+          anf_klockslag?: string | null
+          anforande_id?: string | null
+          anforande_nummer?: string | null
+          anforande_url_html?: string | null
+          anforandedatum?: string | null
+          anforandetext?: string | null
+          anforandetyp?: string | null
+          content_summary?: string | null
+          created_at?: string
           id?: string
-          role: Database["public"]["Enums"]["app_role"]
-          updated_at?: string | null
-          user_id: string
+          intressent_id?: string | null
+          kammaraktivitet?: string | null
+          metadata?: Json | null
+          namn?: string | null
+          party?: string | null
+          rel_dok_beteckning?: string | null
+          rel_dok_id?: string | null
+          rel_dok_titel?: string | null
+          speech_id: string
+          talare?: string | null
+          updated_at?: string
+          word_count?: number | null
         }
         Update: {
-          created_at?: string | null
+          anf_klockslag?: string | null
+          anforande_id?: string | null
+          anforande_nummer?: string | null
+          anforande_url_html?: string | null
+          anforandedatum?: string | null
+          anforandetext?: string | null
+          anforandetyp?: string | null
+          content_summary?: string | null
+          created_at?: string
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          updated_at?: string | null
-          user_id?: string
+          intressent_id?: string | null
+          kammaraktivitet?: string | null
+          metadata?: Json | null
+          namn?: string | null
+          party?: string | null
+          rel_dok_beteckning?: string | null
+          rel_dok_id?: string | null
+          rel_dok_titel?: string | null
+          speech_id?: string
+          talare?: string | null
+          updated_at?: string
+          word_count?: number | null
         }
         Relationships: []
       }
@@ -743,144 +566,94 @@ export type Database = {
       }
     }
     Views: {
-      enhanced_member_view: {
-        Row: {
-          active_assignments_count: number | null
-          activity_data: Json | null
-          assignments: Json | null
-          birth_year: number | null
-          committee_assignments: Json | null
-          constituency: string | null
-          contact_info: Json | null
-          created_at: string | null
-          current_age: number | null
-          current_committees: string[] | null
-          data_completeness_score: number | null
-          date_from: string | null
-          date_to: string | null
-          education: string | null
-          first_name: string | null
-          gender: string | null
-          id: string | null
-          image_urls: Json | null
-          is_active: boolean | null
-          last_name: string | null
-          last_sync_at: string | null
-          member_id: string | null
-          missing_fields: string[] | null
-          party: string | null
-          primary_image_url: string | null
-          profession: string | null
-          riksdag_status: string | null
-          status_history: Json | null
-          total_documents: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          active_assignments_count?: never
-          activity_data?: Json | null
-          assignments?: Json | null
-          birth_year?: number | null
-          committee_assignments?: never
-          constituency?: string | null
-          contact_info?: never
-          created_at?: string | null
-          current_age?: never
-          current_committees?: string[] | null
-          data_completeness_score?: number | null
-          date_from?: never
-          date_to?: never
-          education?: string | null
-          first_name?: string | null
-          gender?: string | null
-          id?: string | null
-          image_urls?: Json | null
-          is_active?: boolean | null
-          last_name?: string | null
-          last_sync_at?: string | null
-          member_id?: string | null
-          missing_fields?: string[] | null
-          party?: string | null
-          primary_image_url?: string | null
-          profession?: string | null
-          riksdag_status?: string | null
-          status_history?: Json | null
-          total_documents?: never
-          updated_at?: string | null
-        }
-        Update: {
-          active_assignments_count?: never
-          activity_data?: Json | null
-          assignments?: Json | null
-          birth_year?: number | null
-          committee_assignments?: never
-          constituency?: string | null
-          contact_info?: never
-          created_at?: string | null
-          current_age?: never
-          current_committees?: string[] | null
-          data_completeness_score?: number | null
-          date_from?: never
-          date_to?: never
-          education?: string | null
-          first_name?: string | null
-          gender?: string | null
-          id?: string | null
-          image_urls?: Json | null
-          is_active?: boolean | null
-          last_name?: string | null
-          last_sync_at?: string | null
-          member_id?: string | null
-          missing_fields?: string[] | null
-          party?: string | null
-          primary_image_url?: string | null
-          profession?: string | null
-          riksdag_status?: string | null
-          status_history?: Json | null
-          total_documents?: never
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      calculate_member_data_completeness: {
-        Args: {
-          member_row: Database["public"]["Tables"]["enhanced_member_profiles"]["Row"]
-        }
-        Returns: number
+      bytea_to_text: {
+        Args: { data: string }
+        Returns: string
       }
-      has_role: {
-        Args: {
-          _user_id: string
-          _role: Database["public"]["Enums"]["app_role"]
-        }
+      http: {
+        Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_delete: {
+        Args:
+          | { uri: string }
+          | { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_get: {
+        Args: { uri: string } | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_head: {
+        Args: { uri: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_header: {
+        Args: { field: string; value: string }
+        Returns: Database["public"]["CompositeTypes"]["http_header"]
+      }
+      http_list_curlopt: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          curlopt: string
+          value: string
+        }[]
+      }
+      http_patch: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_post: {
+        Args:
+          | { uri: string; content: string; content_type: string }
+          | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_put: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_reset_curlopt: {
+        Args: Record<PropertyKey, never>
         Returns: boolean
       }
-      identify_missing_member_fields: {
-        Args: {
-          member_row: Database["public"]["Tables"]["enhanced_member_profiles"]["Row"]
-        }
-        Returns: string[]
-      }
-      is_admin: {
-        Args: { _user_id?: string }
+      http_set_curlopt: {
+        Args: { curlopt: string; value: string }
         Returns: boolean
       }
-      migrate_to_enhanced_member_profiles: {
-        Args: Record<PropertyKey, never>
-        Returns: number
+      text_to_bytea: {
+        Args: { data: string }
+        Returns: string
       }
-      update_member_active_status: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
+      urlencode: {
+        Args: { data: Json } | { string: string } | { string: string }
+        Returns: string
       }
     }
     Enums: {
-      app_role: "admin" | "moderator" | "user"
+      [_ in never]: never
     }
     CompositeTypes: {
-      [_ in never]: never
+      http_header: {
+        field: string | null
+        value: string | null
+      }
+      http_request: {
+        method: unknown | null
+        uri: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content_type: string | null
+        content: string | null
+      }
+      http_response: {
+        status: number | null
+        content_type: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content: string | null
+      }
     }
   }
 }
@@ -992,8 +765,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      app_role: ["admin", "moderator", "user"],
-    },
+    Enums: {},
   },
 } as const

@@ -16,8 +16,7 @@ import {
   Users,
   Megaphone,
   Vote,
-  Newspaper,
-  Loader2
+  Newspaper
 } from 'lucide-react';
 import { 
   initializeAllDatabases,
@@ -28,13 +27,8 @@ import {
   type DataFreshnessStatus,
   type RefreshResult
 } from '../services/dataRefreshService';
-import { Separator } from './ui/separator';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import MasterSyncTool from './MasterSyncTool';
 
 const DatabaseInitializer = () => {
-  const [activeTab, setActiveTab] = useState('status');
   const [dataStatus, setDataStatus] = useState<DataFreshnessStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(false);
@@ -206,252 +200,209 @@ const DatabaseInitializer = () => {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="status">Databasstatus</TabsTrigger>
-          <TabsTrigger value="legacy">Legacy-verktyg</TabsTrigger>
-          <TabsTrigger value="master">Master Sync</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="status">
-          {/* Overview Card */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Database className="w-5 h-5" />
-                <span>Supabase Database Status</span>
-                <Badge variant={healthPercentage > 80 ? 'default' : healthPercentage > 60 ? 'secondary' : 'destructive'}>
-                  {healthPercentage}% Hälsosam
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                {formatDataStatusMessage(dataStatus)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span>Övergripande systemhälsa</span>
-                      <span>{healthPercentage}%</span>
-                    </div>
-                    <Progress 
-                      value={healthPercentage} 
-                      className="h-2"
-                      indicatorColor={
-                        healthPercentage > 80 ? "bg-green-500" : 
-                        healthPercentage > 60 ? "bg-amber-500" : 
-                        "bg-red-500"
-                      }
-                    />
-                  </div>
+      {/* Overview Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Database className="w-5 h-5" />
+            <span>Supabase Database Status</span>
+            <Badge variant={healthPercentage > 80 ? 'default' : healthPercentage > 60 ? 'secondary' : 'destructive'}>
+              {healthPercentage}% Hälsosam
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {formatDataStatusMessage(dataStatus)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col space-y-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <div className="flex justify-between text-sm mb-2">
+                  <span>Övergripande systemhälsa</span>
+                  <span>{healthPercentage}%</span>
                 </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{totalRecords.toLocaleString()}</div>
-                    <div className="text-gray-600">Totala poster</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">
-                      {dataStatus.filter(s => !s.isStale && !s.errorMessage).length}
-                    </div>
-                    <div className="text-gray-600">Aktuella</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {dataStatus.filter(s => s.isStale).length}
-                    </div>
-                    <div className="text-gray-600">Föråldrade</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
-                      {dataStatus.filter(s => s.errorMessage).length}
-                    </div>
-                    <div className="text-gray-600">Fel</div>
-                  </div>
+                <Progress value={healthPercentage} className="h-2" />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{totalRecords.toLocaleString()}</div>
+                <div className="text-gray-600">Totala poster</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {dataStatus.filter(s => !s.isStale && !s.errorMessage).length}
                 </div>
+                <div className="text-gray-600">Aktuella</div>
               </div>
-              
-              <Separator className="my-6" />
-              
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Rekommendation</AlertTitle>
-                <AlertDescription>
-                  Använd vår nya Master Sync Tool för bättre övervakning och kontroll av datasync-processer!
-                  <div className="mt-2">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setActiveTab('master')}
-                      size="sm"
-                    >
-                      Gå till Master Sync Tool
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-
-          {/* Detailed Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Detaljerad Datatyp Status</CardTitle>
-              <CardDescription>
-                Status för varje datatyp i systemet
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dataStatus.map((status) => {
-                  const IconComponent = dataTypeIcons[status.type as keyof typeof dataTypeIcons] || Database;
-                  const StatusIcon = getStatusIcon(status);
-                  
-                  return (
-                    <div
-                      key={status.type}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <IconComponent className="w-5 h-5 text-gray-600" />
-                        <div>
-                          <div className="font-medium">{status.type}</div>
-                          <div className="text-sm text-gray-600">
-                            {status.recordCount?.toLocaleString() || 0} poster
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {formatLastUpdated(status.lastUpdated)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant={getStatusColor(status)} className="text-xs">
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {status.errorMessage ? 'Fel' : status.isStale ? 'Föråldrad' : 'Aktuell'}
-                        </Badge>
-                        {status.type !== 'Member News' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRefreshSpecific(status.type.split(' ')[0])}
-                            disabled={loading}
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {dataStatus.filter(s => s.isStale).length}
+                </div>
+                <div className="text-gray-600">Föråldrade</div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="legacy">
-          {/* Action Buttons */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Legacy Databasåtgärder</CardTitle>
-              <CardDescription>
-                Initiera databaser och hämta all tillgänglig data från Riksdagens API
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={handleInitializeAll}
-                  disabled={initializing || refreshing}
-                  className="flex items-center space-x-2"
-                >
-                  {initializing ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Database className="w-4 h-4" />
-                  )}
-                  <span>
-                    {initializing ? 'Initierar...' : 'Initiera Alla Databaser'}
-                  </span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={handleRefreshAll}
-                  disabled={initializing || refreshing}
-                  className="flex items-center space-x-2"
-                >
-                  {refreshing ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  <span>
-                    {refreshing ? 'Uppdaterar...' : 'Uppdatera All Data'}
-                  </span>
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  onClick={loadDataStatus}
-                  disabled={loading}
-                  className="flex items-center space-x-2"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  <span>Kontrollera Status</span>
-                </Button>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {dataStatus.filter(s => s.errorMessage).length}
+                </div>
+                <div className="text-gray-600">Fel</div>
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-              {lastRefresh && (
-                <p className="text-sm text-gray-600 mt-3">
-                  Senaste uppdatering: {lastRefresh.toLocaleString('sv-SE')}
-                </p>
+      {/* Action Buttons */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Databasåtgärder</CardTitle>
+          <CardDescription>
+            Initiera databaser och hämta all tillgänglig data från Riksdagens API
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handleInitializeAll}
+              disabled={initializing || refreshing}
+              className="flex items-center space-x-2"
+            >
+              {initializing ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Database className="w-4 h-4" />
               )}
-            </CardContent>
-          </Card>
+              <span>
+                {initializing ? 'Initierar...' : 'Initiera Alla Databaser'}
+              </span>
+            </Button>
 
-          {/* Refresh Result */}
-          {refreshResult && (
-            <Card>
-              <CardContent className="pt-6">
-                <div className={`flex items-start space-x-3 ${refreshResult.success ? 'text-green-700' : 'text-red-700'}`}>
-                  {refreshResult.success ? (
-                    <CheckCircle className="w-5 h-5 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <p className="font-medium">{refreshResult.message}</p>
-                    {refreshResult.duration && (
-                      <p className="text-sm opacity-75">Tid: {refreshResult.duration}ms</p>
-                    )}
-                    {refreshResult.stats && (
-                      <p className="text-sm opacity-75 mt-1">
-                        Statistik: {JSON.stringify(refreshResult.stats, null, 2)}
-                      </p>
-                    )}
-                    {refreshResult.errors && refreshResult.errors.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-sm font-medium">Fel som uppstod:</p>
-                        <ul className="text-sm list-disc list-inside">
-                          {refreshResult.errors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
+            <Button
+              variant="outline"
+              onClick={handleRefreshAll}
+              disabled={initializing || refreshing}
+              className="flex items-center space-x-2"
+            >
+              {refreshing ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>
+                {refreshing ? 'Uppdaterar...' : 'Uppdatera All Data'}
+              </span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              onClick={loadDataStatus}
+              disabled={loading}
+              className="flex items-center space-x-2"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kontrollera Status</span>
+            </Button>
+          </div>
+
+          {lastRefresh && (
+            <p className="text-sm text-gray-600 mt-3">
+              Senaste uppdatering: {lastRefresh.toLocaleString('sv-SE')}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Refresh Result */}
+      {refreshResult && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className={`flex items-start space-x-3 ${refreshResult.success ? 'text-green-700' : 'text-red-700'}`}>
+              {refreshResult.success ? (
+                <CheckCircle className="w-5 h-5 mt-0.5" />
+              ) : (
+                <AlertCircle className="w-5 h-5 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <p className="font-medium">{refreshResult.message}</p>
+                {refreshResult.duration && (
+                  <p className="text-sm opacity-75">Tid: {refreshResult.duration}ms</p>
+                )}
+                {refreshResult.stats && (
+                  <p className="text-sm opacity-75 mt-1">
+                    Statistik: {JSON.stringify(refreshResult.stats, null, 2)}
+                  </p>
+                )}
+                {refreshResult.errors && refreshResult.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium">Fel som uppstod:</p>
+                    <ul className="text-sm list-disc list-inside">
+                      {refreshResult.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detailed Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detaljerad Datatyp Status</CardTitle>
+          <CardDescription>
+            Status för varje datatyp i systemet
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {dataStatus.map((status) => {
+              const IconComponent = dataTypeIcons[status.type as keyof typeof dataTypeIcons] || Database;
+              const StatusIcon = getStatusIcon(status);
+              
+              return (
+                <div
+                  key={status.type}
+                  className="flex items-center justify-between p-4 border rounded-lg"
+                >
+                  <div className="flex items-center space-x-3">
+                    <IconComponent className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <div className="font-medium">{status.type}</div>
+                      <div className="text-sm text-gray-600">
+                        {status.recordCount?.toLocaleString() || 0} poster
                       </div>
+                      <div className="text-xs text-gray-500">
+                        {formatLastUpdated(status.lastUpdated)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant={getStatusColor(status)} className="text-xs">
+                      <StatusIcon className="w-3 h-3 mr-1" />
+                      {status.errorMessage ? 'Fel' : status.isStale ? 'Föråldrad' : 'Aktuell'}
+                    </Badge>
+                    {status.type !== 'Member News' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRefreshSpecific(status.type.split(' ')[0])}
+                        disabled={loading}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </Button>
                     )}
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="master">
-          <MasterSyncTool />
-        </TabsContent>
-      </Tabs>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

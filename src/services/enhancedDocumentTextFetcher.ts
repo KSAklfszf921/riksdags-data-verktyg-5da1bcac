@@ -1,4 +1,3 @@
-
 import { fetchDocumentText, fetchSpeechText, fetchMemberContentForAnalysis } from './riksdagApi';
 
 export interface CachedDocument {
@@ -287,7 +286,7 @@ class EnhancedDocumentTextFetcher {
         });
       }
 
-      const content = await fetchMemberContentForAnalysis(memberId);
+      const content = await fetchMemberContentForAnalysis(memberId, 20); // Increased from 15
       
       console.log(`Raw content fetched for ${memberName}:`, {
         speeches: content.speeches.length,
@@ -310,22 +309,20 @@ class EnhancedDocumentTextFetcher {
       const validSpeeches = content.speeches
         .filter(speech => {
           extractionDetails.speechesAttempted++;
-          const isValid = this.isValidText(speech.anforande_text, 50);
+          const isValid = this.isValidText(speech.text, 50);
           if (!isValid) {
             extractionDetails.failedExtractions.push({
-              id: speech.anforande_id,
+              id: speech.id,
               reason: 'Speech text too short or invalid'
             });
           }
           return isValid;
         })
         .map(speech => ({
-          id: speech.anforande_id,
-          text: this.cleanText(speech.anforande_text),
-          title: speech.titel,
-          date: speech.datum
+          ...speech,
+          text: this.cleanText(speech.text)
         }))
-        .slice(0, 10);
+        .slice(0, 10); // Increased from 8
 
       console.log(`Processed speeches for ${memberName}: ${validSpeeches.length}/${extractionDetails.speechesAttempted} valid`);
 
@@ -343,7 +340,7 @@ class EnhancedDocumentTextFetcher {
 
       // Step 3: Process documents with enhanced extraction
       const validDocuments = [];
-      const maxDocs = Math.min(content.documents.length, 10);
+      const maxDocs = Math.min(content.documents.length, 10); // Increased from 8
       
       for (let i = 0; i < maxDocs; i++) {
         const doc = content.documents[i];
@@ -351,12 +348,12 @@ class EnhancedDocumentTextFetcher {
         
         if (onProgress) {
           onProgress({
-            currentItem: `Extracting: ${doc.titel.substring(0, 40)}...`,
+            currentItem: `Extracting: ${doc.title.substring(0, 40)}...`,
             speechesProcessed: validSpeeches.length,
             documentsProcessed: validDocuments.length,
             errors: [],
             currentStep: `Processing document ${i + 1}/${maxDocs}`,
-            details: [`Testing enhanced extraction for ${doc.titel.substring(0, 30)}...`],
+            details: [`Testing enhanced extraction for ${doc.title.substring(0, 30)}...`],
             extractionMethods: extractionDetails.extractionMethods
           });
         }
@@ -365,11 +362,8 @@ class EnhancedDocumentTextFetcher {
         
         if (extractionResult.text && this.isValidText(extractionResult.text, 80)) {
           validDocuments.push({
-            id: doc.id,
-            text: extractionResult.text,
-            title: doc.titel,
-            date: doc.datum,
-            type: doc.typ
+            ...doc,
+            text: extractionResult.text
           });
           
           // Track successful extraction method

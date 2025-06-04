@@ -1,37 +1,51 @@
 
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { navItems } from "./nav-items";
-import { AuthProvider } from "@/contexts/AuthContext";
-import AuthPage from "@/components/AuthPage";
-import ProtectedRoute from "@/components/ProtectedRoute";
+import { ResponsiveHeader } from "./components/ResponsiveHeader";
+import Index from "./pages/Index";
+import Ledamoter from "./pages/Ledamoter";
+import Anforanden from "./pages/Anforanden";
+import Voteringar from "./pages/Voteringar";
+import Dokument from "./pages/Dokument";
+import Kalender from "./pages/Kalender";
+import Partianalys from "./pages/Partianalys";
+import Topplistor from "./pages/Topplistor";
+import SprakAnalys from "./pages/SprakAnalys";
+import DatabaseManager from "./pages/DatabaseManager";
+import CalendarTest from "./pages/CalendarTest";
+import Testverktyg from "./pages/Testverktyg";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <BrowserRouter>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <div className="min-h-screen bg-background">
+          <ResponsiveHeader />
           <Routes>
-            <Route path="/auth" element={<AuthPage />} />
-            {navItems.map(({ to, page }) => (
-              <Route 
-                key={to} 
-                path={to} 
-                element={
-                  <ProtectedRoute>
-                    {page}
-                  </ProtectedRoute>
-                } 
-              />
-            ))}
+            <Route path="/" element={<Index />} />
+            <Route path="/ledamoter" element={<Ledamoter />} />
+            <Route path="/anforanden" element={<Anforanden />} />
+            <Route path="/voteringar" element={<Voteringar />} />
+            <Route path="/dokument" element={<Dokument />} />
+            <Route path="/kalender" element={<Kalender />} />
+            <Route path="/partianalys" element={<Partianalys />} />
+            <Route path="/topplistor" element={<Topplistor />} />
+            <Route path="/sprakanalys" element={<SprakAnalys />} />
+            <Route path="/databashantering" element={<DatabaseManager />} />
+            <Route path="/calendar-test" element={<CalendarTest />} />
+            <Route path="/testverktyg" element={<Testverktyg />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </AuthProvider>
+        </div>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

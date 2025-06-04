@@ -1,5 +1,4 @@
 
-// Updated API tester to comply with technical guide
 import { CalendarTester, TestResult } from './testUtils';
 
 export class RiksdagApiTester extends CalendarTester {
@@ -8,10 +7,9 @@ export class RiksdagApiTester extends CalendarTester {
     return this.runTest('Direct API Access', async () => {
       console.log('Testing direct access to Riksdag calendar API...');
       
-      // Updated test URLs following technical guide
       const testUrls = [
-        'https://data.riksdagen.se/kalender/?utformat=json',
-        'https://data.riksdagen.se/kalender/?utformat=json&typ=sammanträde'
+        'https://data.riksdagen.se/kalender/?utformat=json&sz=5',
+        'https://data.riksdagen.se/kalender/?utformat=json&sz=3&typ=sammanträde'
       ];
 
       const results = [];
@@ -21,7 +19,7 @@ export class RiksdagApiTester extends CalendarTester {
           const response = await fetch(url, {
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'RiksdagApiTester/1.0'
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
             }
           });
 
@@ -83,13 +81,10 @@ export class RiksdagApiTester extends CalendarTester {
     return this.runTest('Multiple Endpoints', async () => {
       console.log('Testing multiple Riksdag API endpoints...');
 
-      // Updated endpoints following technical guide
       const endpoints = [
-        { url: 'https://data.riksdagen.se/kalender/?utformat=json', name: 'Basic calendar' },
-        { url: 'https://data.riksdagen.se/kalender/?utformat=json&typ=sammanträde', name: 'Meetings only' },
-        { url: 'https://data.riksdagen.se/kalender/?utformat=json&organ=kamm', name: 'Committee calendar' },
-        { url: 'https://data.riksdagen.se/dokumentlista/?utformat=json&p=1', name: 'Document list' },
-        { url: 'https://data.riksdagen.se/personlista/?utformat=json&p=1', name: 'Person list' }
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=10', name: 'Basic calendar' },
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=5&typ=sammanträde', name: 'Meetings only' },
+        { url: 'https://data.riksdagen.se/kalender/?utformat=json&sz=5&org=kamm', name: 'Committee calendar' }
       ];
 
       const results = [];
@@ -100,7 +95,7 @@ export class RiksdagApiTester extends CalendarTester {
           const response = await fetch(endpoint.url, {
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'RiksdagApiTester/1.0'
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
             }
           });
           const duration = Date.now() - startTime;
@@ -119,14 +114,6 @@ export class RiksdagApiTester extends CalendarTester {
               } else if (data.kalenderlista?.kalender) {
                 eventCount = Array.isArray(data.kalenderlista.kalender) 
                   ? data.kalenderlista.kalender.length 
-                  : 1;
-              } else if (data.dokumentlista?.dokument) {
-                eventCount = Array.isArray(data.dokumentlista.dokument) 
-                  ? data.dokumentlista.dokument.length 
-                  : 1;
-              } else if (data.personlista?.person) {
-                eventCount = Array.isArray(data.personlista.person) 
-                  ? data.personlista.person.length 
                   : 1;
               }
             } catch (e) {
@@ -166,8 +153,7 @@ export class RiksdagApiTester extends CalendarTester {
     return this.runTest('API Response Time', async () => {
       console.log('Testing Riksdag API response times...');
 
-      // Use recommended endpoint structure
-      const testUrl = 'https://data.riksdagen.se/kalender/?utformat=json';
+      const testUrl = 'https://data.riksdagen.se/kalender/?utformat=json&sz=5';
       const measurements = [];
 
       // Take 3 measurements
@@ -177,7 +163,7 @@ export class RiksdagApiTester extends CalendarTester {
           const response = await fetch(testUrl, {
             headers: {
               'Accept': 'application/json',
-              'User-Agent': 'RiksdagApiTester/1.0'
+              'User-Agent': 'Mozilla/5.0 (compatible; Test-Client/1.0)'
             }
           });
           const duration = Date.now() - startTime;

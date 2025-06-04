@@ -1,19 +1,294 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { EnhancedTester, DetailedTestResult } from './enhancedTestUtils';
 
-export interface TestResult {
-  name: string;
-  status: 'pass' | 'fail' | 'skip';
-  message: string;
-  duration?: number;
-  error?: string;
-}
+export class SearchFilterTestSuite extends EnhancedTester {
+  constructor() {
+    super('Search and Filter Test Suite');
+  }
 
-export class SearchFilterTestSuite {
-  private results: TestResult[] = [];
+  async testMemberNameSearch(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Member Name Search Functionality',
+      async () => {
+        const testQueries = ['Anders', 'Maria', 'Johan', 'Anna'];
+        const results = [];
+        
+        for (const query of testQueries) {
+          const { data, error } = await supabase
+            .from('member_data')
+            .select('member_id, first_name, last_name, party')
+            .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+            .limit(5);
+            
+          if (error) throw new Error(`Search failed for ${query}: ${error.message}`);
+          
+          results.push({
+            query,
+            resultCount: data?.length || 0,
+            matchesQuery: data?.every(m => 
+              m.first_name?.toLowerCase().includes(query.toLowerCase()) ||
+              m.last_name?.toLowerCase().includes(query.toLowerCase())
+            ) || false
+          });
+        }
+        
+        return {
+          searchTests: results,
+          allSearchesWork: results.every(r => r.matchesQuery),
+          totalResults: results.reduce((sum, r) => sum + r.resultCount, 0)
+        };
+      }
+    );
+  }
 
-  async runAllSearchFilterTests(): Promise<TestResult[]> {
-    this.results = [];
+  async testPartyFiltering(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Party Filtering Functionality',
+      async () => {
+        const parties = ['S', 'M', 'SD', 'C', 'V', 'KD', 'L', 'MP'];
+        const results = [];
+        
+        for (const party of parties.slice(0, 4)) { // Test first 4 parties
+          const { data, error } = await supabase
+            .from('member_data')
+            .select('member_id, first_name, last_name, party')
+            .eq('party', party)
+            .limit(10);
+            
+          if (error) throw new Error(`Party filter failed for ${party}: ${error.message}`);
+          
+          results.push({
+            party,
+            memberCount: data?.length || 0,
+            correctParty: data?.every(m => m.party === party) || false
+          });
+        }
+        
+        return {
+          partyTests: results,
+          allFiltersWork: results.every(r => r.correctParty),
+          partiesWithMembers: results.filter(r => r.memberCount > 0).length
+        };
+      }
+    );
+  }
+
+  async testCommitteeSearch(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Committee Search and Assignment Testing',
+      async () => {
+        // Test committee data in member assignments
+        const { data: membersWithAssignments, error } = await supabase
+          .from('member_data')
+          .select('member_id, first_name, last_name, assignments')
+          .not('assignments', 'is', null)
+          .limit(20);
+          
+        if (error) throw new Error(`Committee search failed: ${error.message}`);
+        
+        const committeeCounts = new Map();
+        let totalAssignments = 0;
+        let currentAssignments = 0;
+        
+        membersWithAssignments?.forEach(member => {
+          if (member.assignments && Array.isArray(member.assignments)) {
+            member.assignments.forEach((assignment: any) => {
+              totalAssignments++;
+              
+              // Count current assignments
+              if (!assignment.tom || new Date(assignment.tom) > new Date()) {
+                currentAssignments++;
+              }
+              
+              // Count committee assignments (exclude chamber)
+              if (assignment.organ_kod && 
+                  assignment.organ_kod !== 'Kammaren' && 
+                  assignment.organ_kod !== 'kam') {
+                committeeCounts.set(
+                  assignment.organ_kod, 
+                  (committeeCounts.get(assignment.organ_kod) || 0) + 1
+                );
+              }
+            });
+          }
+        });
+        
+        return {
+          membersWithAssignments: membersWithAssignments?.length || 0,
+          totalAssignments,
+          currentAssignments,
+          uniqueCommittees: committeeCounts.size,
+          committeeBreakdown: Object.fromEntries(committeeCounts),
+          largestCommittee: [...committeeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'None'
+        };
+      }
+    );
+  }
+
+  async testDocumentTypeFiltering(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Document Type Filtering',
+      async () => {
+        const documentTypes = ['mot', 'ip', 'fr', 'prop', 'bet'];
+        const results = [];
+        
+        for (const docType of documentTypes) {
+          const { data, error } = await supabase
+            .from('document_data')
+            .select('document_id, titel, typ, datum, organ')
+            .eq('typ', docType)
+            .limit(5);
+            
+          if (error) throw new Error(`Document type filter failed for ${docType}: ${error.message}`);
+          
+          results.push({
+            type: docType,
+            count: data?.length || 0,
+            correctType: data?.every(d => d.typ === docType) || false,
+            hasValidDates: data?.some(d => d.datum) || false
+          });
+        }
+        
+        return {
+          typeTests: results,
+          allTypesWork: results.every(r => r.correctType),
+          typesWithDocuments: results.filter(r => r.count > 0).length,
+          totalDocumentsTested: results.reduce((sum, r) => sum + r.count, 0)
+        };
+      }
+    );
+  }
+
+  async testDateRangeFiltering(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Date Range Filtering',
+      async () => {
+        const currentYear = new Date().getFullYear();
+        const testRanges = [
+          { start: `${currentYear}-01-01`, end: `${currentYear}-06-30`, label: 'First Half Year' },
+          { start: `${currentYear-1}-01-01`, end: `${currentYear-1}-12-31`, label: 'Last Year' }
+        ];
+        
+        const results = [];
+        
+        for (const range of testRanges) {
+          // Test calendar data
+          const { data: calendarData, error: calError } = await supabase
+            .from('calendar_data')
+            .select('event_id, datum, summary')
+            .gte('datum', range.start)
+            .lte('datum', range.end)
+            .limit(10);
+            
+          // Test speech data
+          const { data: speechData, error: speechError } = await supabase
+            .from('speech_data')
+            .select('speech_id, anforandedatum, namn')
+            .gte('anforandedatum', range.start)
+            .lte('anforandedatum', range.end)
+            .limit(10);
+            
+          if (calError || speechError) {
+            throw new Error(`Date range filtering failed: ${calError?.message || speechError?.message}`);
+          }
+          
+          results.push({
+            range: range.label,
+            calendarEvents: calendarData?.length || 0,
+            speeches: speechData?.length || 0,
+            validDateRange: true
+          });
+        }
+        
+        return {
+          rangeTests: results,
+          allRangesWork: results.every(r => r.validDateRange),
+          totalEventsFound: results.reduce((sum, r) => sum + r.calendarEvents, 0),
+          totalSpeechesFound: results.reduce((sum, r) => sum + r.speeches, 0)
+        };
+      }
+    );
+  }
+
+  async testVoteSearchByTopic(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Vote Search by Topic',
+      async () => {
+        const searchTerms = ['budget', 'miljö', 'utbildning', 'vård'];
+        const results = [];
+        
+        for (const term of searchTerms.slice(0, 2)) { // Test first 2 terms
+          const { data, error } = await supabase
+            .from('vote_data')
+            .select('vote_id, beteckning, avser, vote_statistics')
+            .or(`beteckning.ilike.%${term}%,avser.ilike.%${term}%`)
+            .limit(5);
+            
+          if (error) throw new Error(`Vote search failed for ${term}: ${error.message}`);
+          
+          results.push({
+            searchTerm: term,
+            votesFound: data?.length || 0,
+            hasStatistics: data?.some(v => v.vote_statistics) || false,
+            relevantResults: data?.some(v => 
+              v.beteckning?.toLowerCase().includes(term.toLowerCase()) ||
+              v.avser?.toLowerCase().includes(term.toLowerCase())
+            ) || false
+          });
+        }
+        
+        return {
+          searchTests: results,
+          allSearchesRelevant: results.every(r => r.relevantResults || r.votesFound === 0),
+          totalVotesFound: results.reduce((sum, r) => sum + r.votesFound, 0)
+        };
+      }
+    );
+  }
+
+  async testLanguageAnalysisFiltering(): Promise<DetailedTestResult> {
+    return this.testApiEndpoint(
+      'Language Analysis Filtering',
+      async () => {
+        // Test filtering by score ranges
+        const { data: highScores, error: highError } = await supabase
+          .from('language_analysis')
+          .select('member_name, overall_score, document_type')
+          .gte('overall_score', 8)
+          .limit(10);
+          
+        const { data: lowScores, error: lowError } = await supabase
+          .from('language_analysis')
+          .select('member_name, overall_score, document_type')
+          .lte('overall_score', 3)
+          .limit(10);
+          
+        // Test filtering by document type
+        const { data: speechAnalysis, error: speechError } = await supabase
+          .from('language_analysis')
+          .select('member_name, overall_score, document_type')
+          .eq('document_type', 'speech')
+          .limit(10);
+          
+        if (highError || lowError || speechError) {
+          throw new Error(`Language analysis filtering failed`);
+        }
+        
+        return {
+          highScoreAnalyses: highScores?.length || 0,
+          lowScoreAnalyses: lowScores?.length || 0,
+          speechAnalyses: speechAnalysis?.length || 0,
+          scoreRangeWorks: (highScores?.every(a => a.overall_score >= 8) || false) &&
+                          (lowScores?.every(a => a.overall_score <= 3) || false),
+          documentTypeFilterWorks: speechAnalysis?.every(a => a.document_type === 'speech') || false
+        };
+      }
+    );
+  }
+
+  async runAllSearchFilterTests(): Promise<void> {
+    console.log('🔍 Starting search and filter testing...');
     
     await this.testMemberNameSearch();
     await this.testPartyFiltering();
@@ -23,220 +298,6 @@ export class SearchFilterTestSuite {
     await this.testVoteSearchByTopic();
     await this.testLanguageAnalysisFiltering();
     
-    return this.results;
-  }
-
-  private async testMemberNameSearch(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('enhanced_member_profiles')
-        .select('member_id, first_name, last_name, party')
-        .ilike('first_name', '%Anna%')
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Member Name Search', 'fail', `Search failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      const validResults = data?.filter(member => 
-        member.first_name && member.last_name
-      ) || [];
-
-      if (validResults.length > 0) {
-        this.addResult('Member Name Search', 'pass', `Found ${validResults.length} members with name search`, Date.now() - startTime);
-      } else {
-        this.addResult('Member Name Search', 'skip', 'No members found with test search criteria', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Member Name Search', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testPartyFiltering(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('enhanced_member_profiles')
-        .select('member_id, party')
-        .eq('party', 'S')
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Party Filtering', 'fail', `Party filter failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const allCorrectParty = data.every(member => member.party === 'S');
-        if (allCorrectParty) {
-          this.addResult('Party Filtering', 'pass', `Successfully filtered ${data.length} members by party`, Date.now() - startTime);
-        } else {
-          this.addResult('Party Filtering', 'fail', 'Party filtering returned incorrect results', Date.now() - startTime);
-        }
-      } else {
-        this.addResult('Party Filtering', 'skip', 'No members found for test party', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Party Filtering', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testCommitteeSearch(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('enhanced_member_profiles')
-        .select('member_id, current_committees')
-        .not('current_committees', 'is', null)
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Committee Search', 'fail', `Committee search failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        this.addResult('Committee Search', 'pass', `Found ${data.length} members with committee assignments`, Date.now() - startTime);
-      } else {
-        this.addResult('Committee Search', 'skip', 'No members found with committee assignments', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Committee Search', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testDocumentTypeFiltering(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('document_data')
-        .select('document_id, typ')
-        .eq('typ', 'Motion')
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Document Type Filtering', 'fail', `Document filter failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        this.addResult('Document Type Filtering', 'pass', `Found ${data.length} documents of specified type`, Date.now() - startTime);
-      } else {
-        this.addResult('Document Type Filtering', 'skip', 'No documents found for test type', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Document Type Filtering', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testDateRangeFiltering(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('calendar_data')
-        .select('event_id, datum')
-        .gte('datum', '2023-01-01')
-        .lte('datum', '2023-12-31')
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Date Range Filtering', 'fail', `Date filter failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        this.addResult('Date Range Filtering', 'pass', `Found ${data.length} events in date range`, Date.now() - startTime);
-      } else {
-        this.addResult('Date Range Filtering', 'skip', 'No events found in test date range', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Date Range Filtering', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testVoteSearchByTopic(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('vote_data')
-        .select('vote_id, beteckning')
-        .ilike('beteckning', '%2023%')
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Vote Search by Topic', 'fail', `Vote search failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        this.addResult('Vote Search by Topic', 'pass', `Found ${data.length} votes matching search criteria`, Date.now() - startTime);
-      } else {
-        this.addResult('Vote Search by Topic', 'skip', 'No votes found for test search criteria', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Vote Search by Topic', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private async testLanguageAnalysisFiltering(): Promise<void> {
-    const startTime = Date.now();
-    
-    try {
-      const { data, error } = await supabase
-        .from('language_analysis')
-        .select('id, member_id, overall_score')
-        .gte('overall_score', 70)
-        .limit(5);
-      
-      if (error) {
-        this.addResult('Language Analysis Filtering', 'fail', `Language analysis filter failed: ${error.message}`, Date.now() - startTime);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const validResults = data.filter(analysis => analysis.overall_score >= 70);
-        if (validResults.length === data.length) {
-          this.addResult('Language Analysis Filtering', 'pass', `Found ${data.length} analyses with high scores`, Date.now() - startTime);
-        } else {
-          this.addResult('Language Analysis Filtering', 'fail', 'Filter returned incorrect score ranges', Date.now() - startTime);
-        }
-      } else {
-        this.addResult('Language Analysis Filtering', 'skip', 'No language analyses found with high scores', Date.now() - startTime);
-      }
-    } catch (error) {
-      this.addResult('Language Analysis Filtering', 'fail', `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`, Date.now() - startTime);
-    }
-  }
-
-  private addResult(name: string, status: 'pass' | 'fail' | 'skip', message: string, duration?: number): void {
-    this.results.push({
-      name,
-      status,
-      message,
-      duration
-    });
-  }
-
-  getResults(): TestResult[] {
-    return this.results;
-  }
-
-  getSummary(): { total: number; passed: number; failed: number; skipped: number } {
-    return {
-      total: this.results.length,
-      passed: this.results.filter(r => r.status === 'pass').length,
-      failed: this.results.filter(r => r.status === 'fail').length,
-      skipped: this.results.filter(r => r.status === 'skip').length
-    };
+    console.log('✅ Search and filter testing completed');
   }
 }
-
-export default SearchFilterTestSuite;

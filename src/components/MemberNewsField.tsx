@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle, RefreshCw, Download, ChevronDown } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, AlertCircle, Loader2, Database, Wifi, WifiOff, CheckCircle } from 'lucide-react';
 import { supabase } from '../integrations/supabase/client';
-import { useToast } from './ui/use-toast';
 
 interface NewsItem {
   title: string;
@@ -15,17 +14,6 @@ interface NewsItem {
   created_at?: string;
 }
 
-interface FormattedNewsItem {
-  member_name: string;
-  title: string;
-  headline: string;
-  body: string;
-  image_url: string | null;
-  link: string;
-  source: string;
-  pub_date: string;
-}
-
 interface MemberNewsFieldProps {
   memberName: string;
   memberId: string;
@@ -33,37 +21,15 @@ interface MemberNewsFieldProps {
 }
 
 const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsFieldProps) => {
-  const [allNewsItems, setAllNewsItems] = useState<NewsItem[]>([]);
-  const [displayedItems, setDisplayedItems] = useState<NewsItem[]>([]);
-  const [itemsToShow, setItemsToShow] = useState(5);
-  const [formattedItems, setFormattedItems] = useState<FormattedNewsItem[]>([]);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'database' | 'live' | 'cache'>('database');
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
-  const { toast } = useToast();
+  const [retryCount, setRetryCount] = useState(0);
 
-  // Sort and filter news items by date
-  const sortAndFilterItems = (items: NewsItem[], limit: number) => {
-    return items
-      .sort((a, b) => {
-        // Sort by publication date (newest first)
-        const dateA = new Date(a.pub_date);
-        const dateB = new Date(b.pub_date);
-        return dateB.getTime() - dateA.getTime();
-      })
-      .slice(0, limit);
-  };
-
-  // Update displayed items when allNewsItems or itemsToShow changes
-  useEffect(() => {
-    const sortedItems = sortAndFilterItems(allNewsItems, itemsToShow);
-    setDisplayedItems(sortedItems);
-  }, [allNewsItems, itemsToShow]);
-
-  // Fetch news from database
+  // Hämta nyheter från databasen
   const fetchNewsFromDatabase = async () => {
     console.log(`Fetching news from database for ${memberName} (${memberId})`);
     
@@ -72,7 +38,8 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         .from('member_news')
         .select('*')
         .eq('member_id', memberId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(maxItems);
 
       if (error) {
         console.error('Database error:', error);
@@ -81,15 +48,15 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
 
       if (data && data.length > 0) {
         console.log(`Found ${data.length} news items in database`);
-        const formattedNews: NewsItem[] = data.map(item => ({
+        const formattedNews = data.map(item => ({
           title: item.title,
           link: item.link,
           pub_date: item.pub_date,
           description: item.description || '',
-          image_url: item.image_url || undefined,
+          image_url: item.image_url,
           created_at: item.created_at
         }));
-        setAllNewsItems(formattedNews);
+        setNewsItems(formattedNews);
         setDataSource('database');
         setLastFetchTime(new Date(data[0].created_at));
         return true;
@@ -103,13 +70,13 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Fetch news via edge function
-  const fetchNewsFromAPI = async (manualFetch = false) => {
+  // Hämta nyheter via edge function
+  const fetchNewsFromAPI = async () => {
     console.log(`Fetching news via edge function for ${memberName} (${memberId})`);
     
     try {
       const { data, error } = await supabase.functions.invoke('fetch-member-news', {
-        body: { memberName, memberId, manualFetch }
+        body: { memberName, memberId }
       });
 
       if (error) {
@@ -120,7 +87,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       if (data?.newsItems && data.newsItems.length > 0) {
         console.log(`Successfully fetched ${data.newsItems.length} news items via API`);
         
-        const formattedNews: NewsItem[] = data.newsItems.map((item: any) => ({
+        const formattedNews = data.newsItems.map((item: any) => ({
           title: item.title,
           link: item.link,
           pub_date: item.pubDate,
@@ -128,19 +95,13 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           image_url: item.imageUrl
         }));
         
-        setAllNewsItems(formattedNews);
-        setFormattedItems(data.formattedItems || []);
+        setNewsItems(formattedNews);
         setDataSource(data.source === 'cache' ? 'cache' : 'live');
         setLastFetchTime(new Date());
         
         // Show success message with storage info
         if (data.stored && data.stored > 0) {
-          const message = `${data.stored} nya artiklar sparades i databasen`;
-          setSuccess(message);
-          toast({
-            title: "Nyheter uppdaterade",
-            description: message,
-          });
+          setSuccess(`${data.stored} nya artiklar sparades i databasen`);
           setTimeout(() => setSuccess(null), 5000);
         }
         
@@ -152,9 +113,6 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
         return true;
       } else {
         console.log('No news items returned from API');
-        if (data?.error) {
-          throw new Error(data.error);
-        }
         return false;
       }
     } catch (err) {
@@ -163,33 +121,26 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Main fetch function
-  const fetchNews = async (forceRefresh = false, manualFetch = false) => {
+  // Huvudfunktion för att hämta nyheter
+  const fetchNews = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
     
     try {
-      // If manual fetch requested, always go to API
-      if (manualFetch) {
-        await fetchNewsFromAPI(true);
-        toast({
-          title: "Manuell hämtning slutförd",
-          description: "Nyheter har hämtats direkt från RSS-flödet",
-        });
-      } else if (!forceRefresh) {
-        // Try database first if not force refresh
+      // Försök först med databasen om inte force refresh
+      if (!forceRefresh) {
         const dbSuccess = await fetchNewsFromDatabase();
         if (dbSuccess) {
           setLoading(false);
+          setRetryCount(0);
           return;
         }
-        // If nothing in database, fetch via API
-        await fetchNewsFromAPI(false);
-      } else {
-        // Force refresh - go directly to API
-        await fetchNewsFromAPI(false);
       }
+      
+      // Om inget i databasen eller force refresh, hämta via API
+      await fetchNewsFromAPI();
+      setRetryCount(0);
       
     } catch (err) {
       console.error('Error in fetchNews:', err);
@@ -213,91 +164,42 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
       }
       
       setError(`Kunde inte hämta nyheter: ${errorMessage}`);
-      toast({
-        title: "Fel vid hämtning",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      setRetryCount(prev => prev + 1);
+      
+      // Visa mockdata som fallback vid upprepade fel
+      if (retryCount >= 2) {
+        const mockNews: NewsItem[] = [
+          {
+            title: `Senaste nyheterna om ${memberName} kommer snart`,
+            link: '#',
+            pub_date: new Date().toISOString(),
+            description: 'Nyhetsflödet är tillfälligt otillgängligt. Försök igen senare.',
+          }
+        ];
+        setNewsItems(mockNews);
+        setDataSource('database');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Load more items
-  const loadMoreItems = () => {
-    setLoadingMore(true);
-    setTimeout(() => {
-      setItemsToShow(prev => prev + 5);
-      setLoadingMore(false);
-    }, 500);
-  };
-
-  // Function to clean HTML from text
-  const stripHtml = (html: string): string => {
-    if (!html) return '';
-    
-    // Create a temporary div to parse HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    
-    // Get the text content without HTML tags
-    let text = tempDiv.textContent || tempDiv.innerText || '';
-    
-    // Clean up common HTML entities and extra whitespace
-    text = text
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    return text;
-  };
-
-  // Function to extract clean title from potentially HTML-laden title
-  const cleanTitle = (title: string): string => {
-    if (!title) return '';
-    
-    // Strip HTML tags first
-    let cleanedTitle = stripHtml(title);
-    
-    // Remove common RSS feed prefixes and suffixes
-    cleanedTitle = cleanedTitle
-      .replace(/^.*?:\s*/, '') // Remove "Source:" prefix
-      .replace(/\s*-\s*[^-]*$/, '') // Remove "- Source" suffix
-      .trim();
-    
-    return cleanedTitle;
-  };
-
-  // Format date for display
+  // Formatera datum
   const formatDate = (dateString: string): string => {
     try {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - date.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (diffDays === 1) {
-        return 'Igår';
-      } else if (diffDays <= 7) {
-        return `${diffDays} dagar sedan`;
-      } else {
-        return date.toLocaleDateString('sv-SE', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      }
+      return new Date(dateString).toLocaleDateString('sv-SE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     } catch {
       return dateString;
     }
   };
 
-  // Get source icon
+  // Få rätt ikon för datakälla
   const getSourceIcon = () => {
     switch (dataSource) {
       case 'cache':
@@ -309,7 +211,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Get source text
+  // Få rätt text för datakälla
   const getSourceText = () => {
     switch (dataSource) {
       case 'cache':
@@ -321,23 +223,7 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
     }
   };
 
-  // Extract domain from URL for source display
-  const getSourceDomain = (url: string): string => {
-    try {
-      const domain = new URL(url).hostname;
-      return domain.replace('www.', '');
-    } catch {
-      return 'Okänd källa';
-    }
-  };
-
-  // Truncate text to specified length
-  const truncateText = (text: string, maxLength: number): string => {
-    if (!text || text.length <= maxLength) return text;
-    return text.substring(0, maxLength).trim() + '...';
-  };
-
-  // Fetch news when component loads
+  // Hämta nyheter när komponenten laddas
   useEffect(() => {
     if (memberName && memberId) {
       fetchNews();
@@ -387,23 +273,9 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <RefreshCw className="w-4 h-4" />
+                <Wifi className="w-4 h-4" />
               )}
               <span className="text-sm">Uppdatera</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchNews(false, true)}
-              disabled={loading}
-              className="flex items-center space-x-1"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              <span className="text-sm">Manuell hämtning</span>
             </Button>
           </div>
         </CardTitle>
@@ -418,15 +290,24 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
           </div>
         )}
         
-        {loading && displayedItems.length === 0 ? (
+        {loading && newsItems.length === 0 ? (
           <div className="text-center py-8">
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
             <p className="text-gray-600">Hämtar senaste nyheterna...</p>
+            {retryCount > 0 && (
+              <p className="text-sm text-orange-500 mt-2">
+                Försök {retryCount + 1} - detta kan ta lite tid...
+              </p>
+            )}
           </div>
-        ) : error && displayedItems.length === 0 ? (
+        ) : error && newsItems.length === 0 ? (
           <div className="text-center py-8">
             <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-4" />
             <p className="text-orange-600 text-sm mb-4">{error}</p>
+            <div className="text-xs text-gray-500 mb-4">
+              Tips: Nyhetsflödet kan vara tillfälligt otillgängligt på grund av Google News begränsningar.
+              {retryCount > 0 && ` (${retryCount} misslyckade försök)`}
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -437,139 +318,70 @@ const MemberNewsField = ({ memberName, memberId, maxItems = 5 }: MemberNewsField
               Försök igen
             </Button>
           </div>
-        ) : displayedItems.length === 0 ? (
+        ) : newsItems.length === 0 ? (
           <div className="text-center py-8">
             <Newspaper className="w-8 h-8 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-600">Inga nyheter tillgängliga</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchNews(false, true)}
-              disabled={loading}
-              className="mt-2"
-            >
-              Hämta nyheter manuellt
-            </Button>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {error && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
                 <p className="text-orange-700 text-sm">{error}</p>
               </div>
             )}
-            
-            {/* News Items */}
-            {displayedItems.map((item, index) => {
-              const cleanedTitle = cleanTitle(item.title);
-              const cleanedDescription = stripHtml(item.description);
-              
-              return (
-                <article
-                  key={`${item.link}-${index}`}
-                  className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow bg-white"
-                >
-                  <div className="flex flex-col space-y-4">
-                    {/* Header with title and source */}
-                    <div className="flex flex-col space-y-2">
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight">
-                        {cleanedTitle || 'Utan titel'}
-                      </h3>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3 text-sm text-gray-500">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{formatDate(item.pub_date)}</span>
-                          </div>
-                          <span>•</span>
-                          <span className="font-medium">
-                            {getSourceDomain(item.link)}
-                          </span>
-                          {item.created_at && dataSource === 'database' && (
-                            <>
-                              <span>•</span>
-                              <span className="text-xs text-gray-400">
-                                Sparad: {formatDate(item.created_at)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Content with image and description */}
-                    <div className="flex flex-col md:flex-row gap-4">
-                      {item.image_url && (
-                        <div className="md:w-48 flex-shrink-0">
-                          <img
-                            src={item.image_url}
-                            alt={cleanedTitle}
-                            className="w-full h-32 md:h-28 object-cover rounded-lg"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 space-y-3">
-                        {cleanedDescription && (
-                          <p className="text-gray-700 text-sm leading-relaxed">
-                            {truncateText(cleanedDescription, 300)}
-                          </p>
-                        )}
-                        
-                        {/* Action button */}
-                        <div className="flex justify-start">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            asChild
-                            className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-300"
-                          >
-                            <a
-                              href={item.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center space-x-2"
-                            >
-                              <span>Läs artikel</span>
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-
-            {/* Load More Button */}
-            {allNewsItems.length > displayedItems.length && (
-              <div className="flex justify-center pt-4">
-                <Button
-                  variant="outline"
-                  onClick={loadMoreItems}
-                  disabled={loadingMore}
-                  className="flex items-center space-x-2"
-                >
-                  {loadingMore ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
+            {newsItems.map((item, index) => (
+              <div
+                key={index}
+                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex flex-col md:flex-row gap-4">
+                  {item.image_url && (
+                    <img
+                      src={item.image_url}
+                      alt={item.title}
+                      className="w-full md:w-32 h-24 object-cover rounded-md"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
                   )}
-                  <span>
-                    {loadingMore ? 'Hämtar...' : `Visa fler (${allNewsItems.length - displayedItems.length} kvar)`}
-                  </span>
-                </Button>
+                  <div className="flex-1">
+                    <h4 className="text-base font-semibold text-blue-600 hover:underline mb-2">
+                      {item.link !== '#' ? (
+                        <a
+                          href={item.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1"
+                        >
+                          <span>{item.title}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ) : (
+                        <span>{item.title}</span>
+                      )}
+                    </h4>
+                    <div className="flex items-center space-x-2 text-sm text-gray-500 mb-2">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDate(item.pub_date)}</span>
+                      {item.created_at && dataSource === 'database' && (
+                        <>
+                          <span>•</span>
+                          <span className="text-xs">Sparad: {formatDate(item.created_at)}</span>
+                        </>
+                      )}
+                    </div>
+                    {item.description && (
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
-            )}
-
-            {/* Summary */}
-            <div className="text-center text-sm text-gray-500 pt-4 border-t">
-              Visar {displayedItems.length} av {allNewsItems.length} nyheter
-            </div>
+            ))}
           </div>
         )}
       </CardContent>

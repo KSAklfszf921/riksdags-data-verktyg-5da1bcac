@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,9 +24,9 @@ import {
 } from 'lucide-react';
 import { ApiTestSuite } from '../utils/apiTestSuite';
 import { DataValidationSuite } from '../utils/dataValidationSuite';
-import { ComprehensiveTestSuite } from '../utils/comprehensiveTestSuite';
+import { ComprehensiveApiTestSuite } from '../utils/comprehensiveTestSuite';
 import { SearchFilterTestSuite } from '../utils/searchFilterTestSuite';
-import { EnhancedTestSuite, DetailedTestResult, createTestSuite, calculateSummary } from '../utils/enhancedTestUtils';
+import { EnhancedTestSuite, DetailedTestResult } from '../utils/enhancedTestUtils';
 import CalendarTestRunner from './CalendarTestRunner';
 
 interface TestReport {
@@ -68,7 +69,6 @@ const EnhancedTestRunner = () => {
 
     try {
       addLog('Starting API tests...');
-      const suite = createTestSuite('API Tests');
       const tester = new ApiTestSuite();
       const tests = [
         'Supabase Connection',
@@ -89,18 +89,8 @@ const EnhancedTestRunner = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const results = await tester.runAllTests();
-      suite.results = results.map(r => ({
-        name: r.name,
-        success: r.status === 'pass',
-        message: r.message,
-        duration: r.duration || 0,
-        errorType: r.status === 'fail' ? 'API_ERROR' : undefined,
-        errorDetails: r.error ? { errorMessage: r.error } : undefined
-      }));
-      suite.summary = calculateSummary(suite.results);
-      suite.endTime = new Date();
-      
+      await tester.runAllApiTests();
+      const suite = tester.getSummary();
       setApiSuite(suite);
       addLog(`API tests completed: ${suite.summary.passed}/${suite.summary.total} passed`);
     } catch (error) {
@@ -120,11 +110,11 @@ const EnhancedTestRunner = () => {
 
     try {
       addLog('Starting validation tests...');
-      const suite = createTestSuite('Data Validation Tests');
       const tester = new DataValidationSuite();
       const tests = [
         'Calendar Data Integrity',
         'Member Data Consistency',
+        'Speech Data Quality',
         'Vote Data Completeness'
       ];
 
@@ -136,18 +126,8 @@ const EnhancedTestRunner = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const results = await tester.runAllValidationTests();
-      suite.results = results.map(r => ({
-        name: r.name,
-        success: r.status === 'pass',
-        message: r.message,
-        duration: r.duration || 0,
-        errorType: r.status === 'fail' ? 'VALIDATION_ERROR' : undefined,
-        errorDetails: r.error ? { errorMessage: r.error } : undefined
-      }));
-      suite.summary = calculateSummary(suite.results);
-      suite.endTime = new Date();
-      
+      await tester.runAllValidationTests();
+      const suite = tester.getSummary();
       setValidationSuite(suite);
       addLog(`Validation tests completed: ${suite.summary.passed}/${suite.summary.total} passed`);
     } catch (error) {
@@ -167,14 +147,16 @@ const EnhancedTestRunner = () => {
 
     try {
       addLog('Starting comprehensive tests...');
-      const suite = createTestSuite('Comprehensive Tests');
-      const tester = new ComprehensiveTestSuite();
+      const tester = new ComprehensiveApiTestSuite();
       const tests = [
         'Member Basic Fetching',
         'Member Details with Assignments',
         'Committee Filtering',
         'Member Search',
+        'Member Documents',
+        'Member Speeches',
         'Calendar Data Formatting',
+        'Speech Data Quality',
         'Vote Data Structure',
         'Document Search',
         'Party Data Accuracy',
@@ -190,18 +172,8 @@ const EnhancedTestRunner = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const results = await tester.runAllTests();
-      suite.results = results.map(r => ({
-        name: r.name,
-        success: r.status === 'pass',
-        message: r.message,
-        duration: r.duration || 0,
-        errorType: r.status === 'fail' ? 'DATA_ERROR' : undefined,
-        errorDetails: r.error ? { errorMessage: r.error } : undefined
-      }));
-      suite.summary = calculateSummary(suite.results);
-      suite.endTime = new Date();
-      
+      await tester.runAllComprehensiveTests();
+      const suite = tester.getSummary();
       setComprehensiveSuite(suite);
       addLog(`Comprehensive tests completed: ${suite.summary.passed}/${suite.summary.total} passed`);
     } catch (error) {
@@ -221,7 +193,6 @@ const EnhancedTestRunner = () => {
 
     try {
       addLog('Starting search & filter tests...');
-      const suite = createTestSuite('Search & Filter Tests');
       const tester = new SearchFilterTestSuite();
       const tests = [
         'Member Name Search',
@@ -241,18 +212,8 @@ const EnhancedTestRunner = () => {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const results = await tester.runAllSearchFilterTests();
-      suite.results = results.map(r => ({
-        name: r.name,
-        success: r.status === 'pass',
-        message: r.message,
-        duration: r.duration || 0,
-        errorType: r.status === 'fail' ? 'API_ERROR' : undefined,
-        errorDetails: r.error ? { errorMessage: r.error } : undefined
-      }));
-      suite.summary = calculateSummary(suite.results);
-      suite.endTime = new Date();
-      
+      await tester.runAllSearchFilterTests();
+      const suite = tester.getSummary();
       setSearchFilterSuite(suite);
       addLog(`Search & filter tests completed: ${suite.summary.passed}/${suite.summary.total} passed`);
     } catch (error) {
@@ -294,6 +255,7 @@ const EnhancedTestRunner = () => {
     const totalDuration = suites.reduce((sum, suite) => sum + suite.summary.totalDuration, 0);
     const overallSuccessRate = totalTests > 0 ? (passedTests / totalTests) * 100 : 0;
 
+    // Collect problems from failed tests
     const problems: string[] = [];
     suites.forEach(suite => {
       suite.results.forEach(result => {

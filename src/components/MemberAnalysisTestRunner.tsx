@@ -14,7 +14,7 @@ class MemberTester extends CalendarTester {
       console.log('Testing member data access...');
       
       const { count, error } = await supabase
-        .from('enhanced_member_profiles')
+        .from('member_data')
         .select('*', { count: 'exact', head: true });
 
       if (error) {
@@ -55,7 +55,7 @@ class MemberTester extends CalendarTester {
       console.log('Testing member search...');
       
       const { data, error } = await supabase
-        .from('enhanced_member_profiles')
+        .from('member_data')
         .select('*')
         .ilike('first_name', '%Anders%')
         .limit(10);

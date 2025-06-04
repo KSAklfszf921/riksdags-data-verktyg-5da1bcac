@@ -1,81 +1,54 @@
 
+// Enhanced test utilities for comprehensive API and data testing
 export interface DetailedTestResult {
   name: string;
   success: boolean;
   message: string;
   duration: number;
-  errorType?: 'API_ERROR' | 'DATA_ERROR' | 'VALIDATION_ERROR' | 'SYSTEM_ERROR';
+  data?: any;
+  errorType?: 'API_ERROR' | 'DATA_ERROR' | 'VALIDATION_ERROR' | 'UNKNOWN_ERROR';
   errorDetails?: {
+    statusCode?: number;
     errorMessage?: string;
     apiEndpoint?: string;
-    statusCode?: number;
+    expectedData?: any;
+    actualData?: any;
     stackTrace?: string;
   };
-  data?: any;
-}
-
-export interface TestSuiteSummary {
-  total: number;
-  passed: number;
-  failed: number;
-  successRate: number;
-  totalDuration: number;
-  averageDuration: number;
 }
 
 export interface EnhancedTestSuite {
   name: string;
   results: DetailedTestResult[];
-  summary: TestSuiteSummary;
-  startTime: Date;
-  endTime?: Date;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    successRate: number;
+    totalDuration: number;
+    averageDuration: number;
+  };
+  startTime: number;
+  endTime?: number;
 }
 
-export const createTestSuite = (name: string): EnhancedTestSuite => ({
-  name,
-  results: [],
-  summary: {
-    total: 0,
-    passed: 0,
-    failed: 0,
-    successRate: 0,
-    totalDuration: 0,
-    averageDuration: 0
-  },
-  startTime: new Date()
-});
-
-export const calculateSummary = (results: DetailedTestResult[]): TestSuiteSummary => {
-  const total = results.length;
-  const passed = results.filter(r => r.success).length;
-  const failed = total - passed;
-  const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
-  
-  return {
-    total,
-    passed,
-    failed,
-    successRate: total > 0 ? (passed / total) * 100 : 0,
-    totalDuration,
-    averageDuration: total > 0 ? totalDuration / total : 0
-  };
-};
-
 export class EnhancedTester {
-  protected testSuite: EnhancedTestSuite;
   protected results: DetailedTestResult[] = [];
+  protected startTime: number = 0;
+  protected suiteName: string;
 
   constructor(suiteName: string) {
-    this.testSuite = createTestSuite(suiteName);
+    this.startTime = Date.now();
+    this.suiteName = suiteName;
   }
 
   async runTest(name: string, testFn: () => Promise<any>): Promise<DetailedTestResult> {
-    const startTime = Date.now();
+    const start = Date.now();
     
     try {
       console.log(`🧪 Running test: ${name}`);
       const data = await testFn();
-      const duration = Date.now() - startTime;
+      const duration = Date.now() - start;
       
       const result: DetailedTestResult = {
         name,
@@ -86,39 +59,108 @@ export class EnhancedTester {
       };
       
       this.results.push(result);
-      this.testSuite.results = this.results;
       console.log(`✅ ${name} - PASSED (${duration}ms)`);
       return result;
     } catch (error) {
-      const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const duration = Date.now() - start;
+      
+      // Enhanced error analysis
+      let errorType: DetailedTestResult['errorType'] = 'UNKNOWN_ERROR';
+      let errorDetails: DetailedTestResult['errorDetails'] = {};
+      
+      if (error instanceof Error) {
+        errorDetails.errorMessage = error.message;
+        errorDetails.stackTrace = error.stack;
+        
+        // Classify error types
+        if (error.message.includes('fetch') || error.message.includes('network')) {
+          errorType = 'API_ERROR';
+        } else if (error.message.includes('access') || error.message.includes('permission')) {
+          errorType = 'DATA_ERROR';
+        } else if (error.message.includes('validation') || error.message.includes('invalid')) {
+          errorType = 'VALIDATION_ERROR';
+        }
+      }
       
       const result: DetailedTestResult = {
         name,
         success: false,
-        message: errorMessage,
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
         duration,
-        errorType: 'SYSTEM_ERROR',
-        errorDetails: {
-          errorMessage,
-          stackTrace: error instanceof Error ? error.stack : undefined
-        }
+        errorType,
+        errorDetails
       };
       
       this.results.push(result);
-      this.testSuite.results = this.results;
       console.error(`❌ ${name} - FAILED (${duration}ms):`, error);
       return result;
     }
   }
 
-  getSummary(): EnhancedTestSuite {
-    this.testSuite.summary = calculateSummary(this.results);
-    this.testSuite.endTime = new Date();
-    return this.testSuite;
+  async testApiEndpoint(
+    name: string, 
+    apiCall: () => Promise<any>,
+    validation?: (data: any) => boolean,
+    expectedStructure?: any
+  ): Promise<DetailedTestResult> {
+    return this.runTest(name, async () => {
+      const data = await apiCall();
+      
+      // Validate data structure if provided
+      if (expectedStructure && !this.validateDataStructure(data, expectedStructure)) {
+        throw new Error(`Data structure validation failed. Expected: ${JSON.stringify(expectedStructure)}, Actual: ${JSON.stringify(data)}`);
+      }
+      
+      // Custom validation if provided
+      if (validation && !validation(data)) {
+        throw new Error('Custom validation failed');
+      }
+      
+      return data;
+    });
   }
 
-  getResults(): DetailedTestResult[] {
-    return this.results;
+  private validateDataStructure(data: any, expected: any): boolean {
+    if (Array.isArray(expected)) {
+      return Array.isArray(data);
+    }
+    
+    if (typeof expected === 'object' && expected !== null) {
+      if (typeof data !== 'object' || data === null) return false;
+      
+      for (const key in expected) {
+        if (!(key in data)) return false;
+      }
+    }
+    
+    return true;
+  }
+
+  getSummary(): EnhancedTestSuite {
+    const endTime = Date.now();
+    const totalDuration = endTime - this.startTime;
+    const passed = this.results.filter(r => r.success).length;
+    const failed = this.results.length - passed;
+    
+    return {
+      name: this.suiteName,
+      results: this.results,
+      summary: {
+        total: this.results.length,
+        passed,
+        failed,
+        successRate: this.results.length > 0 ? (passed / this.results.length) * 100 : 0,
+        totalDuration,
+        averageDuration: this.results.length > 0 ? totalDuration / this.results.length : 0
+      },
+      startTime: this.startTime,
+      endTime
+    };
   }
 }
+
+export const delay = (ms: number): Promise<void> => 
+  new Promise(resolve => setTimeout(resolve, ms));
+
+export const generateTestId = (): string => 
+  `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

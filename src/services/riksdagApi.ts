@@ -1,16 +1,33 @@
-// Updated Riksdag API service to comply with technical guide
-const BASE_URL = 'https://data.riksdagen.se';
-
-// Add proper error handling for common API issues
-export class RiksdagApiError extends Error {
-  constructor(message: string, public status?: number) {
-    super(message);
-    this.name = 'RiksdagApiError';
-  }
+export interface RiksdagMember {
+  intressent_id: string;
+  hangar_guid: string;
+  tilltalsnamn: string;
+  efternamn: string;
+  parti: string;
+  valkrets: string;
+  status: string;
+  kon: string;
+  fodd_ar: string;
+  datum_fran?: string;
+  datum_tom?: string;
+  fodd_datum: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
 }
 
-// Add missing interface definitions
-export interface RiksdagMember {
+export interface RiksdagMemberAssignment {
+  organ_kod: string;
+  roll: string;
+  status: string;
+  from: string;
+  tom: string;
+  typ: string;
+  ordning?: string;
+  uppgift: string;
+}
+
+export interface RiksdagMemberDetails {
   intressent_id: string;
   tilltalsnamn: string;
   efternamn: string;
@@ -22,154 +39,207 @@ export interface RiksdagMember {
   bild_url_80?: string;
   bild_url_192?: string;
   bild_url_max?: string;
-  status?: string;
-  rdlstatus?: string;
+  assignments: RiksdagMemberAssignment[];
+  email: string;
 }
 
-export interface RiksdagMemberDetails extends RiksdagMember {
-  assignments: Array<{
-    organ_kod: string;
-    roll: string;
-    status: string;
-    from: string;
-    tom: string;
-    typ: string;
-    ordning?: string;
-    uppgift: string;
-  }>;
-  email?: string;
-  biography?: string;
-}
-
-const handleApiResponse = async (response: Response) => {
-  if (response.status === 413) {
-    throw new RiksdagApiError('För stort svar - begränsa tidsintervall eller dela upp anropet', 413);
-  }
-  if (response.status === 404) {
-    throw new RiksdagApiError('Data hittades inte - kontrollera ID eller om publicering ägt rum', 404);
-  }
-  if (response.status === 400) {
-    throw new RiksdagApiError('Ogiltiga parametrar - kontrollera datumformat eller värden', 400);
-  }
-  if (!response.ok) {
-    throw new RiksdagApiError(`API-fel: ${response.status}`, response.status);
-  }
-  return response;
-};
-
-export interface DocumentSearchParams {
-  searchTerm?: string;
-  doktyp?: string;
-  rm?: string;
-  fromDate?: string;
-  toDate?: string;
-  org?: string;
-  iid?: string;
-  bet?: string;
-  parti?: string[];
-  sort?: string;
-  sortorder?: 'asc' | 'desc';
-  p?: number; // Use 'p' for pagination instead of 'sz'
+export interface RiksdagPersonResponse {
+  personlista: {
+    person: (RiksdagMember & { 
+      personuppdrag?: { uppdrag: any[] }; 
+      personuppgift?: { uppgift: any[] } 
+    })[];
+    '@hits': string;
+  };
 }
 
 export interface RiksdagDocument {
   id: string;
   titel: string;
-  subtitel?: string;
-  undertitel?: string; // Add missing property
-  typ: string;
+  beteckning: string;
   datum: string;
-  dokument_url_html?: string;
-  dokument_url_text?: string;
-  summary?: string;
-  beteckning?: string;
-  organ?: string;
-  rm?: string;
-  hangar_id?: string;
-  title?: string; // Add alias for compatibility
-}
-
-export interface VoteSearchParams {
-  beteckning?: string;
-  rm?: string[];
-  punkt?: string;
-  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
-  party?: string[];
-  valkrets?: string;
-  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet';
-  pageSize?: number;
-  page?: number;
-}
-
-export interface RiksdagVote {
-  votering_id?: string;
+  typ: string;
   intressent_id?: string;
-  namn?: string;
-  parti?: string;
-  valkrets?: string;
-  beteckning?: string;
-  punkt?: string;
-  rost?: string;
-  rm?: string;
-  systemdatum?: string;
+  organ: string;
+  undertitel?: string;
   hangar_id?: string;
-  avser?: string;
-  dok_id?: string;
+  hangar_guid?: string;
+  dokument_url_text?: string;
+  dokument_url_html?: string;
+  dokumentstatus?: string;
+  publicerad?: string;
+  kalla?: string;
+  rm?: string;
+  tempbet?: string;
+  nummer?: string;
+  slutdatum?: string;
+  systemdatum?: string;
+  summary?: string;
+  notis?: string;
+  notisrubrik?: string;
+  subtyp?: string;
+  doktyp?: string;
+  score?: string;
 }
 
-export interface SpeechSearchParams {
-  searchTerm?: string;
-  rm?: string;
-  fromDate?: string;
-  toDate?: string;
-  org?: string;
-  iid?: string;
-  intressentId?: string; // Add missing property
-  parti?: string[];
-  party?: string; // Add alias
-  sort?: string;
-  sortorder?: 'asc' | 'desc';
-  p?: number;
-  anftyp?: string; // Add missing property
-  date?: string; // Add missing property
-  systemDate?: string; // Add missing property
-  pageSize?: number; // Add missing property
+export interface RiksdagDocumentResponse {
+  dokumentlista: {
+    dokument: RiksdagDocument[];
+    '@hits'?: string;
+  };
 }
 
 export interface RiksdagSpeech {
-  id?: string; // Add missing property
+  id: string;
   anforande_id: string;
-  dok_id: string;
-  rm: string;
+  intressent_id: string;
+  rel_dok_id: string;
+  namn: string;
+  parti: string;
+  anforandedatum: string;
+  anforandetext: string;
+  anforandetyp: string;
+  kammaraktivitet: string;
   anforande_nummer: string;
   talare: string;
-  parti: string;
-  anforande_text: string;
-  text?: string; // Add alias for compatibility
-  datum: string;
-  titel: string;
-  title?: string; // Add alias for compatibility
-  kammaraktivitet: string;
-  rel_dok_id?: string;
-  intressent_id?: string;
-  anforande_url_html?: string; // Add missing property
-  avsnittsrubrik?: string; // Add missing property
-  anforandedatum?: string; // Add missing property
-  replik?: string; // Add missing property
-  protokoll_url_www?: string; // Add missing property
-  date?: string; // Add alias for compatibility
+  rel_dok_titel?: string;
+  rel_dok_beteckning?: string;
+  rel_dok_datum?: string;
+  anf_klockslag?: string;
+  anf_sekunder?: string;
+  anforande_url_html?: string;
+  dok_id?: string;
+  dok_titel?: string;
+  protokoll_url_www?: string;
+  avsnittsrubrik?: string;
+  replik?: string;
 }
 
-// Committee mapping with correct codes
-export const COMMITTEE_MAPPING: { [code: string]: string } = {
+export interface RiksdagSpeechResponse {
+  anforandelista: {
+    anforande: RiksdagSpeech[];
+    '@hits'?: string;
+  };
+}
+
+export interface RiksdagVote {
+  votering_id: string;
+  hangar_id: string;
+  rm: string;
+  beteckning: string;
+  punkt: string;
+  votering: string;
+  namn: string;
+  parti: string;
+  valkrets: string;
+  rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  avser: string;
+  votering_url_xml: string;
+  dok_id: string;
+  systemdatum: string;
+  intressent_id: string;
+}
+
+export interface RiksdagVoteResponse {
+  voteringlista: {
+    votering: RiksdagVote[];
+    '@hits'?: string;
+  };
+}
+
+export interface RiksdagCalendarEvent {
+  id: string;
+  datum: string;
+  tid: string;
+  plats: string;
+  aktivitet: string;
+  typ: string;
+  organ: string;
+  summary: string;
+  description?: string;
+  status: string;
+  url?: string;
+  sekretess?: string;
+}
+
+export interface RiksdagCalendarResponse {
+  kalenderlista: {
+    kalender: RiksdagCalendarEvent[];
+    '@hits'?: string;
+  };
+}
+
+export interface DocumentSearchParams {
+  searchTerm?: string;
+  doktyp?: string;
+  fromDate?: string;
+  toDate?: string;
+  intressentId?: string;
+  org?: string;
+  parti?: string[];
+  rm?: string;
+  bet?: string;
+  tempbet?: string;
+  nr?: string;
+  ts?: string;
+  iid?: string;
+  talare?: string;
+  exakt?: string;
+  planering?: string;
+  facets?: string;
+  rapport?: string;
+  avd?: string;
+  webbtv?: string;
+  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag' | 'justeringsdag' | 'beredningsdag' | 'publiceringsdatum';
+  sortorder?: 'asc' | 'desc';
+  sz?: number;
+}
+
+export interface SpeechSearchParams {
+  rm?: string;
+  anftyp?: 'Nej' | '';
+  date?: string;
+  systemDate?: string;
+  party?: string;
+  intressentId?: string;
+  pageSize?: number;
+}
+
+export interface VoteSearchParams {
+  rm?: string[];
+  beteckning?: string;
+  punkt?: string;
+  party?: string[];
+  valkrets?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande' | '';
+  intressentId?: string;
+  pageSize?: number;
+  page?: number;
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet' | '';
+}
+
+export interface CalendarSearchParams {
+  org?: string[];
+  akt?: string[];
+  fromDate?: string;
+  toDate?: string;
+  pageSize?: number;
+}
+
+const BASE_URL = 'https://data.riksdagen.se';
+
+// Updated committee codes based on actual Riksdagen structure
+const VALID_COMMITTEE_CODES = [
+  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU', 'NU', 'SkU', 'SfU', 
+  'SoU', 'TU', 'UbU', 'UU', 'UFöU', 'EUN', 'SäU'
+];
+
+// Simplified committee mapping
+const COMMITTEE_MAPPING: { [key: string]: string } = {
   'AU': 'Arbetsmarknadsutskottet',
-  'BoU': 'Bostadsutskottet', 
-  'CU': 'Civilutskottet',
-  'EU': 'EES-utskottet',
-  'eun': 'EU-nämnden',
+  'CU': 'Civilutskottet', 
   'FiU': 'Finansutskottet',
   'FöU': 'Försvarsutskottet',
-  'JoU': 'Jordbruksutskottet',
   'JuU': 'Justitieutskottet',
   'KU': 'Konstitutionsutskottet',
   'KrU': 'Kulturutskottet',
@@ -181,599 +251,768 @@ export const COMMITTEE_MAPPING: { [code: string]: string } = {
   'TU': 'Trafikutskottet',
   'UbU': 'Utbildningsutskottet',
   'UU': 'Utrikesutskottet',
-  'UFöU': 'Sammansatta utrikes- och försvarsutskottet'
+  'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
+  'EUN': 'EU-nämnden',
+  'SäU': 'Säkerhetsutskottet'
 };
 
-export const isValidCommitteeCode = (code: string): boolean => {
-  return Object.keys(COMMITTEE_MAPPING).includes(code);
+// Utility function for generating standardized emails
+const generateEmail = (firstName: string, lastName: string): string => {
+  const cleanFirst = firstName.toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  const cleanLast = lastName.toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  return `${cleanFirst}.${cleanLast}@riksdagen.se`;
 };
 
-// Updated search documents function following the technical guide
-export const searchDocuments = async (params: DocumentSearchParams): Promise<{
-  documents: RiksdagDocument[];
-  totalCount: number;
-}> => {
-  console.log('🔍 Searching documents with params:', params);
+// Helper function to filter active assignments
+const filterActiveAssignments = (rawAssignments: any[]): RiksdagMemberAssignment[] => {
+  const currentDate = new Date();
   
-  const searchParams = new URLSearchParams();
-  
-  // Always use JSON format as recommended
-  searchParams.append('utformat', 'json');
-  
-  // Use proper pagination with 'p' parameter instead of 'sz'
-  if (params.p) {
-    searchParams.append('p', params.p.toString());
-  } else {
-    searchParams.append('p', '1');
-  }
-  
-  // Add other parameters following the guide
-  if (params.doktyp) searchParams.append('doktyp', params.doktyp);
-  if (params.rm) searchParams.append('rm', params.rm);
-  if (params.fromDate) searchParams.append('from', params.fromDate);
-  if (params.toDate) searchParams.append('tom', params.toDate);
-  if (params.org) searchParams.append('organ', params.org);
-  if (params.bet) searchParams.append('bet', params.bet);
-  if (params.sort) searchParams.append('sort', params.sort);
-  if (params.sortorder) searchParams.append('sortorder', params.sortorder);
-  
-  // Use 'sok' parameter for search terms and parties as recommended
-  if (params.searchTerm) {
-    searchParams.append('sok', params.searchTerm);
-  }
-  
-  // For parties, use 'sok' with party name instead of 'parti' parameter
-  if (params.parti && params.parti.length > 0) {
-    const partySearch = params.parti.join(' OR ');
-    if (params.searchTerm) {
-      searchParams.set('sok', `${params.searchTerm} AND (${partySearch})`);
-    } else {
-      searchParams.append('sok', partySearch);
-    }
-  }
-  
-  // For member ID, add to search
-  if (params.iid) {
-    searchParams.append('iid', params.iid);
-  }
+  return rawAssignments
+    .filter(assignment => {
+      if (!assignment) return false;
+      
+      const organKod = assignment.organ_kod || assignment.organ;
+      if (!organKod || !VALID_COMMITTEE_CODES.includes(organKod)) {
+        return false;
+      }
+      
+      // Check if assignment is current (no end date or end date in future)
+      if (assignment.tom && assignment.tom.trim() !== '') {
+        try {
+          const endDate = new Date(assignment.tom);
+          if (!isNaN(endDate.getTime()) && endDate <= currentDate) {
+            return false; // Assignment has ended
+          }
+        } catch (e) {
+          // If date parsing fails, assume it's current
+        }
+      }
+      
+      return true;
+    })
+    .map(assignment => {
+      const organKod = assignment.organ_kod || assignment.organ;
+      
+      return {
+        organ_kod: organKod,
+        roll: assignment.roll_kod || assignment.roll || 'ledamot',
+        status: assignment.status || 'aktiv',
+        from: assignment.from || assignment.datum_fran || '',
+        tom: assignment.tom || assignment.datum_tom || '',
+        typ: assignment.typ || 'uppdrag',
+        ordning: assignment.ordningsnummer || assignment.ordning,
+        uppgift: COMMITTEE_MAPPING[organKod] || organKod
+      };
+    });
+};
 
-  const url = `${BASE_URL}/dokumentlista/?${searchParams.toString()}`;
-  console.log('📡 API URL:', url);
-
+// NEW: Enhanced document text fetching
+export const fetchDocumentText = async (documentId: string, documentType?: string): Promise<string | null> => {
   try {
+    console.log(`Fetching document text for: ${documentId}, type: ${documentType}`);
+    
+    // Try different API endpoints based on document type
+    let url = `${BASE_URL}/dokument/${documentId}.txt`;
+    
     const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
     
-    if (!data.dokumentlista) {
-      console.warn('⚠️ No dokumentlista in response');
-      return { documents: [], totalCount: 0 };
+    if (!response.ok) {
+      // Try HTML endpoint if text fails
+      url = `${BASE_URL}/dokument/${documentId}.html`;
+      const htmlResponse = await fetch(url);
+      
+      if (!htmlResponse.ok) {
+        console.warn(`Failed to fetch document text for ${documentId}: ${response.status}`);
+        return null;
+      }
+      
+      const htmlText = await htmlResponse.text();
+      // Basic HTML stripping for analysis
+      const textContent = htmlText
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      console.log(`Fetched HTML document text for ${documentId}: ${textContent.length} characters`);
+      return textContent;
     }
-
-    let documents: any[] = [];
-    if (data.dokumentlista.dokument) {
-      documents = Array.isArray(data.dokumentlista.dokument) 
-        ? data.dokumentlista.dokument 
-        : [data.dokumentlista.dokument];
-    }
-
-    const mappedDocuments: RiksdagDocument[] = documents.map(doc => ({
-      id: doc.dok_id || doc.id,
-      titel: doc.titel || '',
-      subtitel: doc.subtitel,
-      undertitel: doc.undertitel || doc.subtitel, // Map both properties
-      typ: doc.doktyp || doc.typ,
-      datum: doc.datum || doc.publicerad || doc.systemdatum,
-      dokument_url_html: doc.dokument_url_html,
-      dokument_url_text: doc.dokument_url_text,
-      summary: doc.summary || doc.notis,
-      beteckning: doc.beteckning,
-      organ: doc.organ,
-      rm: doc.rm,
-      hangar_id: doc.hangar_id,
-      title: doc.titel || '' // Add alias
-    }));
-
-    const totalCount = parseInt(data.dokumentlista['@hits']) || documents.length;
     
-    console.log(`✅ Found ${mappedDocuments.length} documents (total: ${totalCount})`);
-    return { documents: mappedDocuments, totalCount };
+    const textContent = await response.text();
+    console.log(`Fetched document text for ${documentId}: ${textContent.length} characters`);
+    return textContent;
     
   } catch (error) {
-    console.error('❌ Error searching documents:', error);
-    if (error instanceof RiksdagApiError) {
-      throw error;
-    }
-    throw new RiksdagApiError('Kunde inte söka dokument');
-  }
-};
-
-// Add searchVotes function
-export const searchVotes = async (params: VoteSearchParams): Promise<{
-  votes: RiksdagVote[];
-  totalCount: number;
-}> => {
-  console.log('🗳️ Searching votes with params:', params);
-  
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  
-  if (params.page) {
-    searchParams.append('p', params.page.toString());
-  } else {
-    searchParams.append('p', '1');
-  }
-  
-  if (params.beteckning) searchParams.append('bet', params.beteckning);
-  if (params.punkt) searchParams.append('punkt', params.punkt);
-  if (params.rost) searchParams.append('rost', params.rost);
-  if (params.valkrets) searchParams.append('valkrets', params.valkrets);
-  if (params.gruppering) searchParams.append('gruppering', params.gruppering);
-  
-  if (params.rm && params.rm.length > 0) {
-    params.rm.forEach(rm => searchParams.append('rm', rm));
-  }
-  
-  if (params.party && params.party.length > 0) {
-    params.party.forEach(party => searchParams.append('parti', party));
-  }
-
-  const url = `${BASE_URL}/voteringlista/?${searchParams.toString()}`;
-  console.log('📡 Vote API URL:', url);
-
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    if (!data.voteringlista) {
-      console.warn('⚠️ No voteringlista in response');
-      return { votes: [], totalCount: 0 };
-    }
-
-    let votes: any[] = [];
-    if (data.voteringlista.votering) {
-      votes = Array.isArray(data.voteringlista.votering) 
-        ? data.voteringlista.votering 
-        : [data.voteringlista.votering];
-    }
-
-    const mappedVotes: RiksdagVote[] = votes.map(vote => ({
-      votering_id: vote.votering_id,
-      intressent_id: vote.intressent_id,
-      namn: vote.namn,
-      parti: vote.parti,
-      valkrets: vote.valkrets,
-      beteckning: vote.beteckning,
-      punkt: vote.punkt,
-      rost: vote.rost,
-      rm: vote.rm,
-      systemdatum: vote.systemdatum,
-      hangar_id: vote.hangar_id,
-      avser: vote.avser,
-      dok_id: vote.dok_id
-    }));
-
-    const totalCount = parseInt(data.voteringlista['@hits']) || votes.length;
-    
-    console.log(`✅ Found ${mappedVotes.length} votes (total: ${totalCount})`);
-    return { votes: mappedVotes, totalCount };
-    
-  } catch (error) {
-    console.error('❌ Error searching votes:', error);
-    if (error instanceof RiksdagApiError) {
-      throw error;
-    }
-    throw new RiksdagApiError('Kunde inte söka voteringar');
-  }
-};
-
-// Add searchSpeeches function
-export const searchSpeeches = async (params: SpeechSearchParams): Promise<{
-  speeches: RiksdagSpeech[];
-  totalCount: number;
-}> => {
-  console.log('🎤 Searching speeches with params:', params);
-  
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  
-  if (params.p) {
-    searchParams.append('p', params.p.toString());
-  } else {
-    searchParams.append('p', '1');
-  }
-  
-  if (params.rm) searchParams.append('rm', params.rm);
-  if (params.fromDate) searchParams.append('from', params.fromDate);
-  if (params.toDate) searchParams.append('tom', params.toDate);
-  if (params.org) searchParams.append('organ', params.org);
-  if (params.iid) searchParams.append('iid', params.iid);
-  if (params.intressentId) searchParams.append('iid', params.intressentId);
-  if (params.sort) searchParams.append('sort', params.sort);
-  if (params.sortorder) searchParams.append('sortorder', params.sortorder);
-  
-  if (params.searchTerm) {
-    searchParams.append('sok', params.searchTerm);
-  }
-  
-  if (params.parti && params.parti.length > 0) {
-    const partySearch = params.parti.join(' OR ');
-    if (params.searchTerm) {
-      searchParams.set('sok', `${params.searchTerm} AND (${partySearch})`);
-    } else {
-      searchParams.append('sok', partySearch);
-    }
-  }
-
-  const url = `${BASE_URL}/anforandelista/?${searchParams.toString()}`;
-  console.log('📡 Speech API URL:', url);
-
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    if (!data.anforandelista) {
-      console.warn('⚠️ No anforandelista in response');
-      return { speeches: [], totalCount: 0 };
-    }
-
-    let speeches: any[] = [];
-    if (data.anforandelista.anforande) {
-      speeches = Array.isArray(data.anforandelista.anforande) 
-        ? data.anforandelista.anforande 
-        : [data.anforandelista.anforande];
-    }
-
-    const mappedSpeeches: RiksdagSpeech[] = speeches.map(speech => ({
-      id: speech.anforande_id, // Add missing property
-      anforande_id: speech.anforande_id,
-      dok_id: speech.dok_id,
-      rm: speech.rm,
-      anforande_nummer: speech.anforande_nummer,
-      talare: speech.talare,
-      parti: speech.parti,
-      anforande_text: speech.anforande_text,
-      text: speech.anforande_text, // Add alias
-      datum: speech.datum,
-      titel: speech.titel,
-      title: speech.titel, // Add alias
-      kammaraktivitet: speech.kammaraktivitet,
-      rel_dok_id: speech.rel_dok_id,
-      intressent_id: speech.intressent_id,
-      anforande_url_html: speech.anforande_url_html, // Add missing property
-      avsnittsrubrik: speech.avsnittsrubrik, // Add missing property
-      anforandedatum: speech.anforandedatum || speech.datum, // Add missing property
-      replik: speech.replik, // Add missing property
-      protokoll_url_www: speech.protokoll_url_www, // Add missing property
-      date: speech.datum || speech.anforandedatum // Add alias
-    }));
-
-    const totalCount = parseInt(data.anforandelista['@hits']) || speeches.length;
-    
-    console.log(`✅ Found ${mappedSpeeches.length} speeches (total: ${totalCount})`);
-    return { speeches: mappedSpeeches, totalCount };
-    
-  } catch (error) {
-    console.error('❌ Error searching speeches:', error);
-    if (error instanceof RiksdagApiError) {
-      throw error;
-    }
-    throw new RiksdagApiError('Kunde inte söka anföranden');
-  }
-};
-
-// Add placeholder functions for document and speech text fetching
-export const fetchDocumentText = async (docId: string): Promise<string> => {
-  console.log(`📄 Fetching document text for ${docId}`);
-  
-  const url = `${BASE_URL}/dokument/${docId}?utformat=json`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    return data.dokument?.html || '';
-  } catch (error) {
-    console.error('❌ Error fetching document text:', error);
-    return '';
-  }
-};
-
-export const fetchSpeechText = async (speechId: string): Promise<string> => {
-  console.log(`🎤 Fetching speech text for ${speechId}`);
-  
-  const url = `${BASE_URL}/anforande/${speechId}?utformat=json`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    return data.anforande?.anforande_text || '';
-  } catch (error) {
-    console.error('❌ Error fetching speech text:', error);
-    return '';
-  }
-};
-
-export const fetchMemberContentForAnalysis = async (memberId: string, limit: number = 15): Promise<{
-  speeches: RiksdagSpeech[];
-  documents: RiksdagDocument[];
-}> => {
-  console.log(`👤 Fetching member content for analysis: ${memberId}`);
-  
-  try {
-    const [speechResult, docResult] = await Promise.all([
-      searchSpeeches({ iid: memberId, p: 1 }),
-      searchDocuments({ iid: memberId, p: 1 })
-    ]);
-    
-    return {
-      speeches: speechResult.speeches,
-      documents: docResult.documents
-    };
-  } catch (error) {
-    console.error('❌ Error fetching member content:', error);
-    return { speeches: [], documents: [] };
-  }
-};
-
-// Updated member fetching functions
-export const fetchMembers = async (
-  page: number = 1,
-  pageSize: number = 20,
-  status: 'current' | 'all' | 'former' = 'current'
-): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  searchParams.append('p', page.toString());
-  
-  // Use proper status filtering
-  if (status === 'current') {
-    searchParams.append('rdlstatus', 'tjanst');
-  } else if (status === 'former') {
-    searchParams.append('rdlstatus', 'fordom');
-  }
-  
-  const url = `${BASE_URL}/personlista/?${searchParams.toString()}`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    if (!data.personlista || !data.personlista.person) {
-      return { members: [], totalCount: 0 };
-    }
-
-    const persons = Array.isArray(data.personlista.person) 
-      ? data.personlista.person 
-      : [data.personlista.person];
-
-    const totalCount = parseInt(data.personlista['@hits']) || persons.length;
-    
-    return { members: persons, totalCount };
-  } catch (error) {
-    console.error('❌ Error fetching members:', error);
-    if (error instanceof RiksdagApiError) {
-      throw error;
-    }
-    throw new RiksdagApiError('Kunde inte hämta ledamöter');
-  }
-};
-
-export const fetchMemberDetails = async (memberId: string): Promise<RiksdagMemberDetails | null> => {
-  if (!memberId) return null;
-  
-  // Use correct endpoint structure as per guide
-  const url = `${BASE_URL}/person/${memberId}?utformat=json`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    if (!data.person) {
-      return null;
-    }
-
-    const person = data.person;
-    const assignments = person.personuppdrag?.uppdrag || [];
-    
-    return {
-      ...person,
-      assignments: Array.isArray(assignments) ? assignments : [assignments]
-    };
-  } catch (error) {
-    console.error(`❌ Error fetching member details for ${memberId}:`, error);
+    console.error(`Error fetching document text for ${documentId}:`, error);
     return null;
   }
 };
 
-export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
-  if (!query || query.length < 2) return [];
-  
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  searchParams.append('sok', query); // Use 'sok' parameter as recommended
-  searchParams.append('p', '1');
-  
-  const url = `${BASE_URL}/personlista/?${searchParams.toString()}`;
-  
+// NEW: Enhanced speech text fetching
+export const fetchSpeechText = async (speechId: string): Promise<string | null> => {
   try {
+    console.log(`Fetching speech text for: ${speechId}`);
+    
+    const url = `${BASE_URL}/anforandelista/?utformat=json&anforande_id=${speechId}`;
     const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
     
-    if (!data.personlista?.person) return [];
+    if (!response.ok) {
+      console.warn(`Failed to fetch speech for ${speechId}: ${response.status}`);
+      return null;
+    }
     
-    const persons = Array.isArray(data.personlista.person) 
-      ? data.personlista.person 
-      : [data.personlista.person];
+    const data: RiksdagSpeechResponse = await response.json();
+    const speech = data.anforandelista?.anforande?.[0];
     
-    return persons.slice(0, 10); // Limit suggestions
+    if (!speech || !speech.anforandetext) {
+      console.warn(`No speech text found for ${speechId}`);
+      return null;
+    }
+    
+    console.log(`Fetched speech text for ${speechId}: ${speech.anforandetext.length} characters`);
+    return speech.anforandetext;
+    
   } catch (error) {
-    console.error('❌ Error fetching member suggestions:', error);
-    return [];
+    console.error(`Error fetching speech text for ${speechId}:`, error);
+    return null;
   }
 };
 
-export const fetchMemberDocuments = async (memberId: string): Promise<any[]> => {
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  searchParams.append('iid', memberId);
-  searchParams.append('p', '1');
+// NEW: Batch document text fetching
+export const fetchDocumentTextBatch = async (
+  documents: { id: string; type?: string }[]
+): Promise<Map<string, string>> => {
+  const textMap = new Map<string, string>();
+  const batchSize = 3; // Conservative batch size to avoid rate limiting
   
-  const url = `${BASE_URL}/dokumentlista/?${searchParams.toString()}`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
+  for (let i = 0; i < documents.length; i += batchSize) {
+    const batch = documents.slice(i, i + batchSize);
+    console.log(`Processing document batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(documents.length/batchSize)}`);
     
-    if (!data.dokumentlista?.dokument) return [];
-    
-    const documents = Array.isArray(data.dokumentlista.dokument) 
-      ? data.dokumentlista.dokument 
-      : [data.dokumentlista.dokument];
-    
-    return documents;
-  } catch (error) {
-    console.error(`❌ Error fetching documents for member ${memberId}:`, error);
-    return [];
-  }
-};
-
-export const fetchMemberSpeeches = async (memberId: string): Promise<any[]> => {
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  searchParams.append('iid', memberId);
-  searchParams.append('p', '1');
-  
-  const url = `${BASE_URL}/anforandelista/?${searchParams.toString()}`;
-  
-  try {
-    const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
-    
-    if (!data.anforandelista?.anforande) return [];
-    
-    const speeches = Array.isArray(data.anforandelista.anforande) 
-      ? data.anforandelista.anforande 
-      : [data.anforandelista.anforande];
-    
-    return speeches;
-  } catch (error) {
-    console.error(`❌ Error fetching speeches for member ${memberId}:`, error);
-    return [];
-  }
-};
-
-export const fetchMemberCalendarEvents = async (memberId: string): Promise<any[]> => {
-  // Note: Calendar events are not member-specific in the API
-  // This is a placeholder that could be enhanced with filtering
-  return [];
-};
-
-export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
-  const allMembers: RiksdagMember[] = [];
-  let page = 1;
-  let hasMore = true;
-  
-  while (hasMore) {
-    try {
-      const result = await fetchMembers(page, 50, 'current');
-      allMembers.push(...result.members);
-      
-      // Check if we have more pages
-      hasMore = result.members.length === 50 && allMembers.length < result.totalCount;
-      page++;
-      
-      // Add delay to avoid overwhelming the API
-      if (hasMore) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+    const batchPromises = batch.map(async (doc) => {
+      const text = await fetchDocumentText(doc.id, doc.type);
+      if (text && text.length > 100) { // Only include documents with substantial text
+        textMap.set(doc.id, text);
       }
-    } catch (error) {
-      console.error(`❌ Error fetching page ${page}:`, error);
-      hasMore = false;
+      return { id: doc.id, text };
+    });
+    
+    await Promise.allSettled(batchPromises);
+    
+    // Add delay between batches to be respectful to the API
+    if (i + batchSize < documents.length) {
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
   }
   
-  return allMembers;
+  console.log(`Batch fetching completed: ${textMap.size}/${documents.length} documents with text`);
+  return textMap;
 };
 
+// NEW: Enhanced member content fetching for language analysis
+export const fetchMemberContentForAnalysis = async (
+  memberId: string,
+  limit: number = 25
+): Promise<{
+  speeches: Array<{ id: string; text: string; title: string; date: string }>;
+  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
+}> => {
+  try {
+    console.log(`Fetching content for language analysis: member ${memberId}`);
+    
+    // Fetch recent speeches with better parameters
+    const { speeches } = await searchSpeeches({
+      intressentId: memberId,
+      pageSize: Math.min(limit, 50)
+    });
+    
+    // Fetch recent documents (written questions, motions, etc.)
+    const { documents } = await searchDocuments({
+      intressentId: memberId,
+      sz: Math.min(limit, 50),
+      sort: 'datum',
+      sortorder: 'desc'
+    });
+    
+    // Filter and fetch text for speeches
+    const speechResults: Array<{ id: string; text: string; title: string; date: string }> = [];
+    for (const speech of speeches.slice(0, Math.floor(limit * 0.6))) {
+      if (speech.anforandetext && speech.anforandetext.length > 200) {
+        speechResults.push({
+          id: speech.anforande_id,
+          text: speech.anforandetext,
+          title: speech.rel_dok_titel || 'Anförande',
+          date: speech.anforandedatum
+        });
+      }
+    }
+    
+    // Filter and fetch text for documents
+    const documentResults: Array<{ id: string; text: string; title: string; date: string; type: string }> = [];
+    const relevantDocs = documents
+      .filter(doc => ['fr', 'mot', 'ip'].includes(doc.typ?.toLowerCase() || ''))
+      .slice(0, Math.floor(limit * 0.4));
+    
+    for (const doc of relevantDocs) {
+      const text = await fetchDocumentText(doc.id, doc.typ);
+      if (text && text.length > 150) {
+        documentResults.push({
+          id: doc.id,
+          text,
+          title: doc.titel || 'Dokument',
+          date: doc.datum,
+          type: doc.typ || 'unknown'
+        });
+      }
+    }
+    
+    console.log(`Fetched content for ${memberId}: ${speechResults.length} speeches, ${documentResults.length} documents`);
+    
+    return {
+      speeches: speechResults,
+      documents: documentResults
+    };
+    
+  } catch (error) {
+    console.error(`Error fetching member content for analysis:`, error);
+    return { speeches: [], documents: [] };
+  }
+};
+
+export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
+  if (query.length < 1) return [];
+  
+  const url = `${BASE_URL}/personlista/?fnamn=${encodeURIComponent(query)}&utformat=json`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Kunde inte hämta ledamöter');
+    }
+    const data: RiksdagPersonResponse = await response.json();
+    return data.personlista?.person || [];
+  } catch (error) {
+    console.error('Error fetching member suggestions:', error);
+    return [];
+  }
+};
+
+// Simplified and more reliable fetchMemberDetails
+export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagMemberDetails | null> => {
+  try {
+    console.log(`Fetching member details for: ${intressentId}`);
+    const url = `${BASE_URL}/personlista/?iid=${intressentId}&utformat=json`;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch member details for ${intressentId}: ${response.status}`);
+      return null;
+    }
+    
+    const data: RiksdagPersonResponse = await response.json();
+    const person = data.personlista?.person?.[0];
+    
+    if (!person) {
+      console.log(`No person found for intressent_id: ${intressentId}`);
+      return null;
+    }
+
+    // Extract assignments with more robust parsing
+    let rawAssignments: any[] = [];
+    
+    if (person.personuppdrag?.uppdrag) {
+      rawAssignments = Array.isArray(person.personuppdrag.uppdrag) 
+        ? person.personuppdrag.uppdrag 
+        : [person.personuppdrag.uppdrag];
+    }
+    
+    console.log(`Raw assignments count for ${intressentId}:`, rawAssignments.length);
+    
+    const assignments = filterActiveAssignments(rawAssignments);
+    console.log(`Processed ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
+
+    return {
+      intressent_id: person.intressent_id,
+      tilltalsnamn: person.tilltalsnamn, // Fixed typo here
+      efternamn: person.efternamn,
+      parti: person.parti,
+      valkrets: person.valkrets,
+      kon: person.kon,
+      fodd_ar: person.fodd_ar,
+      bild_url_80: person.bild_url_80,
+      bild_url_192: person.bild_url_192,
+      bild_url_max: person.bild_url_max,
+      assignments,
+      email: generateEmail(person.tilltalsnamn, person.efternamn)
+    };
+  } catch (error) {
+    console.error(`Error fetching member details for ${intressentId}:`, error);
+    return null;
+  }
+};
+
+// Optimized committee member fetching
 export const fetchMembersWithCommittees = async (
   page: number = 1,
   pageSize: number = 20,
   status: 'current' | 'all' | 'former' = 'current',
   committee?: string
 ): Promise<{ members: RiksdagMemberDetails[]; totalCount: number }> => {
-  const searchParams = new URLSearchParams();
-  searchParams.append('utformat', 'json');
-  searchParams.append('p', page.toString());
-  
-  if (status === 'current') {
-    searchParams.append('rdlstatus', 'tjanst');
+  try {
+    console.log(`Fetching members with committees: page=${page}, status=${status}, committee=${committee}`);
+    
+    // Fetch all members first
+    const membersResult = await fetchMembers(1, 1000, status); // Get a large batch
+    
+    console.log(`Initial fetch returned ${membersResult.members.length} members`);
+    
+    // Batch fetch member details with improved error handling
+    const batchSize = 5; // Reduced to avoid rate limiting
+    const detailedMembers: RiksdagMemberDetails[] = [];
+    
+    for (let i = 0; i < membersResult.members.length; i += batchSize) {
+      const batch = membersResult.members.slice(i, i + batchSize);
+      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(membersResult.members.length/batchSize)}`);
+      
+      const batchDetails = await Promise.allSettled(
+        batch.map(member => fetchMemberDetails(member.intressent_id))
+      );
+      
+      // Process results and handle errors gracefully
+      batchDetails.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          detailedMembers.push(result.value);
+        } else {
+          const member = batch[index];
+          console.warn(`Failed to fetch details for ${member.tilltalsnamn} ${member.efternamn}`);
+          // Create a fallback member object
+          detailedMembers.push({
+            intressent_id: member.intressent_id,
+            tilltalsnamn: member.tilltalsnamn,
+            efternamn: member.efternamn,
+            parti: member.parti,
+            valkrets: member.valkrets,
+            kon: member.kon,
+            fodd_ar: member.fodd_ar,
+            bild_url_80: member.bild_url_80,
+            bild_url_192: member.bild_url_192,
+            bild_url_max: member.bild_url_max,
+            assignments: [],
+            email: generateEmail(member.tilltalsnamn, member.efternamn)
+          });
+        }
+      });
+      
+      // Add delay between batches to avoid overwhelming the API
+      if (i + batchSize < membersResult.members.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    // Filter by committee if specified
+    let filteredMembers = detailedMembers;
+    if (committee && committee !== 'all' && VALID_COMMITTEE_CODES.includes(committee)) {
+      console.log(`Filtering by committee: ${committee}`);
+      filteredMembers = detailedMembers.filter(member => 
+        member.assignments.some(assignment => assignment.organ_kod === committee)
+      );
+      console.log(`After committee filtering: ${filteredMembers.length} members`);
+    }
+    
+    // Apply pagination
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
+    
+    return {
+      members: paginatedMembers,
+      totalCount: filteredMembers.length
+    };
+  } catch (error) {
+    console.error('Error fetching members with committees:', error);
+    return { members: [], totalCount: 0 };
   }
+};
+
+// Use hardcoded committees instead of API endpoint that returns 404
+export const fetchAllCommittees = async (): Promise<string[]> => {
+  const committees = Object.values(COMMITTEE_MAPPING);
+  console.log(`Returning ${committees.length} committees`);
+  return committees;
+};
+
+export const fetchMembers = async (
+  page: number = 1,
+  pageSize: number = 20,
+  status: 'current' | 'all' | 'former' = 'current'
+): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
+  let url = `${BASE_URL}/personlista/?utformat=json`;
   
-  if (committee) {
-    searchParams.append('organ', committee);
-  }
-  
-  const url = `${BASE_URL}/personlista/?${searchParams.toString()}`;
+  console.log(`Fetching members with status: ${status}`);
   
   try {
     const response = await fetch(url);
-    await handleApiResponse(response);
-    const data = await response.json();
+    if (!response.ok) {
+      throw new Error('Kunde inte hämta ledamöter');
+    }
+    const data: RiksdagPersonResponse = await response.json();
+    let allMembers = data.personlista?.person || [];
     
-    if (!data.personlista?.person) {
-      return { members: [], totalCount: 0 };
+    console.log(`Initial fetch returned ${allMembers.length} members`);
+    
+    const currentDate = new Date();
+    
+    if (status === 'current') {
+      allMembers = allMembers.filter(member => {
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return true;
+        }
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate > currentDate;
+        } catch {
+          return true;
+        }
+      });
+    } else if (status === 'former') {
+      allMembers = allMembers.filter(member => {
+        if (!member.datum_tom || member.datum_tom.trim() === '') {
+          return false;
+        }
+        try {
+          const endDate = new Date(member.datum_tom);
+          return endDate <= currentDate;
+        } catch {
+          return false;
+        }
+      });
     }
     
-    const persons = Array.isArray(data.personlista.person) 
-      ? data.personlista.person 
-      : [data.personlista.person];
+    console.log(`After filtering for ${status}: ${allMembers.length} members`);
     
-    // Fetch detailed info for each member
-    const detailedMembers = await Promise.all(
-      persons.map(async (person) => {
-        const details = await fetchMemberDetails(person.intressent_id);
-        return details || person;
-      })
-    );
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedMembers = allMembers.slice(startIndex, endIndex);
     
-    const totalCount = parseInt(data.personlista['@hits']) || persons.length;
+    console.log(`Returning page ${page}: ${paginatedMembers.length} members (${startIndex}-${endIndex})`);
     
-    return { members: detailedMembers, totalCount };
+    return {
+      members: paginatedMembers,
+      totalCount: allMembers.length
+    };
   } catch (error) {
-    console.error('❌ Error fetching members with committees:', error);
-    if (error instanceof RiksdagApiError) {
-      throw error;
-    }
-    throw new RiksdagApiError('Kunde inte hämta ledamöter');
+    console.error('Error fetching members:', error);
+    return { members: [], totalCount: 0 };
   }
 };
 
-export const fetchAllCommittees = async (): Promise<string[]> => {
-  return Object.keys(COMMITTEE_MAPPING);
-};
-
-export const getMemberCommitteeAssignments = async (memberId: string): Promise<string[]> => {
-  const details = await fetchMemberDetails(memberId);
-  if (!details?.assignments) return [];
+export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
+  const url = `${BASE_URL}/personlista/?utformat=json&rdlstatus=tjanstgorande`;
   
-  return details.assignments
-    .filter(assignment => assignment.typ === 'uppdrag' && !assignment.tom)
-    .map(assignment => assignment.organ_kod)
-    .filter(code => isValidCommitteeCode(code));
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Kunde inte hämta ledamöter');
+    }
+    const data: RiksdagPersonResponse = await response.json();
+    let members = data.personlista?.person || [];
+    
+    const currentDate = new Date();
+    members = members.filter(member => {
+      if (!member.datum_tom || member.datum_tom.trim() === '') {
+        return true;
+      }
+      const endDate = new Date(member.datum_tom);
+      return endDate > currentDate;
+    });
+    
+    return members;
+  } catch (error) {
+    console.error('Error fetching all members:', error);
+    return [];
+  }
 };
 
-// Helper function to get committee name
-export const getCommitteeName = (code: string): string => {
-  return COMMITTEE_MAPPING[code] || code;
+export const searchDocuments = async (params: DocumentSearchParams): Promise<{documents: RiksdagDocument[], totalCount: number}> => {
+  let url = `${BASE_URL}/dokumentlista/?utformat=json`;
+  
+  // Use 10 results per page for pagination
+  if (params.sz) {
+    url += `&sz=${params.sz}`;
+  } else {
+    url += '&sz=10';
+  }
+  
+  if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
+  if (params.doktyp) url += `&doktyp=${params.doktyp}`;
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.org) url += `&org=${params.org}`;
+  if (params.rm) url += `&rm=${params.rm}`;
+  if (params.bet) url += `&bet=${encodeURIComponent(params.bet)}`;
+  if (params.tempbet) url += `&tempbet=${params.tempbet}`;
+  if (params.nr) url += `&nr=${params.nr}`;
+  if (params.ts) url += `&ts=${params.ts}`;
+  if (params.iid) url += `&iid=${params.iid}`;
+  if (params.talare) url += `&talare=${encodeURIComponent(params.talare)}`;
+  if (params.exakt) url += `&exakt=${params.exakt}`;
+  if (params.planering) url += `&planering=${params.planering}`;
+  if (params.facets) url += `&facets=${params.facets}`;
+  if (params.rapport) url += `&rapport=${params.rapport}`;
+  if (params.avd) url += `&avd=${params.avd}`;
+  if (params.webbtv) url += `&webbtv=${params.webbtv}`;
+  
+  if (params.parti && params.parti.length > 0) {
+    params.parti.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  if (params.sort) url += `&sort=${params.sort}`;
+  if (params.sortorder) url += `&sortorder=${params.sortorder}`;
+  
+  console.log('API URL:', url);
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagDocumentResponse = await response.json();
+    const documents = data.dokumentlista?.dokument || [];
+    const totalCount = parseInt(data.dokumentlista?.['@hits'] || '0');
+    
+    console.log('API Response:', { documents: documents.length, totalCount });
+    
+    return { documents, totalCount };
+  } catch (error) {
+    console.error('Error searching documents:', error);
+    throw error;
+  }
 };
+
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speeches: RiksdagSpeech[], totalCount: number}> => {
+  let url = `${BASE_URL}/anforandelista/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.rm) url += `&rm=${encodeURIComponent(params.rm)}`;
+  if (params.anftyp) url += `&anftyp=${params.anftyp}`;
+  if (params.date) url += `&d=${params.date}`;
+  if (params.systemDate) url += `&ts=${params.systemDate}`;
+  if (params.party) url += `&parti=${params.party}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagSpeechResponse = await response.json();
+    const speeches = data.anforandelista?.anforande || [];
+    const totalCount = parseInt(data.anforandelista?.['@hits'] || '0');
+    
+    return { speeches, totalCount };
+  } catch (error) {
+    console.error('Error searching speeches:', error);
+    throw error;
+  }
+};
+
+export const searchVotes = async (params: VoteSearchParams): Promise<{votes: RiksdagVote[], totalCount: number}> => {
+  let url = `${BASE_URL}/voteringlista/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.rm && params.rm.length > 0) {
+    params.rm.forEach(rm => {
+      url += `&rm=${encodeURIComponent(rm)}`;
+    });
+  }
+  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
+  if (params.punkt) url += `&punkt=${params.punkt}`;
+  if (params.valkrets) url += `&valkrets=${encodeURIComponent(params.valkrets)}`;
+  if (params.rost) url += `&rost=${params.rost}`;
+  if (params.intressentId) url += `&iid=${params.intressentId}`;
+  if (params.gruppering) url += `&gruppering=${params.gruppering}`;
+  
+  if (params.party && params.party.length > 0) {
+    params.party.forEach(p => {
+      url += `&parti=${p}`;
+    });
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    const data: RiksdagVoteResponse = await response.json();
+    const votes = data.voteringlista?.votering || [];
+    const totalCount = parseInt(data.voteringlista?.['@hits'] || '0');
+    
+    return { votes, totalCount };
+  } catch (error) {
+    console.error('Error searching votes:', error);
+    throw error;
+  }
+};
+
+export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<{events: RiksdagCalendarEvent[], totalCount: number}> => {
+  let url = `${BASE_URL}/kalender/?utformat=json`;
+  
+  if (params.pageSize) {
+    url += `&sz=${params.pageSize}`;
+  } else {
+    url += '&sz=50';
+  }
+  
+  if (params.org && params.org.length > 0) {
+    params.org.forEach(org => {
+      url += `&org=${encodeURIComponent(org)}`;
+    });
+  }
+  
+  if (params.akt && params.akt.length > 0) {
+    params.akt.forEach(akt => {
+      url += `&akt=${encodeURIComponent(akt)}`;
+    });
+  }
+  
+  if (params.fromDate) url += `&from=${params.fromDate}`;
+  if (params.toDate) url += `&tom=${params.toDate}`;
+  
+  try {
+    console.log(`Fetching calendar events from: ${url}`);
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      console.error(`Calendar API error: ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Calendar API did not return JSON:', contentType);
+      console.log('Response text preview:', await response.text().then(text => text.substring(0, 200)));
+      return { events: [], totalCount: 0 };
+    }
+    
+    const data: RiksdagCalendarResponse = await response.json();
+    const events = data.kalenderlista?.kalender || [];
+    const totalCount = parseInt(data.kalenderlista?.['@hits'] || '0');
+    
+    console.log(`Calendar events fetched: ${events.length}, total: ${totalCount}`);
+    return { events, totalCount };
+  } catch (error) {
+    console.error('Error searching calendar events:', error);
+    // Return empty result instead of throwing to prevent blocking member loading
+    return { events: [], totalCount: 0 };
+  }
+};
+
+export const fetchMemberDocuments = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagDocument[]> => {
+  try {
+    console.log(`Fetching documents for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
+    
+    const { documents } = await searchDocuments({
+      iid: intressentId,
+      sz: pageSize,
+      sort: 'datum',
+      sortorder: 'desc'
+    });
+    
+    console.log(`Found ${documents.length} documents for member ${intressentId}`);
+    
+    const enrichedDocuments = documents.map(doc => ({
+      ...doc,
+      intressent_id: intressentId
+    }));
+    
+    return enrichedDocuments;
+  } catch (error) {
+    console.error(`Error fetching documents for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberSpeeches = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagSpeech[]> => {
+  try {
+    console.log(`Fetching speeches for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
+    
+    const { speeches } = await searchSpeeches({
+      intressentId,
+      pageSize
+    });
+    
+    console.log(`Found ${speeches.length} speeches for member ${intressentId}`);
+    return speeches;
+  } catch (error) {
+    console.error(`Error fetching speeches for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVote[]> => {
+  try {
+    console.log(`Fetching votes for member: ${intressentId}`);
+    
+    const { votes } = await searchVotes({
+      intressentId,
+      pageSize: 100
+    });
+    
+    console.log(`Found ${votes.length} votes for member ${intressentId}`);
+    return votes;
+  } catch (error) {
+    console.error(`Error fetching votes for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
+  try {
+    console.log(`Fetching calendar events for member: ${intressentId}`);
+    // Calendar events in Riksdag API are not member-specific, so return empty array
+    // The API doesn't support filtering by member ID for calendar events
+    return [];
+  } catch (error) {
+    console.error(`Error fetching calendar events for member ${intressentId}:`, error);
+    return [];
+  }
+};
+
+// New utility function to get committee assignments for a member
+export const getMemberCommitteeAssignments = async (intressentId: string): Promise<RiksdagMemberAssignment[]> => {
+  const memberDetails = await fetchMemberDetails(intressentId);
+  if (!memberDetails) {
+    return [];
+  }
+  
+  // Return committee assignments, already filtered and validated
+  return memberDetails.assignments;
+};
+
+// Updated utility function to validate committee codes
+export const isValidCommitteeCode = (code: string): boolean => {
+  return VALID_COMMITTEE_CODES.includes(code);
+};
+
+// Export committee utilities
+export { COMMITTEE_MAPPING, VALID_COMMITTEE_CODES };

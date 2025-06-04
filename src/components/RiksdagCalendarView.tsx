@@ -8,9 +8,7 @@ import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin } from "lucide-react
 import { 
   CachedCalendarData, 
   formatEventDate, 
-  formatEventTime,
-  getEventTitle,
-  getEventTypeDescription
+  formatEventTime 
 } from '../services/cachedCalendarApi';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, startOfWeek, endOfWeek, addWeeks, subWeeks, parseISO, isValid } from 'date-fns';
 import { sv } from 'date-fns/locale';
@@ -152,9 +150,9 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
                   <div
                     key={event.id || index}
                     className={`text-xs p-1 rounded truncate ${getEventColor(event)}`}
-                    title={getEventTitle(event)}
+                    title={event.summary || event.aktivitet || 'Händelse'}
                   >
-                    {getEventTitle(event)}
+                    {event.summary || event.aktivitet || 'Händelse'}
                   </div>
                 ))}
                 {dayEvents.length > 3 && (
@@ -191,7 +189,7 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
                     key={event.id || index}
                     className={`text-xs p-2 rounded ${getEventColor(event)}`}
                   >
-                    <div className="font-medium truncate">{getEventTitle(event)}</div>
+                    <div className="font-medium truncate">{event.summary || event.aktivitet || 'Händelse'}</div>
                     {event.tid && <div className="opacity-75">{formatEventTime(event.tid)}</div>}
                   </div>
                 ))}
@@ -221,12 +219,10 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
               <Card key={event.id || index}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{getEventTitle(event)}</CardTitle>
+                    <CardTitle className="text-base">{event.summary || event.aktivitet || 'Händelse'}</CardTitle>
                     <div className="flex space-x-2">
                       {event.organ && <Badge className={getEventColor(event)}>{event.organ}</Badge>}
-                      {getEventTypeDescription(event) && (
-                        <Badge variant="secondary">{getEventTypeDescription(event)}</Badge>
-                      )}
+                      {event.typ && <Badge variant="secondary">{event.typ}</Badge>}
                     </div>
                   </div>
                 </CardHeader>
