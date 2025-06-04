@@ -195,7 +195,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
                     {!member.is_active && (
                       <Badge variant="outline" className="text-xs">Inaktiv</Badge>
                     )}
-                    <Rss className="w-3 h-3 text-orange-500" title="RSS-nyheter tillgängliga" />
+                    <Rss className="w-3 h-3 text-orange-500" />
                   </div>
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -272,7 +272,7 @@ const EnhancedMemberGrid: React.FC<EnhancedMemberGridProps> = ({
               
               <div className="absolute -bottom-1 -right-1 flex space-x-1">
                 <Camera className="w-4 h-4 text-blue-500 bg-white rounded-full p-0.5" />
-                <Rss className="w-4 h-4 text-orange-500 bg-white rounded-full p-0.5" title="RSS-nyheter" />
+                <Rss className="w-4 h-4 text-orange-500 bg-white rounded-full p-0.5" />
               </div>
               
               {onToggleFavorite && (
