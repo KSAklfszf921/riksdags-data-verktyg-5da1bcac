@@ -420,25 +420,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ,
-      api_rate_limits: {
-        Row: {
-          key: string
-          count: number
-          reset_time: number
-        }
-        Insert: {
-          key: string
-          count?: number
-          reset_time?: number
-        }
-        Update: {
-          key?: string
-          count?: number
-          reset_time?: number
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -452,7 +433,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: {
-        Args: { _user_id?: string }
+        Args: Record<PropertyKey, never> | { _user_id?: string }
         Returns: boolean
       }
       migrate_to_enhanced_member_profiles: {
