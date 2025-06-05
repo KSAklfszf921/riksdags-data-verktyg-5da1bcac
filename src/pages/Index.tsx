@@ -1,9 +1,13 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Vote, Search, MessageSquare, BarChart3, Trophy, ArrowRight, Database, Eye, TrendingUp, FileText, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import MemberAutocomplete from "../components/MemberAutocomplete";
+import type { RiksdagMember } from "../services/riksdagApi";
 const Index = () => {
   const navigate = useNavigate();
+  const [selectedMember, setSelectedMember] = React.useState<RiksdagMember | null>(null);
   const analysisTools = [{
     title: "Ledamöter",
     description: "Utforska riksdagsledamöter",
@@ -57,6 +61,13 @@ const Index = () => {
   const handleToolClick = (href: string) => {
     navigate(href);
   };
+
+  const handleMemberSelect = (member: RiksdagMember | null) => {
+    setSelectedMember(member);
+    if (member) {
+      navigate(`/ledamoter?id=${member.intressent_id}`);
+    }
+  };
   const handleGetStarted = () => {
     // Scroll to analysis tools section
     const toolsSection = document.getElementById('analysis-tools');
@@ -92,7 +103,9 @@ const Index = () => {
                 Börja utforska
                 <ArrowRight className="ml-2 w-4 h-4" />
               </Button>
-              
+            </div>
+            <div className="max-w-md mx-auto mt-6">
+              <MemberAutocomplete onSelectMember={handleMemberSelect} placeholder="Sök ledamot..." />
             </div>
           </div>
         </div>

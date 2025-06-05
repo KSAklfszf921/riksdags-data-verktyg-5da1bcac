@@ -56,19 +56,9 @@ const ResponsiveHeader = () => {
       icon: Languages
     }, 
     {
-      name: 'Databashantering',
-      href: '/databashantering',
-      icon: Database
-    },
-    {
-      name: 'Testverktyg',
-      href: '/testverktyg',
+      name: 'Admin',
+      href: '/admin',
       icon: Wrench
-    },
-    {
-      name: 'Kalendertest',
-      href: '/calendar-test',
-      icon: TestTube
     }
   ];
 
