@@ -15,6 +15,7 @@ export interface RefreshResult {
   message: string;
   duration?: number;
   errors?: string[];
+  stats?: any;
 }
 
 type ValidTableName = 
@@ -87,68 +88,93 @@ export class DatabaseService {
     return Promise.all(statusPromises);
   }
 
-  static async refreshTable(tableName: ValidTableName): Promise<RefreshResult> {
+  static async refreshAllData(): Promise<RefreshResult> {
     try {
-      console.log(`Uppdaterar tabell: ${tableName}`);
+      console.log('Anropar fetch-comprehensive-data Edge Function...');
       
-      // This is a placeholder for actual refresh logic
-      // In a real implementation, this would trigger data sync from external APIs
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate work
-      
-      console.log(`Tabell ${tableName} uppdaterad`);
-      return { 
-        success: true, 
-        message: `Tabell ${tableName} uppdaterad framgångsrikt`
+      const { data, error } = await supabase.functions.invoke('fetch-comprehensive-data', {
+        body: { action: 'sync_all' }
+      });
+
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw error;
+      }
+
+      console.log('Edge Function response:', data);
+
+      return {
+        success: data?.success || false,
+        message: data?.message || 'Datauppdatering slutförd',
+        duration: data?.duration_ms,
+        errors: data?.warnings || [],
+        stats: data?.stats
       };
     } catch (error) {
-      console.error(`Fel vid uppdatering av tabell ${tableName}:`, error);
+      console.error('Fel vid anrop till Edge Function:', error);
       return {
         success: false,
-        message: `Misslyckades att uppdatera ${tableName}`,
+        message: `Datauppdatering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`,
         errors: [error instanceof Error ? error.message : 'Okänt fel']
       };
     }
   }
 
-  static async refreshAllData(): Promise<RefreshResult> {
-    const startTime = Date.now();
-    const errors: string[] = [];
-    
-    console.log('Startar uppdatering av all data...');
-    
-    for (const table of this.VALID_TABLES) {
-      const result = await this.refreshTable(table);
-      if (!result.success && result.errors) {
-        errors.push(...result.errors);
-      }
-    }
-
-    const duration = Date.now() - startTime;
-
-    return {
-      success: errors.length === 0,
-      message: errors.length === 0 ? 
-        'All data uppdaterad framgångsrikt' : 
-        `Uppdatering slutförd med ${errors.length} fel`,
-      duration,
-      errors: errors.length > 0 ? errors : undefined
-    };
-  }
-
   static async initializeAllDatabases(): Promise<RefreshResult> {
     try {
-      console.log('Initierar alla databaser...');
-      const result = await this.refreshAllData();
+      console.log('Initierar databaser via Edge Function...');
+      
+      const { data, error } = await supabase.functions.invoke('fetch-comprehensive-data', {
+        body: { action: 'initialize' }
+      });
+
+      if (error) {
+        console.error('Edge Function error:', error);
+        throw error;
+      }
+
       return {
-        ...result,
-        message: result.success ? 
+        success: data?.success || false,
+        message: data?.success ? 
           'Databasinitiering slutförd framgångsrikt' : 
-          'Databasinitiering slutförd med fel'
+          'Databasinitiering slutförd med varningar',
+        duration: data?.duration_ms,
+        errors: data?.warnings || [],
+        stats: data?.stats
       };
     } catch (error) {
+      console.error('Fel vid databasinitiering:', error);
       return {
         success: false,
-        message: `Databasinitiering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`
+        message: `Databasinitiering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`,
+        errors: [error instanceof Error ? error.message : 'Okänt fel']
+      };
+    }
+  }
+
+  static async refreshCalendarData(): Promise<RefreshResult> {
+    try {
+      console.log('Uppdaterar kalenderdata via Edge Function...');
+      
+      const { data, error } = await supabase.functions.invoke('fetch-calendar-data');
+
+      if (error) {
+        console.error('Kalender Edge Function error:', error);
+        throw error;
+      }
+
+      return {
+        success: data?.success || false,
+        message: data?.message || 'Kalenderuppdatering slutförd',
+        duration: data?.duration,
+        errors: data?.errors ? [data.errors] : []
+      };
+    } catch (error) {
+      console.error('Fel vid kalenderuppdatering:', error);
+      return {
+        success: false,
+        message: `Kalenderuppdatering misslyckades: ${error instanceof Error ? error.message : 'Okänt fel'}`,
+        errors: [error instanceof Error ? error.message : 'Okänt fel']
       };
     }
   }
@@ -179,7 +205,6 @@ export class DatabaseService {
 // Export individual functions for backward compatibility
 export const getDataStatus = DatabaseService.getDataStatus.bind(DatabaseService);
 export const refreshAllData = DatabaseService.refreshAllData.bind(DatabaseService);
-export const refreshTable = DatabaseService.refreshTable.bind(DatabaseService);
 export const initializeAllDatabases = DatabaseService.initializeAllDatabases.bind(DatabaseService);
 export const formatDataStatusMessage = (status: TableStatus): string => {
   if (status.error) {
