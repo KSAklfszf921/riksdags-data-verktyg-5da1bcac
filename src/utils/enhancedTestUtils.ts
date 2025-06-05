@@ -66,7 +66,7 @@ export class EnhancedTester {
       
       // Enhanced error analysis
       let errorType: DetailedTestResult['errorType'] = 'UNKNOWN_ERROR';
-      let errorDetails: DetailedTestResult['errorDetails'] = {};
+      const errorDetails: DetailedTestResult['errorDetails'] = {};
       
       if (error instanceof Error) {
         errorDetails.errorMessage = error.message;

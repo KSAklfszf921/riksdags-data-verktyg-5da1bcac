@@ -35,47 +35,10 @@ export interface CalendarSearchParams {
   akt?: string; // activity
 }
 
-// Use a CORS proxy for development/testing
-const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+// Optional CORS proxy for development/testing
+const CORS_PROXY = import.meta.env.VITE_CORS_PROXY_URL || '';
 const BASE_URL = 'https://data.riksdagen.se';
 
-// Mock data for when API is not available
-const mockEvents: RiksdagCalendarEvent[] = [
-  {
-    id: '1',
-    datum: new Date().toISOString().split('T')[0],
-    titel: 'Kammaren sammanträder',
-    typ: 'sammantrade',
-    org: 'kamm',
-    tid: '09:00',
-    plats: 'Kammarens plenisal',
-    beskrivning: 'Ordinarie sammanträde i kammaren',
-    status: 'Bekräftad'
-  },
-  {
-    id: '2',
-    datum: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    titel: 'Finansutskottets sammanträde',
-    typ: 'sammantrade',
-    org: 'FiU',
-    tid: '10:00',
-    plats: 'Utskottssalen',
-    beskrivning: 'Finansutskottets ordinarie sammanträde',
-    status: 'Bekräftad'
-  },
-  {
-    id: '3',
-    datum: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    titel: 'Aktuell debatt',
-    typ: 'debatt',
-    org: 'kamm',
-    akt: 'ad',
-    tid: '14:00',
-    plats: 'Kammarens plenisal',
-    beskrivning: 'Aktuell debatt om samhällsfrågor',
-    status: 'Bekräftad'
-  }
-];
 
 export const fetchCalendarEvents = async (params: CalendarSearchParams = {}): Promise<RiksdagCalendarEvent[]> => {
   console.log('Fetching calendar events with params:', params);
@@ -99,8 +62,10 @@ export const fetchCalendarEvents = async (params: CalendarSearchParams = {}): Pr
   // Try different approaches for fetching data
   const urls = [
     `${BASE_URL}/kalender/?${queryParams.toString()}`,
-    `${CORS_PROXY}${BASE_URL}/kalender/?${queryParams.toString()}`
-  ];
+    CORS_PROXY
+      ? `${CORS_PROXY.replace(/\/$/, '')}/${BASE_URL.replace(/https?:\/\//, '')}/kalender/?${queryParams.toString()}`
+      : null
+  ].filter(Boolean) as string[];
 
   for (const url of urls) {
     try {
@@ -140,9 +105,9 @@ export const fetchCalendarEvents = async (params: CalendarSearchParams = {}): Pr
     }
   }
 
-  // If all API attempts fail, return mock data
-  console.log('All API attempts failed, returning mock data');
-  return mockEvents;
+  // If all API attempts fail, throw an error to surface the problem
+  console.error('All calendar API attempts failed');
+  throw new Error('Failed to fetch calendar events');
 };
 
 export const fetchThisWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => {
@@ -150,8 +115,10 @@ export const fetchThisWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => 
   
   const urls = [
     `${BASE_URL}/sv/riksdagen-denna-vecka?utformat=json`,
-    `${CORS_PROXY}${BASE_URL}/sv/riksdagen-denna-vecka?utformat=json`
-  ];
+    CORS_PROXY
+      ? `${CORS_PROXY.replace(/\/$/, '')}/${BASE_URL.replace(/https?:\/\//, '')}/sv/riksdagen-denna-vecka?utformat=json`
+      : null
+  ].filter(Boolean) as string[];
 
   for (const url of urls) {
     try {
@@ -184,14 +151,8 @@ export const fetchThisWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => 
     }
   }
 
-  // Return filtered mock data for this week
-  const today = new Date();
-  const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
-  return mockEvents.filter(event => {
-    const eventDate = new Date(event.datum);
-    return eventDate >= today && eventDate <= weekFromNow;
-  });
+  console.error('Failed to fetch events for this week');
+  throw new Error('Failed to fetch this week events');
 };
 
 export const fetchNextWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => {
@@ -199,8 +160,10 @@ export const fetchNextWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => 
   
   const urls = [
     `${BASE_URL}/sv/riksdagen-nasta-vecka?utformat=json`,
-    `${CORS_PROXY}${BASE_URL}/sv/riksdagen-nasta-vecka?utformat=json`
-  ];
+    CORS_PROXY
+      ? `${CORS_PROXY.replace(/\/$/, '')}/${BASE_URL.replace(/https?:\/\//, '')}/sv/riksdagen-nasta-vecka?utformat=json`
+      : null
+  ].filter(Boolean) as string[];
 
   for (const url of urls) {
     try {
@@ -233,15 +196,8 @@ export const fetchNextWeekEvents = async (): Promise<RiksdagCalendarEvent[]> => 
     }
   }
 
-  // Return filtered mock data for next week
-  const nextWeekStart = new Date();
-  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-  const nextWeekEnd = new Date(nextWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
-  return mockEvents.filter(event => {
-    const eventDate = new Date(event.datum);
-    return eventDate >= nextWeekStart && eventDate <= nextWeekEnd;
-  });
+  console.error('Failed to fetch events for next week');
+  throw new Error('Failed to fetch next week events');
 };
 
 // Event type definitions from the technical instruction

@@ -257,10 +257,11 @@ const RiksdagCalendarView = ({ events, loading }: RiksdagCalendarViewProps) => {
     switch (view) {
       case 'month':
         return format(currentDate, 'MMMM yyyy', { locale: sv });
-      case 'week':
+      case 'week': {
         const weekStart = startOfWeek(currentDate, { locale: sv });
         const weekEnd = endOfWeek(currentDate, { locale: sv });
         return `${format(weekStart, 'd MMM', { locale: sv })} - ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
+      }
       case 'day':
         return format(currentDate, 'EEEE d MMMM yyyy', { locale: sv });
       default:

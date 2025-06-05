@@ -652,7 +652,7 @@ export const fetchMembers = async (
   pageSize: number = 20,
   status: 'current' | 'all' | 'former' = 'current'
 ): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
-  let url = `${BASE_URL}/personlista/?utformat=json`;
+  const url = `${BASE_URL}/personlista/?utformat=json`;
   
   console.log(`Fetching members with status: ${status}`);
   

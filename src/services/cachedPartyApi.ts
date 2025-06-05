@@ -82,6 +82,23 @@ export const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
   return data || [];
 };
 
+export const fetchCachedMemberSuggestions = async (query: string): Promise<CachedMemberData[]> => {
+  if (!query) return [];
+
+  const { data, error } = await supabase
+    .from('member_data')
+    .select('*')
+    .ilike('last_name', `%${query}%`)
+    .limit(10);
+
+  if (error) {
+    console.error('Error fetching cached member suggestions:', error);
+    throw new Error(`Failed to fetch member suggestions: ${error.message}`);
+  }
+
+  return data || [];
+};
+
 export const fetchMembersByCommittee = async (committeeCode: string): Promise<CachedMemberData[]> => {
   console.log(`Fetching members for committee: ${committeeCode}`);
   

@@ -146,16 +146,14 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
               const proposalPointsArray = Array.from(group.proposalPoints).sort((a, b) => parseInt(a) - parseInt(b));
               
               // Group votes by proposal point for better display - memoized per group
-              const votesByPoint = useMemo(() => {
-                return group.votes.reduce((acc, vote) => {
-                  const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
-                  if (!acc[punkt]) {
-                    acc[punkt] = [];
-                  }
-                  acc[punkt].push(vote);
-                  return acc;
-                }, {} as { [key: string]: RiksdagVote[] });
-              }, [group.votes]);
+              const votesByPoint = group.votes.reduce((acc, vote) => {
+                const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
+                if (!acc[punkt]) {
+                  acc[punkt] = [];
+                }
+                acc[punkt].push(vote);
+                return acc;
+              }, {} as { [key: string]: RiksdagVote[] });
               
               return (
                 <div key={groupKey} className="border rounded-lg">
@@ -228,8 +226,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                             const isPointExpanded = expandedPoints.has(pointKey);
                             
                             // Calculate vote stats for this point - memoized
-                            const pointStats = useMemo(() => {
-                              return punktVotes.reduce((stats, vote) => {
+                              const pointStats = punktVotes.reduce((stats, vote) => {
                                 const rostLower = (vote.rost || '').toLowerCase();
                                 switch (rostLower) {
                                   case 'ja':
@@ -247,7 +244,6 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                                 }
                                 return stats;
                               }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
-                            }, [punktVotes]);
                             
                             return (
                               <div key={pointKey}>

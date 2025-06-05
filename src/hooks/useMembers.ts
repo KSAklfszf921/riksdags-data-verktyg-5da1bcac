@@ -1,11 +1,46 @@
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments, COMMITTEE_MAPPING } from '../services/riksdagApi';
+import { fetchCachedMemberData, fetchMembersByCommittee, CachedMemberData, extractCommitteeAssignments, extractImageUrls, fetchCachedMemberSuggestions } from '../services/cachedPartyApi';
 import { Member } from '../types/member';
 
 // Reverse mapping from full names to codes
 const COMMITTEE_CODE_MAPPING: { [key: string]: string } = Object.fromEntries(
   Object.entries(COMMITTEE_MAPPING).map(([code, name]) => [name, code])
 );
+
+const USE_SUPABASE_MEMBERS = true;
+
+const mapCachedMemberToMember = (cached: CachedMemberData): Member => {
+  const images = extractImageUrls(cached.image_urls || {} as any);
+  const defaultImg =
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=face';
+  const email = `${cached.first_name.toLowerCase()}.${cached.last_name.toLowerCase()}@riksdagen.se`;
+
+  const activity = (cached.activity_data as any) || {};
+
+  return {
+    id: cached.member_id,
+    firstName: cached.first_name,
+    lastName: cached.last_name,
+    party: cached.party,
+    constituency: cached.constituency || '',
+    imageUrl: images.large || images.medium || images.small || defaultImg,
+    email,
+    birthYear: cached.birth_year || 1970,
+    profession: 'Riksdagsledamot',
+    committees: cached.current_committees || [],
+    speeches: [],
+    votes: [],
+    proposals: [],
+    documents: [],
+    calendarEvents: [],
+    activityScore: activity.activity_score || 0,
+    motions: activity.motions || 0,
+    interpellations: activity.interpellations || 0,
+    writtenQuestions: activity.written_questions || 0,
+    assignments: extractCommitteeAssignments(cached.assignments || []) as any,
+  };
+};
 
 const mapRiksdagMemberToMember = async (riksdagMember: RiksdagMember, memberDetails?: RiksdagMemberDetails): Promise<Member> => {
   // Use the real image URLs from Riksdag API when available
@@ -133,18 +168,45 @@ export const useMembers = (
         setLoading(true);
         console.log(`Loading members: page=${page}, pageSize=${pageSize}, status=${status}, committee=${committee}`);
         
+        if (USE_SUPABASE_MEMBERS) {
+          try {
+            if (committee && committee !== 'all') {
+              const committeeCode = COMMITTEE_CODE_MAPPING[committee] || committee;
+              const cached = await fetchMembersByCommittee(committeeCode);
+              const mapped = cached.map(mapCachedMemberToMember);
+              setMembers(page === 1 ? mapped : [...members, ...mapped]);
+              setTotalCount(cached.length);
+              setHasMore(false);
+              setError(null);
+              return;
+            } else {
+              const cached = await fetchCachedMemberData();
+              const start = (page - 1) * pageSize;
+              const pageData = cached.slice(start, start + pageSize);
+              const mapped = pageData.map(mapCachedMemberToMember);
+              setMembers(page === 1 ? mapped : [...members, ...mapped]);
+              setTotalCount(cached.length);
+              setHasMore(page * pageSize < cached.length);
+              setError(null);
+              return;
+            }
+          } catch (e) {
+            console.error('Supabase member fetch failed, falling back to API', e);
+          }
+        }
+
+        // Fallback to direct API
         let result;
-        
-        // Improved committee filtering logic
+
         if (committee && committee !== 'all') {
           const committeeCode = COMMITTEE_CODE_MAPPING[committee] || committee;
-          
+
           if (isValidCommitteeCode(committeeCode)) {
             console.log(`Using committee-specific API for: ${committeeCode}`);
             result = await fetchMembersWithCommittees(page, pageSize, status, committeeCode);
-            
+
             const mappedMembers = await Promise.all(
-              result.members.map(member => 
+              result.members.map(member =>
                 mapRiksdagMemberToMember({
                   intressent_id: member.intressent_id,
                   tilltalsnamn: member.tilltalsnamn,
@@ -164,13 +226,13 @@ export const useMembers = (
                 }, member)
               )
             );
-            
+
             if (page === 1) {
               setMembers(mappedMembers);
             } else {
               setMembers(prev => [...prev, ...mappedMembers]);
             }
-            
+
             setTotalCount(result.totalCount);
             setHasMore(page * pageSize < result.totalCount);
           } else {
@@ -180,23 +242,22 @@ export const useMembers = (
             setHasMore(false);
           }
         } else {
-          // Use regular members API for all members
           console.log('Using regular members API');
           const memberResult = await fetchMembers(page, pageSize, status);
-          
+
           const mappedMembers = await Promise.all(
             memberResult.members.map(async member => {
               const memberDetails = await fetchMemberDetails(member.intressent_id);
               return mapRiksdagMemberToMember(member, memberDetails);
             })
           );
-          
+
           if (page === 1) {
             setMembers(mappedMembers);
           } else {
             setMembers(prev => [...prev, ...mappedMembers]);
           }
-          
+
           setTotalCount(memberResult.totalCount);
           setHasMore(page * pageSize < memberResult.totalCount);
         }
@@ -242,6 +303,31 @@ export const useMemberSuggestions = () => {
 
     setLoading(true);
     try {
+      if (USE_SUPABASE_MEMBERS) {
+        try {
+          const cached = await fetchCachedMemberSuggestions(query);
+          const mapped: RiksdagMember[] = cached.map((m) => ({
+            intressent_id: m.member_id,
+            hangar_guid: '',
+            tilltalsnamn: m.first_name,
+            efternamn: m.last_name,
+            parti: m.party,
+            valkrets: m.constituency || '',
+            status: m.riksdag_status || '',
+            kon: m.gender || '',
+            fodd_ar: m.birth_year ? String(m.birth_year) : '',
+            fodd_datum: '',
+            bild_url_80: (m.image_urls as any)?.small,
+            bild_url_192: (m.image_urls as any)?.medium,
+            bild_url_max: (m.image_urls as any)?.large,
+          }));
+          setSuggestions(mapped);
+          return;
+        } catch (e) {
+          console.error('Supabase suggestion fetch failed, falling back to API', e);
+        }
+      }
+
       const results = await fetchMemberSuggestions(query);
       setSuggestions(results);
     } catch (error) {
@@ -294,9 +380,21 @@ export const useCommitteeMembers = (committeeCode: string) => {
 
       setLoading(true);
       try {
+        if (USE_SUPABASE_MEMBERS) {
+          try {
+            const cached = await fetchMembersByCommittee(committeeCode);
+            const mapped = cached.map(mapCachedMemberToMember);
+            setMembers(mapped);
+            setError(null);
+            return;
+          } catch (e) {
+            console.error('Supabase committee fetch failed', e);
+          }
+        }
+
         const result = await fetchMembersWithCommittees(1, 50, 'current', committeeCode);
         const mappedMembers = await Promise.all(
-          result.members.map(member => 
+          result.members.map(member =>
             mapRiksdagMemberToMember({
               intressent_id: member.intressent_id,
               tilltalsnamn: member.tilltalsnamn,

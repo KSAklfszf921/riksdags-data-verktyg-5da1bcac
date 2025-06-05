@@ -163,8 +163,8 @@ serve(async (req) => {
         currentBatchRssItems: 0
       };
 
-      // Process members in background
-      EdgeRuntime.waitUntil((async () => {
+      // Process members in background if possible
+      const processMembers = async () => {
         try {
           for (let i = 0; i < members.length; i++) {
             if (currentProgress?.status === 'paused') {
@@ -235,7 +235,13 @@ serve(async (req) => {
             });
           }
         }
-      })());
+      };
+
+      if (typeof (globalThis as any).EdgeRuntime?.waitUntil === 'function') {
+        (globalThis as any).EdgeRuntime.waitUntil(processMembers());
+      } else {
+        processMembers();
+      }
 
       return new Response(
         JSON.stringify({ 

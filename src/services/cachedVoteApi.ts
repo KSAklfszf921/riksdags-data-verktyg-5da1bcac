@@ -312,7 +312,7 @@ export const calculateVoteStatistics = (voteData: CachedVoteData) => {
 
   results.forEach((result: any) => {
     const vote = result.rost?.toLowerCase();
-    if (stats.hasOwnProperty(vote)) {
+    if (Object.prototype.hasOwnProperty.call(stats, vote)) {
       (stats as any)[vote]++;
     }
   });
