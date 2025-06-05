@@ -15,8 +15,6 @@ interface NewsItem {
   imageUrl?: string;
 }
 
-// Rate limiting map - i produktion skulle detta vara i en databas
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_PER_MINUTE = 10;
 const RATE_LIMIT_WINDOW = 60000; // 1 minut
 
@@ -24,20 +22,46 @@ const RATE_LIMIT_WINDOW = 60000; // 1 minut
 const rssCache = new Map<string, { data: NewsItem[]; timestamp: number }>();
 const CACHE_DURATION = 300000; // 5 minuter
 
-function checkRateLimit(key: string): boolean {
+async function checkRateLimit(
+  supabase: any,
+  key: string
+): Promise<boolean> {
   const now = Date.now();
-  const limit = rateLimitMap.get(key);
-  
-  if (!limit || now > limit.resetTime) {
-    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+  const { data, error } = await supabase
+    .from('api_rate_limits')
+    .select('count, reset_time')
+    .eq('key', key)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Rate limit query error:', error);
+    return true; // fail open on DB errors
+  }
+
+  if (!data) {
+    await supabase
+      .from('api_rate_limits')
+      .insert({ key, count: 1, reset_time: now + RATE_LIMIT_WINDOW });
     return true;
   }
-  
-  if (limit.count >= RATE_LIMIT_PER_MINUTE) {
+
+  if (now > data.reset_time) {
+    await supabase
+      .from('api_rate_limits')
+      .update({ count: 1, reset_time: now + RATE_LIMIT_WINDOW })
+      .eq('key', key);
+    return true;
+  }
+
+  if (data.count >= RATE_LIMIT_PER_MINUTE) {
     return false;
   }
-  
-  limit.count++;
+
+  await supabase
+    .from('api_rate_limits')
+    .update({ count: data.count + 1 })
+    .eq('key', key);
+
   return true;
 }
 
@@ -254,7 +278,11 @@ serve(async (req) => {
 
   try {
     const { memberName, memberId } = await req.json()
-    
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     if (!memberName || !memberId) {
       return new Response(
         JSON.stringify({ error: 'Member name and ID are required' }),
@@ -266,7 +294,7 @@ serve(async (req) => {
 
     // Rate limiting check
     const rateLimitKey = `${memberId}-${memberName}`;
-    if (!checkRateLimit(rateLimitKey)) {
+    if (!(await checkRateLimit(supabase, rateLimitKey))) {
       console.log(`Rate limit exceeded for ${rateLimitKey}`);
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }),
@@ -287,11 +315,6 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Fetch news from RSS
     console.log('Fetching news from RSS feeds...');

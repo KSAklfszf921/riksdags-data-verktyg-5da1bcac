@@ -60,6 +60,18 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Environment variables
+
+Create a `.env` file based on `.env.example` and define the following variables:
+
+```
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_CORS_PROXY_URL=optional-cors-proxy
+```
+
+The proxy is optional and only used when calendar requests require a CORS proxy.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/341347ba-e8b1-4131-8c0a-b2ef2b7a5330) and click on Share -> Publish.
