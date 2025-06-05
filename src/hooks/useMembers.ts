@@ -1,31 +1,4 @@
 
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { RiksdagMember, MemberSearchParams } from '../services/riksdagApi';
-import { fetchMembers, fetchMemberDetails } from '../services/riksdagApi';
-
-// Define missing types
-interface CachedMemberData {
-  id: string;
-  name: string;
-  party: string;
-  constituency?: string;
-}
-
-interface MembersQueryResult {
-  members: any[];
-  totalCount: number;
-  hasMore: boolean;
-}
-
-// Helper function to extract image URLs
-const extractImageUrls = (member: any) => {
-  if (member.bild_url_192) {
-    return {
-      '192': member.bild_url_192,
-      '80': member.bild_url_80,
-      'max': member.bild_url_max
-    };
   }
   return null;
 };
@@ -81,9 +54,7 @@ const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
   return [];
 };
 
-const fetchMemberSuggestions = async (query: string) => {
-  return [];
-};
+
 
 // Export committee helper functions
 export const getCommitteeName = (code: string): string => {
@@ -195,12 +166,7 @@ export const useMembersByParty = (party: string) => {
   });
 };
 
-export const useMemberSearch = (searchTerm: string) => {
-  return useQuery({
-    queryKey: ['members', 'search', searchTerm],
-    queryFn: async () => {
-      if (!searchTerm || searchTerm.length < 2) {
-        return [];
+
       }
       return fetchMemberSuggestions(searchTerm);
     },
