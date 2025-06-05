@@ -126,7 +126,7 @@ const fetchVotingResults = async (
 ): Promise<{ votes: RiksdagVote[], totalCount: number }> => {
   console.log(`Fetching voting results for ${designations.length} designations`);
   
-  let allVotes: RiksdagVote[] = [];
+  const allVotes: RiksdagVote[] = [];
   let totalCount = 0;
   
   for (const designation of designations) {

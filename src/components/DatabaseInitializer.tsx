@@ -7,7 +7,9 @@ import {
   Database, 
   RefreshCw, 
   CheckCircle, 
-  AlertCircle
+  AlertCircle,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { 
   DatabaseService,
@@ -106,12 +108,36 @@ const DatabaseInitializer = () => {
       {/* Database Status Component */}
       <DatabaseStatus />
 
+      {/* API Status Alert */}
+      {refreshResult?.apiStatus && (
+        <Alert className={refreshResult.apiStatus.available ? "border-green-500" : "border-yellow-500"}>
+          <div className="flex items-center space-x-2">
+            {refreshResult.apiStatus.available ? (
+              <Wifi className="h-4 w-4 text-green-600" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-yellow-600" />
+            )}
+            <AlertDescription>
+              {refreshResult.apiStatus.available ? (
+                <span className="text-green-800">
+                  ✅ Riksdagens API är tillgängligt - riktig data används
+                </span>
+              ) : (
+                <span className="text-yellow-800">
+                  ⚠️ Riksdagens API är inte tillgängligt - testdata används för demonstration
+                </span>
+              )}
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
       {/* Action Buttons */}
       <Card>
         <CardHeader>
           <CardTitle>Databasåtgärder</CardTitle>
           <CardDescription>
-            Initiera databaser och hämta all tillgänglig data från Riksdagens API
+            Initiera databaser och hämta data från Riksdagens API (eller testdata om API:t inte är tillgängligt)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -177,13 +203,31 @@ const DatabaseInitializer = () => {
                 <AlertCircle className="w-5 h-5 mt-0.5" />
               )}
               <div className="flex-1">
-                <p className="font-medium">{refreshResult.message}</p>
+                <div className="whitespace-pre-line">
+                  <p className="font-medium">{refreshResult.message}</p>
+                </div>
                 {refreshResult.duration && (
-                  <p className="text-sm opacity-75">Tid: {refreshResult.duration}ms</p>
+                  <p className="text-sm opacity-75 mt-1">Tid: {refreshResult.duration}ms</p>
+                )}
+                {refreshResult.stats && (
+                  <div className="text-sm opacity-75 mt-2">
+                    <p>Bearbetade data:</p>
+                    <ul className="list-disc list-inside ml-4">
+                      {refreshResult.stats.parties_processed > 0 && (
+                        <li>{refreshResult.stats.parties_processed} partier</li>
+                      )}
+                      {refreshResult.stats.members_processed > 0 && (
+                        <li>{refreshResult.stats.members_processed} ledamöter</li>
+                      )}
+                      {refreshResult.stats.documents_processed > 0 && (
+                        <li>{refreshResult.stats.documents_processed} dokument</li>
+                      )}
+                    </ul>
+                  </div>
                 )}
                 {refreshResult.errors && refreshResult.errors.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-sm font-medium">Fel som uppstod:</p>
+                    <p className="text-sm font-medium">Information:</p>
                     <ul className="text-sm list-disc list-inside">
                       {refreshResult.errors.map((error, index) => (
                         <li key={index}>{error}</li>
@@ -201,9 +245,20 @@ const DatabaseInitializer = () => {
         <p><strong>Instruktioner:</strong></p>
         <ul className="list-disc list-inside space-y-1 mt-2">
           <li>Klicka på "Initiera Alla Databaser" för att skapa och fylla alla databastabeller</li>
-          <li>Använd "Uppdatera All Data" för att hämta den senaste datan från Riksdagens API</li>
-          <li>Edge-funktioner hämtar data från flera olika API-endpoints enligt teknisk specifikation</li>
+          <li>Systemet försöker hämta riktig data från Riksdagens API först</li>
+          <li>Om API:t inte är tillgängligt används testdata för demonstration</li>
           <li>Databasstatus uppdateras automatiskt var 5:e minut</li>
+          <li>
+            <span className="inline-flex items-center space-x-1">
+              <Wifi className="w-3 h-3 text-green-600" />
+              <span>= API tillgängligt</span>
+            </span>
+            <span className="mx-2">|</span>
+            <span className="inline-flex items-center space-x-1">
+              <WifiOff className="w-3 h-3 text-yellow-600" />
+              <span>= API otillgängligt (testdata)</span>
+            </span>
+          </li>
         </ul>
       </div>
     </div>

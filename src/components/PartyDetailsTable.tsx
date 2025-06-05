@@ -11,6 +11,10 @@ interface PartyStats {
   party: string;
   count: number;
   averageAge: number;
+  averageMotions?: number;
+  averageSpeeches?: number;
+  averageInterpellations?: number;
+  averageQuestions?: number;
   genderDistribution: {
     male: number;
     female: number;
@@ -22,7 +26,10 @@ interface PartyDetailsTableProps {
   partyStats: PartyStats[];
 }
 
-type SortField = keyof PartyStats | 'genderDistribution.male' | 'genderDistribution.female';
+type SortField =
+  | keyof PartyStats
+  | 'genderDistribution.male'
+  | 'genderDistribution.female';
 type SortOrder = 'asc' | 'desc';
 
 const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
@@ -46,6 +53,14 @@ const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
         return stat.count;
       case 'averageAge':
         return stat.averageAge;
+      case 'averageMotions':
+        return stat.averageMotions ?? 0;
+      case 'averageSpeeches':
+        return stat.averageSpeeches ?? 0;
+      case 'averageInterpellations':
+        return stat.averageInterpellations ?? 0;
+      case 'averageQuestions':
+        return stat.averageQuestions ?? 0;
       case 'genderDistribution.male':
         return stat.genderDistribution.male;
       case 'genderDistribution.female':
@@ -62,13 +77,28 @@ const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
   });
 
   const exportToCSV = () => {
-    const headers = ['Parti', 'Antal ledamöter', 'Medelålder', 'Män (%)', 'Kvinnor (%)', 'Huvudutskott'];
+    const headers = [
+      'Parti',
+      'Antal ledamöter',
+      'Medelålder',
+      'Män (%)',
+      'Kvinnor (%)',
+      'Motioner',
+      'Anföranden',
+      'Frågor',
+      'Interpellationer',
+      'Huvudutskott'
+    ];
     const rows = sortedStats.map(stat => [
       stat.party,
       stat.count.toString(),
       stat.averageAge.toFixed(1),
       stat.genderDistribution.male.toFixed(1),
       stat.genderDistribution.female.toFixed(1),
+      stat.averageMotions?.toFixed(1) ?? '-',
+      stat.averageSpeeches?.toFixed(1) ?? '-',
+      stat.averageQuestions?.toFixed(1) ?? '-',
+      stat.averageInterpellations?.toFixed(1) ?? '-',
       Object.keys(stat.committees).slice(0, 3).map(code => COMMITTEE_MAPPING[code] || code).join('; ')
     ]);
 
@@ -130,7 +160,7 @@ const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
                     <SortIcon field="averageAge" />
                   </div>
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:bg-gray-50"
                   onClick={() => handleSort('genderDistribution.male')}
                 >
@@ -139,13 +169,49 @@ const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
                     <SortIcon field="genderDistribution.male" />
                   </div>
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:bg-gray-50"
                   onClick={() => handleSort('genderDistribution.female')}
                 >
                   <div className="flex items-center space-x-1">
                     <span>Kvinnor (%)</span>
                     <SortIcon field="genderDistribution.female" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('averageMotions')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Motioner</span>
+                    <SortIcon field="averageMotions" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('averageSpeeches')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Anföranden</span>
+                    <SortIcon field="averageSpeeches" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('averageQuestions')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Frågor</span>
+                    <SortIcon field="averageQuestions" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSort('averageInterpellations')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Interpellationer</span>
+                    <SortIcon field="averageInterpellations" />
                   </div>
                 </TableHead>
                 <TableHead>Utskott</TableHead>
@@ -161,6 +227,10 @@ const PartyDetailsTable = ({ partyStats }: PartyDetailsTableProps) => {
                   <TableCell>{stat.averageAge.toFixed(1)}</TableCell>
                   <TableCell>{stat.genderDistribution.male.toFixed(1)}%</TableCell>
                   <TableCell>{stat.genderDistribution.female.toFixed(1)}%</TableCell>
+                  <TableCell>{stat.averageMotions?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell>{stat.averageSpeeches?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell>{stat.averageQuestions?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell>{stat.averageInterpellations?.toFixed(1) ?? '-'}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       {Object.entries(stat.committees).slice(0, 5).map(([code, { count, roles }]) => (

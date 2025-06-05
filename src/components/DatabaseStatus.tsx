@@ -3,18 +3,21 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { Button } from './ui/button';
 import { 
   Database, 
   RefreshCw, 
   CheckCircle, 
   AlertCircle, 
-  Clock 
+  Clock,
+  Zap
 } from 'lucide-react';
 import { DatabaseService, type TableStatus } from '../services/databaseService';
 
 const DatabaseStatus = () => {
   const [status, setStatus] = useState<TableStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
   const tableLabels: { [key: string]: string } = {
     'party_data': 'Partidata',
@@ -32,11 +35,22 @@ const DatabaseStatus = () => {
       const statusData = await DatabaseService.getDataStatus();
       console.log('Databasstatus laddad:', statusData);
       setStatus(statusData);
+      setLastRefresh(new Date());
     } catch (error) {
       console.error('Fel vid laddning av databasstatus:', error);
       setStatus([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickRefresh = async () => {
+    setLoading(true);
+    try {
+      console.log('Snabbuppdatering av databasstatus...');
+      await loadStatus();
+    } catch (error) {
+      console.error('Fel vid snabbuppdatering:', error);
     }
   };
 
@@ -63,12 +77,12 @@ const DatabaseStatus = () => {
   useEffect(() => {
     loadStatus();
     
-    // Auto-refresh every 5 minutes
-    const interval = setInterval(loadStatus, 5 * 60 * 1000);
+    // Auto-refresh status every 2 minutes
+    const interval = setInterval(loadStatus, 2 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) {
+  if (loading && status.length === 0) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-8">
@@ -84,16 +98,34 @@ const DatabaseStatus = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Database className="w-5 h-5" />
-          <span>Databasstatus</span>
-          <Badge variant={healthPercentage > 80 ? 'default' : healthPercentage > 60 ? 'secondary' : 'destructive'}>
-            {healthPercentage}% Hälsosam
-          </Badge>
-        </CardTitle>
-        <CardDescription>
-          Översikt över alla databastabeller och deras innehåll
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center space-x-2">
+              <Database className="w-5 h-5" />
+              <span>Databasstatus</span>
+              <Badge variant={healthPercentage > 80 ? 'default' : healthPercentage > 60 ? 'secondary' : 'destructive'}>
+                {healthPercentage}% Hälsosam
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Översikt över alla databastabeller och deras innehåll
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleQuickRefresh}
+            disabled={loading}
+            className="flex items-center space-x-2"
+          >
+            {loading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4" />
+            )}
+            <span>Uppdatera</span>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex items-center space-x-4">
@@ -138,7 +170,7 @@ const DatabaseStatus = () => {
             return (
               <div
                 key={item.table}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center space-x-3">
                   <Database className="w-5 h-5 text-gray-600" />
@@ -162,6 +194,12 @@ const DatabaseStatus = () => {
             );
           })}
         </div>
+
+        {lastRefresh && (
+          <div className="text-xs text-gray-500 text-center">
+            Senast uppdaterad: {lastRefresh.toLocaleString('sv-SE')}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

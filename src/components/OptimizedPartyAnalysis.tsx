@@ -25,6 +25,10 @@ interface PartyStats {
   party: string;
   count: number;
   averageAge: number;
+  averageMotions: number;
+  averageSpeeches: number;
+  averageInterpellations: number;
+  averageQuestions: number;
   genderDistribution: {
     male: number;
     female: number;
@@ -139,21 +143,36 @@ const OptimizedPartyAnalysis = () => {
     }
   };
 
-  const convertToPartyStats = (parties: CachedPartyData[]): PartyStats[] => {
+  const convertToPartyStats = (
+    parties: CachedPartyData[],
+    members: CachedMemberData[]
+  ): PartyStats[] => {
     return parties.map(party => {
       const genderDist = extractGenderDistribution(party.gender_distribution);
+      const partyMembers = members.filter(m => m.party === party.party_code);
+      const ages = partyMembers
+        .filter(m => m.birth_year)
+        .map(m => new Date().getFullYear() - (m.birth_year as number));
+      const activity = (field: string) =>
+        partyMembers.reduce((sum, m) => sum + ((m.activity_data as any)?.[field] || 0), 0);
+      const avg = (total: number) => (partyMembers.length > 0 ? total / partyMembers.length : 0);
+
       return {
         party: party.party_code,
         count: party.total_members,
-        averageAge: 0, // Will be calculated from member data if needed
+        averageAge: ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 0,
+        averageMotions: avg(activity('motions')),
+        averageSpeeches: avg(activity('speeches')),
+        averageInterpellations: avg(activity('interpellations')),
+        averageQuestions: avg(activity('written_questions')),
         genderDistribution: genderDist,
-        committees: {} // Will be populated if needed
+        committees: {}
       };
     });
   };
 
   const getFilteredStats = () => {
-    const stats = convertToPartyStats(partyData);
+    const stats = convertToPartyStats(partyData, memberData);
     if (!selectedParty) return stats;
     return stats.filter(p => p.party === selectedParty);
   };
@@ -229,13 +248,8 @@ const OptimizedPartyAnalysis = () => {
   const genderStats = getGenderStats();
   const ageStats = getAgeStats();
   const totalMembers = filteredStats.reduce((sum, p) => sum + p.count, 0);
-  const averageAge = memberData.length > 0 
-    ? memberData.reduce((sum, m) => {
-        if (m.birth_year) {
-          return sum + (new Date().getFullYear() - m.birth_year);
-        }
-        return sum;
-      }, 0) / memberData.filter(m => m.birth_year).length
+  const averageAge = totalMembers > 0
+    ? filteredStats.reduce((sum, p) => sum + p.averageAge * p.count, 0) / totalMembers
     : 0;
 
   return (

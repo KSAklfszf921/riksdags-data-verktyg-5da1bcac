@@ -191,7 +191,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const startTime = Date.now();
-    let totalStats = {
+    const totalStats = {
       parties_processed: 0,
       members_processed: 0,
       documents_processed: 0,
