@@ -1,5 +1,6 @@
 
 import React, { useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Badge } from "@/components/ui/badge";
 import { RiksdagVote } from '../services/riksdagApi';
 
@@ -98,7 +99,9 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate text-gray-900">
-                    {vote.namn || 'Okänt namn'} 
+                    <Link to={`/ledamoter?id=${vote.intressent_id}`} className="hover:underline">
+                      {vote.namn || 'Okänt namn'}
+                    </Link>
                     {vote.parti && (
                       <span className="text-gray-600 ml-1">({vote.parti})</span>
                     )}

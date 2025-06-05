@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,15 @@ const Ledamoter = () => {
   const [autocompleteFilter, setAutocompleteFilter] = useState<RiksdagMember | null>(null);
   const [memberStatus, setMemberStatus] = useState<'current' | 'all' | 'former'>('current');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      setSelectedMemberId(id);
+    }
+  }, [searchParams]);
 
   const { isMobile, isTablet } = useResponsive();
 
@@ -380,7 +390,10 @@ const Ledamoter = () => {
               <MemberCard
                 key={member.id}
                 member={member}
-                onClick={() => setSelectedMemberId(member.id)}
+                onClick={() => {
+                  setSelectedMemberId(member.id);
+                  navigate(`/ledamoter?id=${member.id}`);
+                }}
               />
             ))}
           </div>
@@ -429,7 +442,10 @@ const Ledamoter = () => {
       {selectedMemberId && (
         <MemberProfile
           memberId={selectedMemberId}
-          onClose={() => setSelectedMemberId(null)}
+          onClose={() => {
+            setSelectedMemberId(null);
+            navigate('/ledamoter', { replace: true });
+          }}
         />
       )}
     </>
