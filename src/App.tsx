@@ -14,9 +14,7 @@ import Kalender from "./pages/Kalender";
 import Partianalys from "./pages/Partianalys";
 import Topplistor from "./pages/Topplistor";
 import SprakAnalys from "./pages/SprakAnalys";
-import DatabaseManager from "./pages/DatabaseManager";
-import CalendarTest from "./pages/CalendarTest";
-import Testverktyg from "./pages/Testverktyg";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,9 +37,7 @@ const App = () => (
             <Route path="/partianalys" element={<Partianalys />} />
             <Route path="/topplistor" element={<Topplistor />} />
             <Route path="/sprakanalys" element={<SprakAnalys />} />
-            <Route path="/databashantering" element={<DatabaseManager />} />
-            <Route path="/calendar-test" element={<CalendarTest />} />
-            <Route path="/testverktyg" element={<Testverktyg />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
