@@ -420,6 +420,25 @@ export type Database = {
         }
         Relationships: []
       }
+      ,
+      api_rate_limits: {
+        Row: {
+          key: string
+          count: number
+          reset_time: number
+        }
+        Insert: {
+          key: string
+          count?: number
+          reset_time?: number
+        }
+        Update: {
+          key?: string
+          count?: number
+          reset_time?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
