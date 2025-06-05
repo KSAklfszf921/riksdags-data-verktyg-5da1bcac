@@ -16,6 +16,10 @@ export interface RefreshResult {
   duration?: number;
   errors?: string[];
   stats?: any;
+  apiStatus?: {
+    available: boolean;
+    using_test_data: boolean;
+  };
 }
 
 type ValidTableName = 
@@ -90,7 +94,7 @@ export class DatabaseService {
 
   static async refreshAllData(): Promise<RefreshResult> {
     try {
-      console.log('Anropar fetch-comprehensive-data Edge Function...');
+      console.log('Anropar förbättrad fetch-comprehensive-data Edge Function...');
       
       const { data, error } = await supabase.functions.invoke('fetch-comprehensive-data', {
         body: { action: 'sync_all' }
@@ -103,12 +107,24 @@ export class DatabaseService {
 
       console.log('Edge Function response:', data);
 
+      let message = data?.message || 'Datauppdatering slutförd';
+      
+      // Add API status information to the message
+      if (data?.api_status) {
+        if (!data.api_status.available) {
+          message += ' (använder testdata pga API-problem)';
+        } else {
+          message += ' (med riktig data från Riksdagens API)';
+        }
+      }
+
       return {
         success: data?.success || false,
-        message: data?.message || 'Datauppdatering slutförd',
+        message,
         duration: data?.duration_ms,
         errors: data?.warnings || [],
-        stats: data?.stats
+        stats: data?.stats,
+        apiStatus: data?.api_status
       };
     } catch (error) {
       console.error('Fel vid anrop till Edge Function:', error);
@@ -122,7 +138,7 @@ export class DatabaseService {
 
   static async initializeAllDatabases(): Promise<RefreshResult> {
     try {
-      console.log('Initierar databaser via Edge Function...');
+      console.log('Initierar databaser via förbättrad Edge Function...');
       
       const { data, error } = await supabase.functions.invoke('fetch-comprehensive-data', {
         body: { action: 'initialize' }
@@ -133,14 +149,26 @@ export class DatabaseService {
         throw error;
       }
 
+      let message = data?.success ? 
+        'Databasinitiering slutförd framgångsrikt' : 
+        'Databasinitiering slutförd med varningar';
+
+      // Add API status information
+      if (data?.api_status) {
+        if (!data.api_status.available) {
+          message += '\n\n⚠️ OBS: Riksdagens API är inte tillgängligt just nu. Testdata har använts för att demonstrera systemet.';
+        } else {
+          message += '\n\n✅ Riktig data hämtad från Riksdagens API.';
+        }
+      }
+
       return {
         success: data?.success || false,
-        message: data?.success ? 
-          'Databasinitiering slutförd framgångsrikt' : 
-          'Databasinitiering slutförd med varningar',
+        message,
         duration: data?.duration_ms,
         errors: data?.warnings || [],
-        stats: data?.stats
+        stats: data?.stats,
+        apiStatus: data?.api_status
       };
     } catch (error) {
       console.error('Fel vid databasinitiering:', error);
