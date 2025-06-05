@@ -114,13 +114,31 @@ export const useMembers = (
   return useQuery({
     queryKey: ['members', currentPage, pageSize, memberStatus, committee],
     queryFn: async (): Promise<MembersQueryResult> => {
-      // Mock implementation - would fetch real data from API
+      const params: MemberSearchParams = {
+        p: currentPage,
+        utformat: 'json'
+      };
+
+      if (memberStatus === 'current') {
+        params.kategori = 'nuvarande';
+      } else if (memberStatus === 'former') {
+        params.kategori = 'avslutade';
+      }
+
+      if (committee) {
+        params.organ = committee;
+      }
+
+      const { members, totalCount } = await fetchMembers(params);
+      const hasMore = totalCount > currentPage * pageSize;
+
       return {
-        members: [],
-        totalCount: 0,
-        hasMore: false
+        members,
+        totalCount,
+        hasMore
       };
     },
+    keepPreviousData: true,
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -129,7 +147,8 @@ export const useMemberById = (memberId: string) => {
   return useQuery({
     queryKey: ['member', memberId],
     queryFn: async () => {
-      return null;
+      if (!memberId) return null;
+      return fetchMemberDetails(memberId);
     },
     enabled: !!memberId,
   });
@@ -139,7 +158,9 @@ export const useMembersByParty = (party: string) => {
   return useQuery({
     queryKey: ['members', 'party', party],
     queryFn: async () => {
-      return [];
+      if (!party) return [];
+      const { members } = await fetchMembers({ parti: party, kategori: 'nuvarande', utformat: 'json' });
+      return members;
     },
     enabled: !!party,
   });
@@ -158,7 +179,9 @@ export const useMembersByCommittee = (committee: string) => {
   return useQuery({
     queryKey: ['members', 'committee', committee],
     queryFn: async () => {
-      return fetchMembersWithCommittees();
+      if (!committee) return [];
+      const { members } = await fetchMembers({ organ: committee, kategori: 'nuvarande', utformat: 'json' });
+      return members;
     },
     enabled: !!committee,
   });

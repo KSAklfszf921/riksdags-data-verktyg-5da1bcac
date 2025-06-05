@@ -79,6 +79,10 @@ export interface DocumentSearchParams {
   tom?: string;
   organ?: string;
   p?: number;
+  sort?: string;
+  sortorder?: 'asc' | 'desc';
+  iid?: string;
+  sz?: number;
   utformat?: 'json' | 'xml';
 }
 
@@ -114,6 +118,33 @@ export interface VoteSearchParams {
 }
 
 const BASE_URL = 'https://data.riksdagen.se';
+
+export const VALID_COMMITTEE_CODES = [
+  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU',
+  'NU', 'SkU', 'SfU', 'SoU', 'TU', 'UbU', 'UU',
+  'UFöU', 'EUN', 'SäU'
+];
+
+export const COMMITTEE_MAPPING: { [key: string]: string } = {
+  AU: 'Arbetsmarknadsutskottet',
+  CU: 'Civilutskottet',
+  FiU: 'Finansutskottet',
+  FöU: 'Försvarsutskottet',
+  JuU: 'Justitieutskottet',
+  KU: 'Konstitutionsutskottet',
+  KrU: 'Kulturutskottet',
+  MjU: 'Miljö- och jordbruksutskottet',
+  NU: 'Näringsutskottet',
+  SkU: 'Skatteutskottet',
+  SfU: 'Socialförsäkringsutskottet',
+  SoU: 'Socialutskottet',
+  TU: 'Trafikutskottet',
+  UbU: 'Utbildningsutskottet',
+  UU: 'Utrikesutskottet',
+  UFöU: 'Sammansatta utrikes- och försvarsutskottet',
+  EUN: 'EU-nämnden',
+  SäU: 'Säkerhetsutskottet'
+};
 
 // Utility function for generating standardized emails
 const generateEmail = (firstName: string, lastName: string): string => {
@@ -362,4 +393,8 @@ export const isValidDocumentType = (docType: string): docType is 'mot' | 'prop' 
 
 export const isValidGender = (gender: string): gender is 'K' | 'M' => {
   return ['K', 'M'].includes(gender);
+};
+
+export const isValidCommitteeCode = (code: string): boolean => {
+  return VALID_COMMITTEE_CODES.includes(code);
 };
