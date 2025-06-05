@@ -139,7 +139,7 @@ class EnhancedDocumentTextFetcher {
         const html = await response.text();
         
         // Enhanced HTML to text conversion for Swedish parliamentary documents
-        let textContent = html
+        const textContent = html
           // Remove scripts, styles, and navigation
           .replace(/<script[^>]*>.*?<\/script>/gis, '')
           .replace(/<style[^>]*>.*?<\/style>/gis, '')

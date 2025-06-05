@@ -285,18 +285,19 @@ const EnhancedCalendar = ({ events, loading }: EnhancedCalendarProps) => {
   };
 
   const formatPeriod = () => {
-    switch (view) {
-      case 'month':
-        return format(currentDate, 'MMMM yyyy', { locale: sv });
-      case 'week':
-        const weekStart = startOfWeek(currentDate, { locale: sv });
-        const weekEnd = endOfWeek(currentDate, { locale: sv });
-        return `${format(weekStart, 'd MMM', { locale: sv })} - ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
-      case 'day':
-        return format(currentDate, 'EEEE d MMMM yyyy', { locale: sv });
-      default:
-        return '';
-    }
+      switch (view) {
+        case 'month':
+          return format(currentDate, 'MMMM yyyy', { locale: sv });
+        case 'week': {
+          const weekStart = startOfWeek(currentDate, { locale: sv });
+          const weekEnd = endOfWeek(currentDate, { locale: sv });
+          return `${format(weekStart, 'd MMM', { locale: sv })} - ${format(weekEnd, 'd MMM yyyy', { locale: sv })}`;
+        }
+        case 'day':
+          return format(currentDate, 'EEEE d MMMM yyyy', { locale: sv });
+        default:
+          return '';
+      }
   };
 
   return (

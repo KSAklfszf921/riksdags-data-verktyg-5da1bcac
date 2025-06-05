@@ -320,7 +320,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const startTime = Date.now();
-    let stats = {
+    const stats = {
       parties_processed: 0,
       members_processed: 0,
       documents_processed: 0,
@@ -369,7 +369,7 @@ serve(async (req) => {
       console.log('=== Phase 2: Documents (Enhanced) ===');
       
       const documentTypes = ['mot', 'prop', 'bet'];
-      let allDocuments: any[] = [];
+      const allDocuments: any[] = [];
       
       for (const docType of documentTypes) {
         try {
@@ -417,7 +417,7 @@ serve(async (req) => {
       console.log('=== Phase 3: Votes (Conservative) ===');
       
       const riksmoten = ['2024/25'];
-      let allVotes: any[] = [];
+      const allVotes: any[] = [];
       
       for (const rm of riksmoten) {
         try {

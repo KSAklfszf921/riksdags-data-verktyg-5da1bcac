@@ -7,7 +7,7 @@ export interface CleanedSpeechContent {
 export const cleanSpeechContent = (htmlContent: string, speech: any): CleanedSpeechContent => {
   try {
     // Remove problematic CSS and scripts
-    let cleanedContent = htmlContent
+    const cleanedContent = htmlContent
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/body\s*\{[^}]*\}/g, '')
@@ -22,7 +22,7 @@ export const cleanSpeechContent = (htmlContent: string, speech: any): CleanedSpe
     const doc = parser.parseFromString(cleanedContent, 'text/html');
     
     // Find the main speech content
-    let speechElement = doc.querySelector('.anforande') || 
+    const speechElement = doc.querySelector('.anforande') || 
                        doc.querySelector('.text') || 
                        doc.querySelector('body') ||
                        doc.documentElement;

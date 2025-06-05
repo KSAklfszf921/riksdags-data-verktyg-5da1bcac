@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments, COMMITTEE_MAPPING } from '../services/riksdagApi';
-import { fetchCachedMemberData, fetchMembersByCommittee, CachedMemberData, extractCommitteeAssignments, extractImageUrls } from '../services/cachedPartyApi';
+
 import { Member } from '../types/member';
 
 // Reverse mapping from full names to codes
@@ -303,6 +303,31 @@ export const useMemberSuggestions = () => {
 
     setLoading(true);
     try {
+      if (USE_SUPABASE_MEMBERS) {
+        try {
+          const cached = await fetchCachedMemberSuggestions(query);
+          const mapped: RiksdagMember[] = cached.map((m) => ({
+            intressent_id: m.member_id,
+            hangar_guid: '',
+            tilltalsnamn: m.first_name,
+            efternamn: m.last_name,
+            parti: m.party,
+            valkrets: m.constituency || '',
+            status: m.riksdag_status || '',
+            kon: m.gender || '',
+            fodd_ar: m.birth_year ? String(m.birth_year) : '',
+            fodd_datum: '',
+            bild_url_80: (m.image_urls as any)?.small,
+            bild_url_192: (m.image_urls as any)?.medium,
+            bild_url_max: (m.image_urls as any)?.large,
+          }));
+          setSuggestions(mapped);
+          return;
+        } catch (e) {
+          console.error('Supabase suggestion fetch failed, falling back to API', e);
+        }
+      }
+
       const results = await fetchMemberSuggestions(query);
       setSuggestions(results);
     } catch (error) {

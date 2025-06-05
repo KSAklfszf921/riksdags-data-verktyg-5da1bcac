@@ -52,7 +52,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
             continue;
           }
           
-          let rawContent = await response.text();
+          const rawContent = await response.text();
           console.log(`Content length from ${url}:`, rawContent.length);
           
           // Extrahera innehåll baserat på format
@@ -191,7 +191,7 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
 
   const formatAsRiksdagDocument = (content: string, documentInfo: RiksdagDocument): string => {
     // Rensa innehållet först
-    let cleanedContent = cleanAndFormatContent(content);
+    const cleanedContent = cleanAndFormatContent(content);
     
     // Strukturera innehållet som ett Riksdagsdokument baserat på typ
     let formattedContent = '';
@@ -262,10 +262,10 @@ const DocumentViewer = ({ document }: DocumentViewerProps) => {
         '<h1 class="sou-header">$1</h1>')
       
       // Kapitelrubriker
-      .replace(/^(\d+\.?\s+[A-ZÅÄÖ][^\.]*?)$/gm, '<h2>$1</h2>')
+      .replace(/^(\d+\.?\s+[A-ZÅÄÖ][^.]*)$/gm, '<h2>$1</h2>')
       
       // Underkapitel
-      .replace(/^(\d+\.\d+\.?\s+[A-ZÅÄÖ][^\.]*?)$/gm, '<h3>$1</h3>')
+      .replace(/^(\d+\.\d+\.?\s+[A-ZÅÄÖ][^.]*)$/gm, '<h3>$1</h3>')
       
       // Förslagens konsekvenser
       .replace(/(Förslagens konsekvenser|FÖRSLAGENS KONSEKVENSER)/gi, 
