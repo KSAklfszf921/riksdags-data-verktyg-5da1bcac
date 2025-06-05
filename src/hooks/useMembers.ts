@@ -33,6 +33,38 @@ const getMemberCommitteeAssignments = (member: any) => {
   return [];
 };
 
+// Mock committees data
+const mockCommittees = [
+  'Arbetsmarknadsutskottet',
+  'Civilutskottet',
+  'Finansutskottet',
+  'Försvarsutskottet',
+  'Justitieutskottet',
+  'Kulturutskottet',
+  'Miljö- och jordbruksutskottet',
+  'Näringsutskottet',
+  'Socialutskottet',
+  'Trafikutskottet',
+  'Utbildningsutskottet',
+  'Utrikesutskottet'
+];
+
+// Committee name to code mapping
+const committeeCodeMap: Record<string, string> = {
+  'Arbetsmarknadsutskottet': 'AU',
+  'Civilutskottet': 'CU',
+  'Finansutskottet': 'FiU',
+  'Försvarsutskottet': 'FöU',
+  'Justitieutskottet': 'JuU',
+  'Kulturutskottet': 'KrU',
+  'Miljö- och jordbruksutskottet': 'MJU',
+  'Näringsutskottet': 'NU',
+  'Socialutskottet': 'SoU',
+  'Trafikutskottet': 'TU',
+  'Utbildningsutskottet': 'UbU',
+  'Utrikesutskottet': 'UU'
+};
+
 // Mock implementation for missing functions
 const fetchMembersWithCommittees = async () => {
   // This would normally fetch from an API
@@ -49,14 +81,75 @@ const fetchMemberSuggestions = async (query: string) => {
   return [];
 };
 
-export const useMembers = (limit?: number) => {
+// Export committee helper functions
+export const getCommitteeName = (code: string): string => {
+  const entry = Object.entries(committeeCodeMap).find(([name, c]) => c === code);
+  return entry ? entry[0] : code;
+};
+
+export const getCommitteeCode = (name: string): string => {
+  return committeeCodeMap[name] || name;
+};
+
+// Export committees hook
+export const useCommittees = () => {
+  return {
+    committees: mockCommittees,
+    loading: false,
+    error: null
+  };
+};
+
+// Export member suggestions hook
+export const useMemberSuggestions = () => {
+  const [suggestions, setSuggestions] = useState<RiksdagMember[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const searchMembers = async (query: string) => {
+    if (!query || query.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const results = await fetchMemberSuggestions(query);
+      setSuggestions(results);
+    } catch (error) {
+      console.error('Error searching members:', error);
+      setSuggestions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    suggestions,
+    loading,
+    searchMembers
+  };
+};
+
+export const useMembers = (
+  currentPage: number = 1,
+  pageSize: number = 20,
+  memberStatus: 'current' | 'all' | 'former' = 'current',
+  committee?: string
+) => {
   return useQuery({
-    queryKey: ['members', limit],
+    queryKey: ['members', currentPage, pageSize, memberStatus, committee],
     queryFn: async () => {
-      // Implementation would go here
+      // Mock implementation - would fetch real data from API
       return [];
     },
     staleTime: 5 * 60 * 1000,
+    select: (data: any[]) => ({
+      members: data,
+      loading: false,
+      error: null,
+      totalCount: data.length,
+      hasMore: false
+    })
   });
 };
 

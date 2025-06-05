@@ -37,23 +37,29 @@ const Ledamoter = () => {
 
   const { isMobile, isTablet } = useResponsive();
 
-  const { members, loading, error, totalCount, hasMore } = useMembers(
+  const { data: membersData, isLoading: loading, error } = useMembers(
     currentPage, 
     20, 
     memberStatus, 
     selectedCommittee === "all" ? undefined : selectedCommittee
   );
+
+  // Extract data from the query result
+  const members = membersData?.members || [];
+  const totalCount = membersData?.totalCount || 0;
+  const hasMore = membersData?.hasMore || false;
+
   const { committees } = useCommittees();
 
   // Hämta unika valkretsar från riktig data
-  const constituencies = Array.from(new Set(members.map(member => member.constituency))).sort();
+  const constituencies = Array.from(new Set(members.map((member: any) => member.constituency))).sort();
 
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
-  const actualParties = Array.from(new Set(members.map(member => member.party).filter(party => party && party.trim() !== ""))).sort();
+  const actualParties = Array.from(new Set(members.map((member: any) => member.party).filter((party: any) => party && party.trim() !== ""))).sort();
 
   // Improved committee filtering using committee codes
   const filteredAndSortedMembers = members
-    .filter(member => {
+    .filter((member: any) => {
       // Om autocomplete-filter är aktivt, visa bara den valda ledamoten
       if (autocompleteFilter) {
         return member.id === autocompleteFilter.intressent_id;
@@ -69,21 +75,21 @@ const Ledamoter = () => {
       if (selectedCommittee !== "all") {
         // Convert committee name to code for matching
         const committeeCodeToMatch = getCommitteeCode(selectedCommittee);
-        matchesCommittee = member.committees.includes(committeeCodeToMatch);
+        matchesCommittee = member.committees?.includes(committeeCodeToMatch) || false;
       }
       
       return matchesSearch && matchesParty && matchesConstituency && matchesCommittee;
     })
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       switch (sortBy) {
         case "name":
           return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
         case "party":
-          return a.party.localeCompare(b.party);
+          return (a.party || '').localeCompare(b.party || '');
         case "constituency":
-          return a.constituency.localeCompare(b.constituency);
+          return (a.constituency || '').localeCompare(b.constituency || '');
         case "activity":
-          return b.activityScore - a.activityScore;
+          return (b.activityScore || 0) - (a.activityScore || 0);
         default:
           return 0;
       }
@@ -142,7 +148,7 @@ const Ledamoter = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               Kunde inte ladda ledamöter
             </h3>
-            <p className="text-gray-600 mb-4">{error}</p>
+            <p className="text-gray-600 mb-4">{error.message}</p>
             <Button onClick={() => window.location.reload()}>
               Försök igen
             </Button>
@@ -386,7 +392,7 @@ const Ledamoter = () => {
                 ? 'grid-cols-2 gap-4' 
                 : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
           }`}>
-            {filteredAndSortedMembers.map((member) => (
+            {filteredAndSortedMembers.map((member: any) => (
               <MemberCard
                 key={member.id}
                 member={member}
@@ -414,7 +420,7 @@ const Ledamoter = () => {
                 )}
                 <span>{loading ? 'Laddar...' : 'Ladda fler ledamöter'}</span>
               </Button>
-              {error && <p className="text-red-500 mt-2 text-sm">{error}</p>}
+              {error && <p className="text-red-500 mt-2 text-sm">{error.message}</p>}
             </div>
           )}
 
