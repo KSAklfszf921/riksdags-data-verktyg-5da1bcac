@@ -1,260 +1,119 @@
+
 export interface RiksdagMember {
-  intressent_id: string;
-  hangar_guid: string;
-  tilltalsnamn: string;
-  efternamn: string;
-  parti: string;
-  valkrets: string;
-  status: string;
-  kon: string;
-  fodd_ar: string;
-  datum_fran?: string;
-  datum_tom?: string;
-  fodd_datum: string;
-  bild_url_80?: string;
-  bild_url_192?: string;
-  bild_url_max?: string;
-}
-
-export interface RiksdagMemberAssignment {
-  organ_kod: string;
-  roll: string;
-  status: string;
-  from: string;
-  tom: string;
-  typ: string;
-  ordning?: string;
-  uppgift: string;
-}
-
-export interface RiksdagMemberDetails {
-  intressent_id: string;
-  tilltalsnamn: string;
-  efternamn: string;
+  id: string;
+  fnamn: string;
+  enamn: string;
   parti: string;
   valkrets: string;
   kon: string;
-  fodd_ar: string;
-  yrke?: string;
-  bild_url_80?: string;
-  bild_url_192?: string;
-  bild_url_max?: string;
-  assignments: RiksdagMemberAssignment[];
+  fodd?: string;
+  bild_url?: string;
+  uppdrag?: Array<{
+    roll: string;
+    organ: string;
+  }>;
+}
+
+export interface RiksdagMemberDetails extends RiksdagMember {
   email: string;
 }
 
 export interface RiksdagPersonResponse {
   personlista: {
-    person: (RiksdagMember & { 
-      personuppdrag?: { uppdrag: any[] }; 
-      personuppgift?: { uppgift: any[] } 
-    })[];
-    '@hits': string;
+    person: RiksdagMember[];
+    '@antal_total': string;
   };
 }
 
 export interface RiksdagDocument {
   id: string;
   titel: string;
-  beteckning: string;
-  datum: string;
-  typ: string;
-  intressent_id?: string;
-  organ: string;
-  undertitel?: string;
-  hangar_id?: string;
-  hangar_guid?: string;
-  dokument_url_text?: string;
-  dokument_url_html?: string;
-  dokumentstatus?: string;
+  doktyp: string;
   publicerad?: string;
-  kalla?: string;
-  rm?: string;
-  tempbet?: string;
-  nummer?: string;
-  slutdatum?: string;
-  systemdatum?: string;
-  summary?: string;
-  notis?: string;
-  notisrubrik?: string;
-  subtyp?: string;
-  doktyp?: string;
-  score?: string;
+  organ?: string;
+  fil_url?: string;
 }
 
 export interface RiksdagDocumentResponse {
   dokumentlista: {
     dokument: RiksdagDocument[];
-    '@hits'?: string;
+    '@antal': string;
+    nasta_sida?: string;
   };
 }
 
 export interface RiksdagSpeech {
   id: string;
-  anforande_id: string;
-  intressent_id: string;
-  rel_dok_id: string;
-  namn: string;
-  parti: string;
-  anforandedatum: string;
-  anforandetext: string;
-  anforandetyp: string;
-  kammaraktivitet: string;
-  anforande_nummer: string;
   talare: string;
-  rel_dok_titel?: string;
-  rel_dok_beteckning?: string;
-  rel_dok_datum?: string;
-  anf_klockslag?: string;
-  anf_sekunder?: string;
-  anforande_url_html?: string;
-  dok_id?: string;
-  dok_titel?: string;
-  protokoll_url_www?: string;
-  avsnittsrubrik?: string;
-  replik?: string;
+  parti: string;
+  anforandetext: string;
+  datum: string;
 }
 
 export interface RiksdagSpeechResponse {
   anforandelista: {
     anforande: RiksdagSpeech[];
-    '@hits'?: string;
   };
 }
 
 export interface RiksdagVote {
-  votering_id: string;
-  hangar_id: string;
-  rm: string;
-  beteckning: string;
-  punkt: string;
-  votering: string;
-  namn: string;
-  parti: string;
-  valkrets: string;
-  rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
-  avser: string;
-  votering_url_xml: string;
-  dok_id: string;
-  systemdatum: string;
-  intressent_id: string;
+  id: string;
+  datum: string;
+  rost: Array<{
+    ledamot_id: string;
+    rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  }>;
 }
 
 export interface RiksdagVoteResponse {
   voteringlista: {
     votering: RiksdagVote[];
-    '@hits'?: string;
-  };
-}
-
-export interface RiksdagCalendarEvent {
-  id: string;
-  datum: string;
-  tid: string;
-  plats: string;
-  aktivitet: string;
-  typ: string;
-  organ: string;
-  summary: string;
-  description?: string;
-  status: string;
-  url?: string;
-  sekretess?: string;
-}
-
-export interface RiksdagCalendarResponse {
-  kalenderlista: {
-    kalender: RiksdagCalendarEvent[];
-    '@hits'?: string;
   };
 }
 
 export interface DocumentSearchParams {
-  searchTerm?: string;
-  doktyp?: string;
-  fromDate?: string;
-  toDate?: string;
-  intressentId?: string;
-  org?: string;
-  parti?: string[];
+  doktyp?: 'mot' | 'prop' | 'bet' | 'sou' | 'ip' | 'sfs';
+  sok?: string;
   rm?: string;
-  bet?: string;
-  tempbet?: string;
-  nr?: string;
-  ts?: string;
+  from?: string;
+  tom?: string;
+  organ?: string;
+  p?: number;
+  utformat?: 'json' | 'xml';
+}
+
+export interface MemberSearchParams {
   iid?: string;
-  talare?: string;
-  exakt?: string;
-  planering?: string;
-  facets?: string;
-  rapport?: string;
-  avd?: string;
-  webbtv?: string;
-  sort?: 'rel' | 'datum' | 'systemdatum' | 'bet' | 'debattdag' | 'debattdagtid' | 'beslutsdag' | 'justeringsdag' | 'beredningsdag' | 'publiceringsdatum';
-  sortorder?: 'asc' | 'desc';
-  sz?: number;
+  fnamn?: string;
+  enamn?: string;
+  fodd?: string;
+  kon?: 'K' | 'M';
+  valkrets?: string;
+  parti?: 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP';
+  kategori?: string;
+  organ?: string;
+  p?: number;
+  utformat?: 'json' | 'xml';
 }
 
 export interface SpeechSearchParams {
   rm?: string;
-  anftyp?: 'Nej' | '';
-  date?: string;
-  systemDate?: string;
-  party?: string;
-  intressentId?: string;
-  pageSize?: number;
+  sok?: string;
+  parti?: 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP';
+  anforandetyp?: string;
+  talare?: string;
+  p?: number;
+  utformat?: 'json' | 'xml';
 }
 
 export interface VoteSearchParams {
-  rm?: string[];
-  beteckning?: string;
-  punkt?: string;
-  party?: string[];
-  valkrets?: string;
-  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande' | '';
-  intressentId?: string;
-  pageSize?: number;
-  page?: number;
-  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet' | '';
-}
-
-export interface CalendarSearchParams {
-  org?: string[];
-  akt?: string[];
-  fromDate?: string;
-  toDate?: string;
-  pageSize?: number;
+  rm?: string;
+  bet?: string;
+  p?: number;
+  utformat?: 'json' | 'xml';
 }
 
 const BASE_URL = 'https://data.riksdagen.se';
-
-// Updated committee codes based on actual Riksdagen structure
-const VALID_COMMITTEE_CODES = [
-  'AU', 'CU', 'FiU', 'FöU', 'JuU', 'KU', 'KrU', 'MjU', 'NU', 'SkU', 'SfU', 
-  'SoU', 'TU', 'UbU', 'UU', 'UFöU', 'EUN', 'SäU'
-];
-
-// Simplified committee mapping
-const COMMITTEE_MAPPING: { [key: string]: string } = {
-  'AU': 'Arbetsmarknadsutskottet',
-  'CU': 'Civilutskottet', 
-  'FiU': 'Finansutskottet',
-  'FöU': 'Försvarsutskottet',
-  'JuU': 'Justitieutskottet',
-  'KU': 'Konstitutionsutskottet',
-  'KrU': 'Kulturutskottet',
-  'MjU': 'Miljö- och jordbruksutskottet',
-  'NU': 'Näringsutskottet',
-  'SkU': 'Skatteutskottet',
-  'SfU': 'Socialförsäkringsutskottet',
-  'SoU': 'Socialutskottet',
-  'TU': 'Trafikutskottet',
-  'UbU': 'Utbildningsutskottet',
-  'UU': 'Utrikesutskottet',
-  'UFöU': 'Sammansatta utrikes- och försvarsutskottet',
-  'EUN': 'EU-nämnden',
-  'SäU': 'Säkerhetsutskottet'
-};
 
 // Utility function for generating standardized emails
 const generateEmail = (firstName: string, lastName: string): string => {
@@ -270,559 +129,129 @@ const generateEmail = (firstName: string, lastName: string): string => {
   return `${cleanFirst}.${cleanLast}@riksdagen.se`;
 };
 
-// Helper function to filter active assignments
-const filterActiveAssignments = (rawAssignments: any[]): RiksdagMemberAssignment[] => {
-  const currentDate = new Date();
+// Enhanced API request with proper error handling
+const makeApiRequest = async (endpoint: string, params: Record<string, any> = {}): Promise<any> => {
+  const url = new URL(endpoint, BASE_URL);
   
-  return rawAssignments
-    .filter(assignment => {
-      if (!assignment) return false;
-      
-      const organKod = assignment.organ_kod || assignment.organ;
-      if (!organKod || !VALID_COMMITTEE_CODES.includes(organKod)) {
-        return false;
-      }
-      
-      // Check if assignment is current (no end date or end date in future)
-      if (assignment.tom && assignment.tom.trim() !== '') {
-        try {
-          const endDate = new Date(assignment.tom);
-          if (!isNaN(endDate.getTime()) && endDate <= currentDate) {
-            return false; // Assignment has ended
-          }
-        } catch (e) {
-          // If date parsing fails, assume it's current
-        }
-      }
-      
-      return true;
-    })
-    .map(assignment => {
-      const organKod = assignment.organ_kod || assignment.organ;
-      
-      return {
-        organ_kod: organKod,
-        roll: assignment.roll_kod || assignment.roll || 'ledamot',
-        status: assignment.status || 'aktiv',
-        from: assignment.from || assignment.datum_fran || '',
-        tom: assignment.tom || assignment.datum_tom || '',
-        typ: assignment.typ || 'uppdrag',
-        ordning: assignment.ordningsnummer || assignment.ordning,
-        uppgift: COMMITTEE_MAPPING[organKod] || organKod
-      };
+  // Add default format to JSON
+  if (!params.utformat) {
+    params.utformat = 'json';
+  }
+  
+  // Add parameters to URL
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      url.searchParams.append(key, String(value));
+    }
+  });
+
+  console.log(`Making API request to: ${url.toString()}`);
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Riksdag-Data-Client/2.0',
+      },
     });
-};
 
-// NEW: Enhanced document text fetching
-export const fetchDocumentText = async (documentId: string, documentType?: string): Promise<string | null> => {
-  try {
-    console.log(`Fetching document text for: ${documentId}, type: ${documentType}`);
-    
-    // Try different API endpoints based on document type
-    let url = `${BASE_URL}/dokument/${documentId}.txt`;
-    
-    const response = await fetch(url);
-    
     if (!response.ok) {
-      // Try HTML endpoint if text fails
-      url = `${BASE_URL}/dokument/${documentId}.html`;
-      const htmlResponse = await fetch(url);
-      
-      if (!htmlResponse.ok) {
-        console.warn(`Failed to fetch document text for ${documentId}: ${response.status}`);
-        return null;
+      if (response.status === 413) {
+        throw new Error('Response too large - use more specific filters or pagination');
+      } else if (response.status === 400) {
+        throw new Error('Invalid parameters - check parameter format and values');
+      } else if (response.status === 404) {
+        throw new Error('Resource not found');
       }
-      
-      const htmlText = await htmlResponse.text();
-      // Basic HTML stripping for analysis
-      const textContent = htmlText
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      console.log(`Fetched HTML document text for ${documentId}: ${textContent.length} characters`);
-      return textContent;
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
     }
-    
-    const textContent = await response.text();
-    console.log(`Fetched document text for ${documentId}: ${textContent.length} characters`);
-    return textContent;
-    
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error(`Expected JSON response but got: ${contentType}`);
+    }
+
+    const data = await response.json();
+    console.log(`API request successful: ${Object.keys(data).join(', ')}`);
+    return data;
   } catch (error) {
-    console.error(`Error fetching document text for ${documentId}:`, error);
-    return null;
+    console.error(`API request failed for ${url.toString()}:`, error);
+    throw error;
   }
 };
 
-// NEW: Enhanced speech text fetching
-export const fetchSpeechText = async (speechId: string): Promise<string | null> => {
+export const fetchMembers = async (params: MemberSearchParams = {}): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
   try {
-    console.log(`Fetching speech text for: ${speechId}`);
+    const data: RiksdagPersonResponse = await makeApiRequest('/personlista/', params);
+    const members = data.personlista?.person || [];
+    const totalCount = parseInt(data.personlista?.['@antal_total'] || '0');
     
-    const url = `${BASE_URL}/anforandelista/?utformat=json&anforande_id=${speechId}`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.warn(`Failed to fetch speech for ${speechId}: ${response.status}`);
-      return null;
-    }
-    
-    const data: RiksdagSpeechResponse = await response.json();
-    const speech = data.anforandelista?.anforande?.[0];
-    
-    if (!speech || !speech.anforandetext) {
-      console.warn(`No speech text found for ${speechId}`);
-      return null;
-    }
-    
-    console.log(`Fetched speech text for ${speechId}: ${speech.anforandetext.length} characters`);
-    return speech.anforandetext;
-    
-  } catch (error) {
-    console.error(`Error fetching speech text for ${speechId}:`, error);
-    return null;
-  }
-};
-
-// NEW: Batch document text fetching
-export const fetchDocumentTextBatch = async (
-  documents: { id: string; type?: string }[]
-): Promise<Map<string, string>> => {
-  const textMap = new Map<string, string>();
-  const batchSize = 3; // Conservative batch size to avoid rate limiting
-  
-  for (let i = 0; i < documents.length; i += batchSize) {
-    const batch = documents.slice(i, i + batchSize);
-    console.log(`Processing document batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(documents.length/batchSize)}`);
-    
-    const batchPromises = batch.map(async (doc) => {
-      const text = await fetchDocumentText(doc.id, doc.type);
-      if (text && text.length > 100) { // Only include documents with substantial text
-        textMap.set(doc.id, text);
-      }
-      return { id: doc.id, text };
-    });
-    
-    await Promise.allSettled(batchPromises);
-    
-    // Add delay between batches to be respectful to the API
-    if (i + batchSize < documents.length) {
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-  }
-  
-  console.log(`Batch fetching completed: ${textMap.size}/${documents.length} documents with text`);
-  return textMap;
-};
-
-// NEW: Enhanced member content fetching for language analysis
-export const fetchMemberContentForAnalysis = async (
-  memberId: string,
-  limit: number = 25
-): Promise<{
-  speeches: Array<{ id: string; text: string; title: string; date: string }>;
-  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
-}> => {
-  try {
-    console.log(`Fetching content for language analysis: member ${memberId}`);
-    
-    // Fetch recent speeches with better parameters
-    const { speeches } = await searchSpeeches({
-      intressentId: memberId,
-      pageSize: Math.min(limit, 50)
-    });
-    
-    // Fetch recent documents (written questions, motions, etc.)
-    const { documents } = await searchDocuments({
-      intressentId: memberId,
-      sz: Math.min(limit, 50),
-      sort: 'datum',
-      sortorder: 'desc'
-    });
-    
-    // Filter and fetch text for speeches
-    const speechResults: Array<{ id: string; text: string; title: string; date: string }> = [];
-    for (const speech of speeches.slice(0, Math.floor(limit * 0.6))) {
-      if (speech.anforandetext && speech.anforandetext.length > 200) {
-        speechResults.push({
-          id: speech.anforande_id,
-          text: speech.anforandetext,
-          title: speech.rel_dok_titel || 'Anförande',
-          date: speech.anforandedatum
-        });
-      }
-    }
-    
-    // Filter and fetch text for documents
-    const documentResults: Array<{ id: string; text: string; title: string; date: string; type: string }> = [];
-    const relevantDocs = documents
-      .filter(doc => ['fr', 'mot', 'ip'].includes(doc.typ?.toLowerCase() || ''))
-      .slice(0, Math.floor(limit * 0.4));
-    
-    for (const doc of relevantDocs) {
-      const text = await fetchDocumentText(doc.id, doc.typ);
-      if (text && text.length > 150) {
-        documentResults.push({
-          id: doc.id,
-          text,
-          title: doc.titel || 'Dokument',
-          date: doc.datum,
-          type: doc.typ || 'unknown'
-        });
-      }
-    }
-    
-    console.log(`Fetched content for ${memberId}: ${speechResults.length} speeches, ${documentResults.length} documents`);
-    
-    return {
-      speeches: speechResults,
-      documents: documentResults
-    };
-    
-  } catch (error) {
-    console.error(`Error fetching member content for analysis:`, error);
-    return { speeches: [], documents: [] };
-  }
-};
-
-export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
-  if (query.length < 1) return [];
-  
-  const url = `${BASE_URL}/personlista/?fnamn=${encodeURIComponent(query)}&utformat=json`;
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Kunde inte hämta ledamöter');
-    }
-    const data: RiksdagPersonResponse = await response.json();
-    return data.personlista?.person || [];
-  } catch (error) {
-    console.error('Error fetching member suggestions:', error);
-    return [];
-  }
-};
-
-// Simplified and more reliable fetchMemberDetails
-export const fetchMemberDetails = async (intressentId: string): Promise<RiksdagMemberDetails | null> => {
-  try {
-    console.log(`Fetching member details for: ${intressentId}`);
-    const url = `${BASE_URL}/personlista/?iid=${intressentId}&utformat=json`;
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch member details for ${intressentId}: ${response.status}`);
-      return null;
-    }
-    
-    const data: RiksdagPersonResponse = await response.json();
-    const person = data.personlista?.person?.[0];
-    
-    if (!person) {
-      console.log(`No person found for intressent_id: ${intressentId}`);
-      return null;
-    }
-
-    // Extract assignments with more robust parsing
-    let rawAssignments: any[] = [];
-    
-    if (person.personuppdrag?.uppdrag) {
-      rawAssignments = Array.isArray(person.personuppdrag.uppdrag) 
-        ? person.personuppdrag.uppdrag 
-        : [person.personuppdrag.uppdrag];
-    }
-    
-    console.log(`Raw assignments count for ${intressentId}:`, rawAssignments.length);
-    
-    const assignments = filterActiveAssignments(rawAssignments);
-    console.log(`Processed ${assignments.length} committee assignments for ${person.tilltalsnamn} ${person.efternamn}`);
-
-    return {
-      intressent_id: person.intressent_id,
-      tilltalsnamn: person.tilltalsnamn, // Fixed typo here
-      efternamn: person.efternamn,
-      parti: person.parti,
-      valkrets: person.valkrets,
-      kon: person.kon,
-      fodd_ar: person.fodd_ar,
-      bild_url_80: person.bild_url_80,
-      bild_url_192: person.bild_url_192,
-      bild_url_max: person.bild_url_max,
-      assignments,
-      email: generateEmail(person.tilltalsnamn, person.efternamn)
-    };
-  } catch (error) {
-    console.error(`Error fetching member details for ${intressentId}:`, error);
-    return null;
-  }
-};
-
-// Optimized committee member fetching
-export const fetchMembersWithCommittees = async (
-  page: number = 1,
-  pageSize: number = 20,
-  status: 'current' | 'all' | 'former' = 'current',
-  committee?: string
-): Promise<{ members: RiksdagMemberDetails[]; totalCount: number }> => {
-  try {
-    console.log(`Fetching members with committees: page=${page}, status=${status}, committee=${committee}`);
-    
-    // Fetch all members first
-    const membersResult = await fetchMembers(1, 1000, status); // Get a large batch
-    
-    console.log(`Initial fetch returned ${membersResult.members.length} members`);
-    
-    // Batch fetch member details with improved error handling
-    const batchSize = 5; // Reduced to avoid rate limiting
-    const detailedMembers: RiksdagMemberDetails[] = [];
-    
-    for (let i = 0; i < membersResult.members.length; i += batchSize) {
-      const batch = membersResult.members.slice(i, i + batchSize);
-      console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(membersResult.members.length/batchSize)}`);
-      
-      const batchDetails = await Promise.allSettled(
-        batch.map(member => fetchMemberDetails(member.intressent_id))
-      );
-      
-      // Process results and handle errors gracefully
-      batchDetails.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value) {
-          detailedMembers.push(result.value);
-        } else {
-          const member = batch[index];
-          console.warn(`Failed to fetch details for ${member.tilltalsnamn} ${member.efternamn}`);
-          // Create a fallback member object
-          detailedMembers.push({
-            intressent_id: member.intressent_id,
-            tilltalsnamn: member.tilltalsnamn,
-            efternamn: member.efternamn,
-            parti: member.parti,
-            valkrets: member.valkrets,
-            kon: member.kon,
-            fodd_ar: member.fodd_ar,
-            bild_url_80: member.bild_url_80,
-            bild_url_192: member.bild_url_192,
-            bild_url_max: member.bild_url_max,
-            assignments: [],
-            email: generateEmail(member.tilltalsnamn, member.efternamn)
-          });
-        }
-      });
-      
-      // Add delay between batches to avoid overwhelming the API
-      if (i + batchSize < membersResult.members.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-    }
-    
-    // Filter by committee if specified
-    let filteredMembers = detailedMembers;
-    if (committee && committee !== 'all' && VALID_COMMITTEE_CODES.includes(committee)) {
-      console.log(`Filtering by committee: ${committee}`);
-      filteredMembers = detailedMembers.filter(member => 
-        member.assignments.some(assignment => assignment.organ_kod === committee)
-      );
-      console.log(`After committee filtering: ${filteredMembers.length} members`);
-    }
-    
-    // Apply pagination
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedMembers = filteredMembers.slice(startIndex, endIndex);
-    
-    return {
-      members: paginatedMembers,
-      totalCount: filteredMembers.length
-    };
-  } catch (error) {
-    console.error('Error fetching members with committees:', error);
-    return { members: [], totalCount: 0 };
-  }
-};
-
-// Use hardcoded committees instead of API endpoint that returns 404
-export const fetchAllCommittees = async (): Promise<string[]> => {
-  const committees = Object.values(COMMITTEE_MAPPING);
-  console.log(`Returning ${committees.length} committees`);
-  return committees;
-};
-
-export const fetchMembers = async (
-  page: number = 1,
-  pageSize: number = 20,
-  status: 'current' | 'all' | 'former' = 'current'
-): Promise<{ members: RiksdagMember[]; totalCount: number }> => {
-  const url = `${BASE_URL}/personlista/?utformat=json`;
-  
-  console.log(`Fetching members with status: ${status}`);
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Kunde inte hämta ledamöter');
-    }
-    const data: RiksdagPersonResponse = await response.json();
-    let allMembers = data.personlista?.person || [];
-    
-    console.log(`Initial fetch returned ${allMembers.length} members`);
-    
-    const currentDate = new Date();
-    
-    if (status === 'current') {
-      allMembers = allMembers.filter(member => {
-        if (!member.datum_tom || member.datum_tom.trim() === '') {
-          return true;
-        }
-        try {
-          const endDate = new Date(member.datum_tom);
-          return endDate > currentDate;
-        } catch {
-          return true;
-        }
-      });
-    } else if (status === 'former') {
-      allMembers = allMembers.filter(member => {
-        if (!member.datum_tom || member.datum_tom.trim() === '') {
-          return false;
-        }
-        try {
-          const endDate = new Date(member.datum_tom);
-          return endDate <= currentDate;
-        } catch {
-          return false;
-        }
-      });
-    }
-    
-    console.log(`After filtering for ${status}: ${allMembers.length} members`);
-    
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const paginatedMembers = allMembers.slice(startIndex, endIndex);
-    
-    console.log(`Returning page ${page}: ${paginatedMembers.length} members (${startIndex}-${endIndex})`);
-    
-    return {
-      members: paginatedMembers,
-      totalCount: allMembers.length
-    };
+    console.log(`Fetched ${members.length} members, total: ${totalCount}`);
+    return { members, totalCount };
   } catch (error) {
     console.error('Error fetching members:', error);
     return { members: [], totalCount: 0 };
   }
 };
 
-export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
-  const url = `${BASE_URL}/personlista/?utformat=json&rdlstatus=tjanstgorande`;
-  
+export const fetchMemberDetails = async (memberId: string): Promise<RiksdagMemberDetails | null> => {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error('Kunde inte hämta ledamöter');
+    console.log(`Fetching member details for: ${memberId}`);
+    const data: RiksdagPersonResponse = await makeApiRequest('/personlista/', { iid: memberId });
+    const person = data.personlista?.person?.[0];
+    
+    if (!person) {
+      console.log(`No person found for ID: ${memberId}`);
+      return null;
     }
-    const data: RiksdagPersonResponse = await response.json();
-    let members = data.personlista?.person || [];
-    
-    const currentDate = new Date();
-    members = members.filter(member => {
-      if (!member.datum_tom || member.datum_tom.trim() === '') {
-        return true;
-      }
-      const endDate = new Date(member.datum_tom);
-      return endDate > currentDate;
-    });
-    
-    return members;
+
+    return {
+      ...person,
+      email: generateEmail(person.fnamn, person.enamn)
+    };
   } catch (error) {
-    console.error('Error fetching all members:', error);
-    return [];
+    console.error(`Error fetching member details for ${memberId}:`, error);
+    return null;
   }
 };
 
-export const searchDocuments = async (params: DocumentSearchParams): Promise<{documents: RiksdagDocument[], totalCount: number}> => {
-  let url = `${BASE_URL}/dokumentlista/?utformat=json`;
-  
-  // Use 10 results per page for pagination
-  if (params.sz) {
-    url += `&sz=${params.sz}`;
-  } else {
-    url += '&sz=10';
-  }
-  
-  if (params.searchTerm) url += `&sok=${encodeURIComponent(params.searchTerm)}`;
-  if (params.doktyp) url += `&doktyp=${params.doktyp}`;
-  if (params.fromDate) url += `&from=${params.fromDate}`;
-  if (params.toDate) url += `&tom=${params.toDate}`;
-  if (params.intressentId) url += `&iid=${params.intressentId}`;
-  if (params.org) url += `&org=${params.org}`;
-  if (params.rm) url += `&rm=${params.rm}`;
-  if (params.bet) url += `&bet=${encodeURIComponent(params.bet)}`;
-  if (params.tempbet) url += `&tempbet=${params.tempbet}`;
-  if (params.nr) url += `&nr=${params.nr}`;
-  if (params.ts) url += `&ts=${params.ts}`;
-  if (params.iid) url += `&iid=${params.iid}`;
-  if (params.talare) url += `&talare=${encodeURIComponent(params.talare)}`;
-  if (params.exakt) url += `&exakt=${params.exakt}`;
-  if (params.planering) url += `&planering=${params.planering}`;
-  if (params.facets) url += `&facets=${params.facets}`;
-  if (params.rapport) url += `&rapport=${params.rapport}`;
-  if (params.avd) url += `&avd=${params.avd}`;
-  if (params.webbtv) url += `&webbtv=${params.webbtv}`;
-  
-  if (params.parti && params.parti.length > 0) {
-    params.parti.forEach(p => {
-      url += `&parti=${p}`;
-    });
-  }
-  
-  if (params.sort) url += `&sort=${params.sort}`;
-  if (params.sortorder) url += `&sortorder=${params.sortorder}`;
-  
-  console.log('API URL:', url);
-  
+export const searchDocuments = async (params: DocumentSearchParams): Promise<{ documents: RiksdagDocument[]; totalCount: number; nextPage?: string }> => {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-    const data: RiksdagDocumentResponse = await response.json();
+    console.log('Searching documents with params:', params);
+    const data: RiksdagDocumentResponse = await makeApiRequest('/dokumentlista/', params);
+    
     const documents = data.dokumentlista?.dokument || [];
-    const totalCount = parseInt(data.dokumentlista?.['@hits'] || '0');
+    const totalCount = parseInt(data.dokumentlista?.['@antal'] || '0');
+    const nextPage = data.dokumentlista?.nasta_sida;
     
-    console.log('API Response:', { documents: documents.length, totalCount });
-    
-    return { documents, totalCount };
+    console.log(`Found ${documents.length} documents, total: ${totalCount}`);
+    return { documents, totalCount, nextPage };
   } catch (error) {
     console.error('Error searching documents:', error);
     throw error;
   }
 };
 
-export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speeches: RiksdagSpeech[], totalCount: number}> => {
-  let url = `${BASE_URL}/anforandelista/?utformat=json`;
-  
-  if (params.pageSize) {
-    url += `&sz=${params.pageSize}`;
-  } else {
-    url += '&sz=50';
-  }
-  
-  if (params.rm) url += `&rm=${encodeURIComponent(params.rm)}`;
-  if (params.anftyp) url += `&anftyp=${params.anftyp}`;
-  if (params.date) url += `&d=${params.date}`;
-  if (params.systemDate) url += `&ts=${params.systemDate}`;
-  if (params.party) url += `&parti=${params.party}`;
-  if (params.intressentId) url += `&iid=${params.intressentId}`;
-  
+export const fetchDocument = async (documentId: string): Promise<RiksdagDocument | null> => {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-    const data: RiksdagSpeechResponse = await response.json();
-    const speeches = data.anforandelista?.anforande || [];
-    const totalCount = parseInt(data.anforandelista?.['@hits'] || '0');
+    console.log(`Fetching document: ${documentId}`);
+    const data = await makeApiRequest(`/dokument/${documentId}/`);
+    return data as RiksdagDocument;
+  } catch (error) {
+    console.error(`Error fetching document ${documentId}:`, error);
+    return null;
+  }
+};
+
+export const searchSpeeches = async (params: SpeechSearchParams): Promise<{ speeches: RiksdagSpeech[]; totalCount: number }> => {
+  try {
+    console.log('Searching speeches with params:', params);
+    const data: RiksdagSpeechResponse = await makeApiRequest('/anforandelista/', params);
     
+    const speeches = data.anforandelista?.anforande || [];
+    const totalCount = speeches.length; // API doesn't provide total count for speeches
+    
+    console.log(`Found ${speeches.length} speeches`);
     return { speeches, totalCount };
   } catch (error) {
     console.error('Error searching speeches:', error);
@@ -830,42 +259,26 @@ export const searchSpeeches = async (params: SpeechSearchParams): Promise<{speec
   }
 };
 
-export const searchVotes = async (params: VoteSearchParams): Promise<{votes: RiksdagVote[], totalCount: number}> => {
-  let url = `${BASE_URL}/voteringlista/?utformat=json`;
-  
-  if (params.pageSize) {
-    url += `&sz=${params.pageSize}`;
-  } else {
-    url += '&sz=50';
-  }
-  
-  if (params.rm && params.rm.length > 0) {
-    params.rm.forEach(rm => {
-      url += `&rm=${encodeURIComponent(rm)}`;
-    });
-  }
-  if (params.beteckning) url += `&bet=${encodeURIComponent(params.beteckning)}`;
-  if (params.punkt) url += `&punkt=${params.punkt}`;
-  if (params.valkrets) url += `&valkrets=${encodeURIComponent(params.valkrets)}`;
-  if (params.rost) url += `&rost=${params.rost}`;
-  if (params.intressentId) url += `&iid=${params.intressentId}`;
-  if (params.gruppering) url += `&gruppering=${params.gruppering}`;
-  
-  if (params.party && params.party.length > 0) {
-    params.party.forEach(p => {
-      url += `&parti=${p}`;
-    });
-  }
-  
+export const fetchSpeech = async (speechId: string): Promise<RiksdagSpeech | null> => {
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-    const data: RiksdagVoteResponse = await response.json();
-    const votes = data.voteringlista?.votering || [];
-    const totalCount = parseInt(data.voteringlista?.['@hits'] || '0');
+    console.log(`Fetching speech: ${speechId}`);
+    const data = await makeApiRequest(`/anforande/${speechId}/`);
+    return data as RiksdagSpeech;
+  } catch (error) {
+    console.error(`Error fetching speech ${speechId}:`, error);
+    return null;
+  }
+};
+
+export const searchVotes = async (params: VoteSearchParams): Promise<{ votes: RiksdagVote[]; totalCount: number }> => {
+  try {
+    console.log('Searching votes with params:', params);
+    const data: RiksdagVoteResponse = await makeApiRequest('/voteringlista/', params);
     
+    const votes = data.voteringlista?.votering || [];
+    const totalCount = votes.length; // API doesn't provide total count for votes
+    
+    console.log(`Found ${votes.length} votes`);
     return { votes, totalCount };
   } catch (error) {
     console.error('Error searching votes:', error);
@@ -873,146 +286,80 @@ export const searchVotes = async (params: VoteSearchParams): Promise<{votes: Rik
   }
 };
 
-export const searchCalendarEvents = async (params: CalendarSearchParams): Promise<{events: RiksdagCalendarEvent[], totalCount: number}> => {
-  let url = `${BASE_URL}/kalender/?utformat=json`;
-  
-  if (params.pageSize) {
-    url += `&sz=${params.pageSize}`;
-  } else {
-    url += '&sz=50';
-  }
-  
-  if (params.org && params.org.length > 0) {
-    params.org.forEach(org => {
-      url += `&org=${encodeURIComponent(org)}`;
-    });
-  }
-  
-  if (params.akt && params.akt.length > 0) {
-    params.akt.forEach(akt => {
-      url += `&akt=${encodeURIComponent(akt)}`;
-    });
-  }
-  
-  if (params.fromDate) url += `&from=${params.fromDate}`;
-  if (params.toDate) url += `&tom=${params.toDate}`;
-  
+export const fetchVote = async (voteId: string, party?: string): Promise<RiksdagVote | null> => {
   try {
-    console.log(`Fetching calendar events from: ${url}`);
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      console.error(`Calendar API error: ${response.status} ${response.statusText}`);
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-    
-    // Check if response is actually JSON
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error('Calendar API did not return JSON:', contentType);
-      console.log('Response text preview:', await response.text().then(text => text.substring(0, 200)));
-      return { events: [], totalCount: 0 };
-    }
-    
-    const data: RiksdagCalendarResponse = await response.json();
-    const events = data.kalenderlista?.kalender || [];
-    const totalCount = parseInt(data.kalenderlista?.['@hits'] || '0');
-    
-    console.log(`Calendar events fetched: ${events.length}, total: ${totalCount}`);
-    return { events, totalCount };
+    console.log(`Fetching vote: ${voteId}${party ? ` for party: ${party}` : ''}`);
+    const params = party ? { parti: party } : {};
+    const data = await makeApiRequest(`/votering/${voteId}/`, params);
+    return data as RiksdagVote;
   } catch (error) {
-    console.error('Error searching calendar events:', error);
-    // Return empty result instead of throwing to prevent blocking member loading
-    return { events: [], totalCount: 0 };
+    console.error(`Error fetching vote ${voteId}:`, error);
+    return null;
   }
 };
 
-export const fetchMemberDocuments = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagDocument[]> => {
+// Legacy compatibility functions
+export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
+  const { members } = await fetchMembers({ kategori: 'nuvarande' });
+  return members;
+};
+
+export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMember[]> => {
+  if (query.length < 2) return [];
+  
+  const { members } = await fetchMembers({ 
+    fnamn: query.includes(' ') ? query.split(' ')[0] : query,
+    enamn: query.includes(' ') ? query.split(' ').slice(1).join(' ') : undefined
+  });
+  
+  return members.slice(0, 10); // Limit suggestions
+};
+
+// Utility functions for backward compatibility
+export const fetchMemberDocuments = async (memberId: string): Promise<RiksdagDocument[]> => {
   try {
-    console.log(`Fetching documents for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
-    
-    const { documents } = await searchDocuments({
-      iid: intressentId,
-      sz: pageSize,
-      sort: 'datum',
-      sortorder: 'desc'
-    });
-    
-    console.log(`Found ${documents.length} documents for member ${intressentId}`);
-    
-    const enrichedDocuments = documents.map(doc => ({
-      ...doc,
-      intressent_id: intressentId
-    }));
-    
-    return enrichedDocuments;
+    const { documents } = await searchDocuments({ sok: memberId });
+    return documents;
   } catch (error) {
-    console.error(`Error fetching documents for member ${intressentId}:`, error);
+    console.error(`Error fetching documents for member ${memberId}:`, error);
     return [];
   }
 };
 
-export const fetchMemberSpeeches = async (intressentId: string, page: number = 1, pageSize: number = 1000): Promise<RiksdagSpeech[]> => {
+export const fetchMemberSpeeches = async (memberId: string): Promise<RiksdagSpeech[]> => {
   try {
-    console.log(`Fetching speeches for member: ${intressentId} (page: ${page}, size: ${pageSize})`);
+    const member = await fetchMemberDetails(memberId);
+    if (!member) return [];
     
-    const { speeches } = await searchSpeeches({
-      intressentId,
-      pageSize
-    });
-    
-    console.log(`Found ${speeches.length} speeches for member ${intressentId}`);
+    const { speeches } = await searchSpeeches({ talare: `${member.fnamn} ${member.enamn}` });
     return speeches;
   } catch (error) {
-    console.error(`Error fetching speeches for member ${intressentId}:`, error);
+    console.error(`Error fetching speeches for member ${memberId}:`, error);
     return [];
   }
 };
 
-export const fetchMemberVotes = async (intressentId: string): Promise<RiksdagVote[]> => {
+export const fetchMemberVotes = async (memberId: string): Promise<RiksdagVote[]> => {
   try {
-    console.log(`Fetching votes for member: ${intressentId}`);
-    
-    const { votes } = await searchVotes({
-      intressentId,
-      pageSize: 100
-    });
-    
-    console.log(`Found ${votes.length} votes for member ${intressentId}`);
-    return votes;
-  } catch (error) {
-    console.error(`Error fetching votes for member ${intressentId}:`, error);
-    return [];
-  }
-};
-
-export const fetchMemberCalendarEvents = async (intressentId: string): Promise<RiksdagCalendarEvent[]> => {
-  try {
-    console.log(`Fetching calendar events for member: ${intressentId}`);
-    // Calendar events in Riksdag API are not member-specific, so return empty array
-    // The API doesn't support filtering by member ID for calendar events
+    // Note: The API doesn't support filtering votes by member ID directly
+    // This would require fetching multiple votes and filtering client-side
+    console.warn('Fetching votes by member ID is not directly supported by the API');
     return [];
   } catch (error) {
-    console.error(`Error fetching calendar events for member ${intressentId}:`, error);
+    console.error(`Error fetching votes for member ${memberId}:`, error);
     return [];
   }
 };
 
-// New utility function to get committee assignments for a member
-export const getMemberCommitteeAssignments = async (intressentId: string): Promise<RiksdagMemberAssignment[]> => {
-  const memberDetails = await fetchMemberDetails(intressentId);
-  if (!memberDetails) {
-    return [];
-  }
-  
-  // Return committee assignments, already filtered and validated
-  return memberDetails.assignments;
+// Export utility functions for validation
+export const isValidParty = (party: string): party is 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP' => {
+  return ['S', 'M', 'SD', 'C', 'V', 'KD', 'L', 'MP'].includes(party);
 };
 
-// Updated utility function to validate committee codes
-export const isValidCommitteeCode = (code: string): boolean => {
-  return VALID_COMMITTEE_CODES.includes(code);
+export const isValidDocumentType = (docType: string): docType is 'mot' | 'prop' | 'bet' | 'sou' | 'ip' | 'sfs' => {
+  return ['mot', 'prop', 'bet', 'sou', 'ip', 'sfs'].includes(docType);
 };
 
-// Export committee utilities
-export { COMMITTEE_MAPPING, VALID_COMMITTEE_CODES };
+export const isValidGender = (gender: string): gender is 'K' | 'M' => {
+  return ['K', 'M'].includes(gender);
+};
