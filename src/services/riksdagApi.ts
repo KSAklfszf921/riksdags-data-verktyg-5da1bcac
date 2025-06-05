@@ -197,13 +197,13 @@ export const fetchMembers = async (params: MemberSearchParams = {}): Promise<{ m
 export const fetchMemberDetails = async (memberId: string): Promise<RiksdagMemberDetails | null> => {
   try {
     console.log(`Fetching member details for: ${memberId}`);
-    const data: RiksdagPersonResponse = await makeApiRequest('/personlista/', { iid: memberId });
-    const person = data.personlista?.person?.[0];
-    
-    if (!person) {
+    const data = await makeApiRequest(`/person/${memberId}/`);
+    if (!data) {
       console.log(`No person found for ID: ${memberId}`);
       return null;
     }
+
+    const person = data as RiksdagMemberDetails;
 
     return {
       ...person,

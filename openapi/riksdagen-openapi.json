@@ -1,0 +1,592 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sveriges Riksdag – Öppna Data API",
+    "version": "1.7.4",
+    "description": "REST-API för åtkomst till dokument, ledamöter, voteringar och anföranden från Sveriges riksdag. Använd paginering med 'p' för stora datamängder. Kombinera filter (t.ex. kon, valkrets, parti) för att begränsa resultaten. Parametern 'sz' är föråldrad och bör inte användas. Observera att vissa ändpunkter kan returnera partiella eller tomma svar för opublicerade eller nyligen skapade data.",
+    "contact": {
+      "name": "Riksdagens öppna data",
+      "url": "https://www.riksdagen.se/sv/oppna-data/",
+      "email": "opendata@riksdagen.se"
+    },
+    "license": {
+      "name": "Creative Commons CC0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://data.riksdagen.se",
+      "description": "Produktionsserver"
+    }
+  ],
+  "paths": {
+    "/dokumentlista/": {
+      "get": {
+        "summary": "Lista dokument (motioner, propositioner, betänkanden etc.)",
+        "description": "Hämta en lista över dokument filtrerade efter typ, fritextsökning eller riksmöte. Använd 'p' för paginering för att hantera stora svar. Parametern 'parti' är opålitlig och kan ge felaktiga resultat; använd istället 'sok' med partinamn. Parametern 'sz' är föråldrad.",
+        "operationId": "getDokumentlista",
+        "parameters": [
+          {
+            "name": "doktyp",
+            "in": "query",
+            "description": "Dokumenttyp (t.ex. 'mot' för motioner, 'prop' för propositioner)",
+            "schema": {
+              "type": "string",
+              "enum": ["mot", "prop", "bet", "sou", "ip", "sfs"]
+            }
+          },
+          {
+            "name": "sok",
+            "in": "query",
+            "description": "Fritextsökning, t.ex. partinamn eller nyckelord",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "rm",
+            "in": "query",
+            "description": "Riksmöte (ÅÅÅÅ/ÅÅ, t.ex. '2024/25')",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{2}$" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Startdatum (ÅÅÅÅ-MM-DD)",
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "tom",
+            "in": "query",
+            "description": "Slutdatum (ÅÅÅÅ-MM-DD)",
+            "schema": { "type": "string", "format": "date" }
+          },
+          {
+            "name": "organ",
+            "in": "query",
+            "description": "Utskott eller organ (t.ex. 'AU' för Arbetsmarknadsutskottet)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Sidnummer för paginering",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "sz",
+            "in": "query",
+            "description": "Föråldrad: Antal resultat per sida",
+            "deprecated": true,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100 }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista över dokument",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DokumentlistaResponse" }
+              }
+            }
+          },
+          "400": { "description": "Ogiltiga parametrar, t.ex. felaktigt datumformat eller ej stödd dokumenttyp" },
+          "413": { "description": "Svar för stort; använd mer specifika filter (t.ex. datumintervall, dokumenttyp) eller paginering" }
+        }
+      }
+    },
+    "/dokument/{dok_id}/": {
+      "get": {
+        "summary": "Hämta dokumentdetaljer",
+        "description": "Hämta detaljer för ett specifikt dokument baserat på dess ID. Kan returnera tomt eller partiellt data för opublicerade eller nyligen skapade dokument. Dokument-ID följer ett specifikt format (t.ex. 'HC01AU1' för betänkanden, 'sfs-1974-152' för lagar).",
+        "operationId": "getDokument",
+        "parameters": [
+          {
+            "name": "dok_id",
+            "in": "path",
+            "required": true,
+            "description": "Dokument-ID (t.ex. 'HC01AU1', 'sfs-1974-152')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dokumentdetaljer",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Dokument" }
+              }
+            }
+          },
+          "404": { "description": "Dokumentet hittades inte eller är ännu inte publicerat" }
+        }
+      }
+    },
+    "/personlista/": {
+      "get": {
+        "summary": "Lista riksdagsledamöter",
+        "description": "Hämta en lista över ledamöter filtrerade efter namn, kön, valkrets, parti eller utskott. Använd 'p' för paginering för att undvika stora svar. Om 'iid' anges ignoreras andra filter. Bild-URL:er finns för ledamöter och bör användas för visning.",
+        "operationId": "getPersonlista",
+        "parameters": [
+          {
+            "name": "iid",
+            "in": "query",
+            "description": "Internt ID för en specifik ledamot",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fnamn",
+            "in": "query",
+            "description": "Förnamn",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "enamn",
+            "in": "query",
+            "description": "Efternamn",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "fodd",
+            "in": "query",
+            "description": "Födelseår (ÅÅÅÅ)",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}$" }
+          },
+          {
+            "name": "kon",
+            "in": "query",
+            "description": "Kön (K för kvinna, M för man)",
+            "schema": { "type": "string", "enum": ["K", "M"] }
+          },
+          {
+            "name": "valkrets",
+            "in": "query",
+            "description": "Valkrets (t.ex. 'Gotlands län')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "parti",
+            "in": "query",
+            "description": "Parti (t.ex. 'S', 'M', 'SD')",
+            "schema": { "type": "string", "enum": ["S", "M", "SD", "C", "V", "KD", "L", "MP"] }
+          },
+          {
+            "name": "kategori",
+            "in": "query",
+            "description": "Kategori (t.ex. 'nuvarande' för nuvarande ledamöter)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "organ",
+            "in": "query",
+            "description": "Utskott eller organ (t.ex. 'AU' för Arbetsmarknadsutskottet)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Sidnummer för paginering",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "sz",
+            "in": "query",
+            "description": "Föråldrad: Antal resultat per sida",
+            "deprecated": true,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100 }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista över ledamöter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PersonlistaResponse" }
+              }
+            }
+          },
+          "400": { "description": "Ogiltiga parametrar, t.ex. felaktigt format för födelseår eller kön" },
+          "413": { "description": "Svar för stort; använd filter (t.ex. valkrets, parti) eller paginering" }
+        }
+      }
+    },
+    "/person/{iid}/": {
+      "get": {
+        "summary": "Hämta ledamotdetaljer",
+        "description": "Hämta detaljer för en specifik ledamot baserat på deras interna ID. Bild-URL:er finns och bör användas för visning. Kan returnera 404 om ledamoten inte längre är aktiv.",
+        "operationId": "getPerson",
+        "parameters": [
+          {
+            "name": "iid",
+            "in": "path",
+            "required": true,
+            "description": "Internt ID för ledamoten",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ledamotdetaljer",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Person" }
+              }
+            }
+          },
+          "404": { "description": "Ledamoten hittades inte eller är inte längre aktiv" }
+        }
+      }
+    },
+    "/voteringlista/": {
+      "get": {
+        "summary": "Lista voteringar",
+        "description": "Hämta en lista över voteringar filtrerade efter riksmöte eller ärendebeteckning. Använd 'p' för paginering för att hantera stora svar.",
+        "operationId": "getVoteringlista",
+        "parameters": [
+          {
+            "name": "rm",
+            "in": "query",
+            "description": "Riksmöte (ÅÅÅÅ/ÅÅ, t.ex. '2024/25')",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{2}$" }
+          },
+          {
+            "name": "bet",
+            "in": "query",
+            "description": "Ärendebeteckning (t.ex. 'AU10')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Sidnummer för paginering",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista över voteringar",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoteringlistaResponse" }
+              }
+            }
+          },
+          "400": { "description": "Ogiltiga parametrar, t.ex. felaktigt riksmötesformat" }
+        }
+      }
+    },
+    "/votering/{id}/": {
+      "get": {
+        "summary": "Hämta voteringsdetaljer",
+        "description": "Hämta detaljer för en specifik votering baserat på dess ID. Parametern 'parti' är delvis implementerad och kan ge ofullständiga data. Stora voteringssvar kan utlösa ett 413-fel; överväg att länka till riksdagen.se för fullständiga detaljer.",
+        "operationId": "getVotering",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Voterings-ID (t.ex. 'EDADC2B5-0C70-477E-B72E-F28BD5735975')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "parti",
+            "in": "query",
+            "description": "Filtrera efter parti (delvis implementerat, kan ge ofullständiga data)",
+            "schema": { "type": "string", "enum": ["S", "M", "SD", "C", "V", "KD", "L", "MP"] }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Voteringsdetaljer",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Votering" }
+              }
+            }
+          },
+          "404": { "description": "Voteringen hittades inte" },
+          "413": { "description": "Svar för stort; använd partifilter eller länk till riksdagen.se" }
+        }
+      }
+    },
+    "/anforandelista/": {
+      "get": {
+        "summary": "Lista anföranden i kammaren",
+        "description": "Hämta en lista över anföranden filtrerade efter riksmöte, fritextsökning, parti eller talare. Använd 'p' för paginering. Undvik att använda ej stödda parametrar som 'antal', 'sortering' eller 'ordning' för att förhindra fel.",
+        "operationId": "getAnforandelista",
+        "parameters": [
+          {
+            "name": "rm",
+            "in": "query",
+            "description": "Riksmöte (ÅÅÅÅ/ÅÅ, t.ex. '2024/25')",
+            "schema": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{2}$" }
+          },
+          {
+            "name": "sok",
+            "in": "query",
+            "description": "Fritextsökning i anförandetext",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "parti",
+            "in": "query",
+            "description": "Filtrera efter parti",
+            "schema": { "type": "string", "enum": ["S", "M", "SD", "C", "V", "KD", "L", "MP"] }
+          },
+          {
+            "name": "anforandetyp",
+            "in": "query",
+            "description": "Anförandetyp (t.ex. 'Anföranden och repliker')",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "talare",
+            "in": "query",
+            "description": "Talare",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "description": "Sidnummer för paginering",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista över anföranden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AnforandelistaResponse" }
+              }
+            }
+          },
+          "400": { "description": "Ogiltiga parametrar, t.ex. ej stödda parametrar som 'antal' eller 'sortering'" }
+        }
+      }
+    },
+    "/anforande/{id}/": {
+      "get": {
+        "summary": "Hämta anförandedetaljer",
+        "description": "Hämta detaljer för ett specifikt anförande baserat på dess ID.",
+        "operationId": "getAnforande",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Anförande-ID",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "utformat",
+            "in": "query",
+            "description": "Svarsformat",
+            "schema": { "type": "string", "enum": ["json", "xml"], "default": "json" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Anförandedetaljer",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Anforande" }
+              }
+            }
+          },
+          "404": { "description": "Anförandet hittades inte" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DokumentlistaResponse": {
+        "type": "object",
+        "properties": {
+          "dokumentlista": {
+            "type": "object",
+            "properties": {
+              "@antal": { "type": "string", "description": "Totalt antal träffar" },
+              "dokument": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Dokument" }
+              },
+              "nasta_sida": {
+                "type": "string",
+                "nullable": true,
+                "description": "URL till nästa sida"
+              }
+            }
+          }
+        }
+      },
+      "Dokument": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Dokument-ID (t.ex. 'HC01AU1', 'sfs-1974-152')" },
+          "titel": { "type": "string", "description": "Dokumenttitel" },
+          "doktyp": { "type": "string", "description": "Dokumenttyp (t.ex. 'mot', 'prop', 'sfs')" },
+          "publicerad": {
+            "type": "string",
+            "format": "date",
+            "description": "Publiceringsdatum"
+          },
+          "organ": { "type": "string", "description": "Utskott eller organ" },
+          "fil_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL till dokumentfilen (t.ex. PDF)"
+          }
+        },
+        "required": ["id", "titel", "doktyp"]
+      },
+      "PersonlistaResponse": {
+        "type": "object",
+        "properties": {
+          "personlista": {
+            "type": "object",
+            "properties": {
+              "@antal_total": { "type": "string", "description": "Totalt antal träffar" },
+              "person": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Person" }
+              }
+            }
+          }
+        }
+      },
+      "Person": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Internt ID" },
+          "fnamn": { "type": "string", "description": "Förnamn" },
+          "enamn": { "type": "string", "description": "Efternamn" },
+          "parti": { "type": "string", "description": "Parti (t.ex. 'S', 'M', 'SD')" },
+          "valkrets": { "type": "string", "description": "Valkrets" },
+          "kon": { "type": "string", "description": "Kön (K för kvinna, M för man)" },
+          "bild_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL till ledamotens bild"
+          },
+          "uppdrag": {
+            "type": "array",
+            "description": "Uppdrag (t.ex. utskottsroller)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "roll": { "type": "string", "description": "Roll" },
+                "organ": { "type": "string", "description": "Utskott eller organ" }
+              }
+            }
+          }
+        },
+        "required": ["id", "fnamn", "enamn"]
+      },
+      "VoteringlistaResponse": {
+        "type": "object",
+        "properties": {
+          "voteringlista": {
+            "type": "object",
+            "properties": {
+              "votering": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Votering" }
+              }
+            }
+          }
+        }
+      },
+      "Votering": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Voterings-ID" },
+          "datum": { "type": "string", "format": "date", "description": "Voteringsdatum" },
+          "rost": {
+            "type": "array",
+            "description": "Lista över individuella röster",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ledamot_id": { "type": "string", "description": "Ledamot-ID" },
+                "rost": {
+                  "type": "string",
+                  "enum": ["Ja", "Nej", "Avstår", "Frånvarande"],
+                  "description": "Röst (Ja, Nej, Avstår, Frånvarande)"
+                }
+              }
+            }
+          }
+        },
+        "required": ["id", "datum"]
+      },
+      "AnforandelistaResponse": {
+        "type": "object",
+        "properties": {
+          "anforandelista": {
+            "type": "object",
+            "properties": {
+              "anforande": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Anforande" }
+              }
+            }
+          }
+        }
+      },
+      "Anforande": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Anförande-ID" },
+          "talare": { "type": "string", "description": "Talare" },
+          "parti": { "type": "string", "description": "Parti" },
+          "anforandetext": { "type": "string", "description": "Anförandetext" },
+          "datum": { "type": "string", "format": "date", "description": "Anförandedatum" }
+        },
+        "required": ["id", "talare", "datum"]
+      }
+    }
+  }
+}
