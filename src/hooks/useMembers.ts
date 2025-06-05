@@ -11,6 +11,12 @@ interface CachedMemberData {
   constituency?: string;
 }
 
+interface MembersQueryResult {
+  members: any[];
+  totalCount: number;
+  hasMore: boolean;
+}
+
 // Helper function to extract image URLs
 const extractImageUrls = (member: any) => {
   if (member.bild_url_192) {
@@ -67,17 +73,14 @@ const committeeCodeMap: Record<string, string> = {
 
 // Mock implementation for missing functions
 const fetchMembersWithCommittees = async () => {
-  // This would normally fetch from an API
   return [];
 };
 
 const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
-  // This would normally fetch cached data
   return [];
 };
 
 const fetchMemberSuggestions = async (query: string) => {
-  // This would normally fetch member suggestions
   return [];
 };
 
@@ -138,18 +141,15 @@ export const useMembers = (
 ) => {
   return useQuery({
     queryKey: ['members', currentPage, pageSize, memberStatus, committee],
-    queryFn: async () => {
+    queryFn: async (): Promise<MembersQueryResult> => {
       // Mock implementation - would fetch real data from API
-      return [];
+      return {
+        members: [],
+        totalCount: 0,
+        hasMore: false
+      };
     },
     staleTime: 5 * 60 * 1000,
-    select: (data: any[]) => ({
-      members: data,
-      loading: false,
-      error: null,
-      totalCount: data.length,
-      hasMore: false
-    })
   });
 };
 
@@ -157,7 +157,6 @@ export const useMemberById = (memberId: string) => {
   return useQuery({
     queryKey: ['member', memberId],
     queryFn: async () => {
-      // Implementation would go here
       return null;
     },
     enabled: !!memberId,
@@ -168,7 +167,6 @@ export const useMembersByParty = (party: string) => {
   return useQuery({
     queryKey: ['members', 'party', party],
     queryFn: async () => {
-      // Implementation would go here
       return [];
     },
     enabled: !!party,
