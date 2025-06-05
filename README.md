@@ -72,14 +72,6 @@ VITE_CORS_PROXY_URL=optional-cors-proxy
 
 The proxy is optional and only used when calendar requests require a CORS proxy.
 
-After cloning the repository, install dependencies and verify the code passes
-linting and builds successfully:
-
-```sh
-npm ci
-npm run lint
-npm run build
-```
 
 ## How can I deploy this project?
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchMembers, fetchMemberSuggestions, fetchMemberDocuments, fetchMemberSpeeches, fetchMemberCalendarEvents, fetchMemberDetails, fetchAllCommittees, RiksdagMember, RiksdagMemberDetails, fetchMembersWithCommittees, isValidCommitteeCode, getMemberCommitteeAssignments, COMMITTEE_MAPPING } from '../services/riksdagApi';
-import { fetchCachedMemberData, fetchMembersByCommittee, CachedMemberData, extractCommitteeAssignments, extractImageUrls, fetchCachedMemberSuggestions } from '../services/cachedPartyApi';
+
 import { Member } from '../types/member';
 
 // Reverse mapping from full names to codes
