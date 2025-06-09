@@ -45,17 +45,27 @@ const fetchMembers = async (params: MemberSearchParams): Promise<{ members: any[
     // Use SupabaseDataService to get member data
     const supabaseMembers = await SupabaseDataService.getMemberData();
     
-    // Transform Supabase data to expected format
+    // Transform Supabase data to expected format with proper defaults
     const transformedMembers = supabaseMembers.map((member: any) => ({
       id: member.member_id,
-      firstName: member.first_name,
-      lastName: member.last_name,
-      party: member.party,
-      constituency: member.constituency,
+      firstName: member.first_name || '',
+      lastName: member.last_name || '',
+      party: member.party || '',
+      constituency: member.constituency || '',
       imageUrl: getImageUrl(member.image_urls),
-      isActive: member.is_active,
+      isActive: member.is_active ?? true,
       committees: member.current_committees || [],
-      activityScore: 0 // Default value
+      assignments: member.assignments || [],
+      activityScore: 0, // Default value
+      speeches: [], // Add default empty array
+      votes: [], // Add default empty array
+      proposals: [], // Add default empty array
+      motions: 0, // Add default value
+      interpellations: 0, // Add default value
+      writtenQuestions: 0, // Add default value
+      birthYear: member.birth_year || new Date().getFullYear() - 40, // Default age
+      email: generateEmail(member.first_name || '', member.last_name || ''),
+      profession: '' // Add default profession
     }));
 
     // Apply filtering based on params
@@ -101,6 +111,22 @@ const getImageUrl = (imageUrls: any): string => {
   return imageUrls.max || imageUrls['192'] || imageUrls['80'] || '';
 };
 
+// Helper function to generate email
+const generateEmail = (firstName: string, lastName: string): string => {
+  if (!firstName || !lastName) return '';
+  
+  const cleanFirst = firstName.toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  const cleanLast = lastName.toLowerCase()
+    .replace(/ä/g, 'a')
+    .replace(/å/g, 'a')
+    .replace(/ö/g, 'o');
+  return `${cleanFirst}.${cleanLast}@riksdagen.se`;
+};
+
 // Fetch member details
 const fetchMemberDetails = async (memberId: string) => {
   try {
@@ -109,15 +135,24 @@ const fetchMemberDetails = async (memberId: string) => {
     
     return {
       id: member.member_id,
-      firstName: member.first_name,
-      lastName: member.last_name,
-      party: member.party,
-      constituency: member.constituency,
+      firstName: member.first_name || '',
+      lastName: member.last_name || '',
+      party: member.party || '',
+      constituency: member.constituency || '',
       imageUrl: getImageUrl(member.image_urls),
-      isActive: member.is_active,
+      isActive: member.is_active ?? true,
       committees: member.current_committees || [],
       assignments: member.assignments || [],
-      activityData: member.activity_data || {}
+      activityData: member.activity_data || {},
+      speeches: [], // Add default empty array
+      votes: [], // Add default empty array
+      proposals: [], // Add default empty array
+      motions: 0,
+      interpellations: 0,
+      writtenQuestions: 0,
+      birthYear: member.birth_year || new Date().getFullYear() - 40,
+      email: generateEmail(member.first_name || '', member.last_name || ''),
+      profession: ''
     };
   } catch (error) {
     console.error('Error fetching member details:', error);
@@ -134,16 +169,16 @@ const fetchMemberSuggestions = async (searchTerm: string): Promise<RiksdagMember
     
     const filtered = members
       .filter(member => {
-        const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+        const fullName = `${member.first_name || ''} ${member.last_name || ''}`.toLowerCase();
         return fullName.includes(searchTerm.toLowerCase());
       })
       .slice(0, 10)
       .map(member => ({
         intressent_id: member.member_id,
-        tilltalsnamn: member.first_name,
-        efternamn: member.last_name,
-        parti: member.party,
-        valkrets: member.constituency,
+        tilltalsnamn: member.first_name || '',
+        efternamn: member.last_name || '',
+        parti: member.party || '',
+        valkrets: member.constituency || '',
         kon: member.gender || '',
         fodd_ar: member.birth_year?.toString() || ''
       }));

@@ -1,3 +1,4 @@
+
 import { Member } from '../types/member';
 import { partyInfo } from '../data/mockMembers';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -16,9 +17,12 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const { isMobile, isTablet } = useResponsive();
   const party = partyInfo[member.party];
 
+  // Safe access to assignments with null check
+  const assignments = member.assignments || [];
+
   // Improved active assignment filtering
   const currentDate = new Date();
-  const activeAssignments = member.assignments?.filter(assignment => {
+  const activeAssignments = assignments.filter(assignment => {
     // Parse end date more carefully
     let endDate: Date | null = null;
     if (assignment.tom) {
@@ -55,7 +59,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
     console.log(`Assignment ${assignment.organ_kod}: active=${isActive}, notChamber=${isNotChamber}, important=${isCommitteeOrImportant}`);
     
     return isActive && isNotChamber && isCommitteeOrImportant;
-  }) || [];
+  });
 
   console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`, activeAssignments);
 
@@ -75,6 +79,13 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
   // Display up to 2 most important assignments
   const displayAssignments = sortedAssignments.slice(0, isMobile ? 1 : 2);
+
+  // Safe access to arrays with default values
+  const speeches = member.speeches || [];
+  const committees = member.committees || [];
+  const motions = member.motions || 0;
+  const interpellations = member.interpellations || 0;
+  const writtenQuestions = member.writtenQuestions || 0;
 
   if (isMobile) {
     return (
@@ -132,19 +143,19 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
           <div className="grid grid-cols-4 gap-1 mt-3 pt-3 border-t">
             <div className="text-center">
-              <div className="text-sm font-semibold text-blue-600">{member.motions || 0}</div>
+              <div className="text-sm font-semibold text-blue-600">{motions}</div>
               <div className="text-xs text-gray-500">Mot.</div>
             </div>
             <div className="text-center">
-              <div className="text-sm font-semibold text-green-600">{member.speeches.length}</div>
+              <div className="text-sm font-semibold text-green-600">{speeches.length}</div>
               <div className="text-xs text-gray-500">Anf.</div>
             </div>
             <div className="text-center">
-              <div className="text-sm font-semibold text-orange-600">{member.interpellations || 0}</div>
+              <div className="text-sm font-semibold text-orange-600">{interpellations}</div>
               <div className="text-xs text-gray-500">Int.</div>
             </div>
             <div className="text-center">
-              <div className="text-sm font-semibold text-purple-600">{member.writtenQuestions || 0}</div>
+              <div className="text-sm font-semibold text-purple-600">{writtenQuestions}</div>
               <div className="text-xs text-gray-500">Fr.</div>
             </div>
           </div>
@@ -177,7 +188,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
               </Badge>
               <div className="flex items-center space-x-1">
                 <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                <span className="text-xs text-gray-600">{member.activityScore.toFixed(1)}</span>
+                <span className="text-xs text-gray-600">{(member.activityScore || 0).toFixed(1)}</span>
               </div>
             </div>
           </div>
@@ -231,26 +242,26 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
 
         <div className="grid grid-cols-4 gap-2 pt-2 border-t">
           <div className="text-center">
-            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-blue-600`}>{member.motions || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-blue-600`}>{motions}</div>
             <div className="text-xs text-gray-500">Motioner</div>
           </div>
           <div className="text-center">
-            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-green-600`}>{member.speeches.length}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-green-600`}>{speeches.length}</div>
             <div className="text-xs text-gray-500">Anföranden</div>
           </div>
           <div className="text-center">
-            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-orange-600`}>{member.interpellations || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-orange-600`}>{interpellations}</div>
             <div className="text-xs text-gray-500">Interpellationer</div>
           </div>
           <div className="text-center">
-            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-purple-600`}>{member.writtenQuestions || 0}</div>
+            <div className={`${isTablet ? 'text-base' : 'text-lg'} font-semibold text-purple-600`}>{writtenQuestions}</div>
             <div className="text-xs text-gray-500">Skriftliga frågor</div>
           </div>
         </div>
 
         {!isMobile && (
           <div className="text-xs text-gray-400 border-t pt-2">
-            {activeAssignments.length} aktiva uppdrag | Komm. koder: {member.committees.join(', ') || 'Inga'}
+            {activeAssignments.length} aktiva uppdrag | Komm. koder: {committees.join(', ') || 'Inga'}
           </div>
         )}
       </CardContent>
