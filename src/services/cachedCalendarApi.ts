@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export interface CachedCalendarData {
-  id: string;
+  id: string; // Changed from number to string to match usage
   event_id: string;
   datum: string;
   typ: string;
@@ -43,7 +43,7 @@ export const fetchEventsByOrgan = async (organ: string): Promise<CachedCalendarD
     }
 
     return data?.map(item => ({
-      id: item.id,
+      id: String(item.id), // Convert to string
       event_id: item.event_id,
       datum: item.datum,
       typ: item.typ || '',
@@ -80,7 +80,7 @@ export const fetchEventsByType = async (eventType: string): Promise<CachedCalend
     }
 
     return data?.map(item => ({
-      id: item.id,
+      id: String(item.id), // Convert to string
       event_id: item.event_id,
       datum: item.datum,
       typ: item.typ || '',
@@ -121,7 +121,7 @@ export const searchEvents = async (query: string): Promise<CachedCalendarData[]>
     }
 
     return data?.map(item => ({
-      id: item.id,
+      id: String(item.id), // Convert to string
       event_id: item.event_id,
       datum: item.datum,
       typ: item.typ || '',
@@ -210,7 +210,7 @@ export const isEventToday = (dateString: string | null): boolean => {
 };
 
 export class CachedCalendarApi {
-  static async getUpcomingEvents(limit: number = 10): Promise<CachedCalendarData[]> {
+  static async getUpcomingEvents(limit: number = 10): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -225,7 +225,7 @@ export class CachedCalendarApi {
       }
 
       return data?.map(item => ({
-        id: item.id,
+        id: String(item.id), // Convert to string
         event_id: item.event_id,
         datum: item.datum,
         typ: item.typ || '',
@@ -247,7 +247,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> {
+  static async getEventsByDateRange(startDate: string, endDate: string): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -262,7 +262,7 @@ export class CachedCalendarApi {
       }
 
       return data?.map(item => ({
-        id: item.id,
+        id: String(item.id), // Convert to string
         event_id: item.event_id,
         datum: item.datum,
         typ: item.typ || '',
@@ -284,7 +284,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> {
+  static async getEventsByType(eventType: string, limit: number = 20): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -299,7 +299,7 @@ export class CachedCalendarApi {
       }
 
       return data?.map(item => ({
-        id: item.id,
+        id: String(item.id), // Convert to string
         event_id: item.event_id,
         datum: item.datum,
         typ: item.typ || '',
@@ -321,7 +321,7 @@ export class CachedCalendarApi {
     }
   }
 
-  static async getAllEvents(): Promise<CachedCalendarData[]> {
+  static async getAllEvents(): Promise<CachedCalendarData[]> => {
     try {
       const { data, error } = await supabase
         .from('calendar_data')
@@ -334,7 +334,7 @@ export class CachedCalendarApi {
       }
 
       return data?.map(item => ({
-        id: item.id,
+        id: String(item.id), // Convert to string
         event_id: item.event_id,
         datum: item.datum,
         typ: item.typ || '',

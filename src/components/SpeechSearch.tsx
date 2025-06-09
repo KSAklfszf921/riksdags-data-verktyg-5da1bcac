@@ -155,8 +155,10 @@ const SpeechSearch = ({ initialMemberId, showMemberFilter = true }: SpeechSearch
         if (dateA.getTime() !== dateB.getTime()) {
           return dateA.getTime() - dateB.getTime();
         }
-        // If same date, sort by speech number
-        return parseInt(a.anforande_nummer) - parseInt(b.anforande_nummer);
+        // If same date, sort by speech number - ensure they're numbers
+        const numA = typeof a.anforande_nummer === 'number' ? a.anforande_nummer : parseInt(String(a.anforande_nummer || 0));
+        const numB = typeof b.anforande_nummer === 'number' ? b.anforande_nummer : parseInt(String(b.anforande_nummer || 0));
+        return numA - numB;
       });
     });
 

@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback } from 'react';
 import { RiksdagVote, VoteSearchParams } from '../services/riksdagApi';
 
@@ -21,8 +22,9 @@ export const useVoteCache = () => {
     // Create a more reliable cache key with sorted arrays
     const normalizedParams = {
       ...params,
-      rm: params.rm?.sort(),
-      party: params.party?.sort(),
+      // Handle array sorting properly
+      rm: Array.isArray(params.rm) ? params.rm.sort() : params.rm,
+      party: Array.isArray(params.party) ? params.party.sort() : params.party,
       // Include page number in cache key for pagination
       page: params.page || 1
     };

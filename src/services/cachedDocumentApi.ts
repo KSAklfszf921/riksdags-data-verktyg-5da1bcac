@@ -1,9 +1,8 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 
 export interface CachedDocumentData {
-  id: string;
+  id: string; // Changed from number to string to match usage
   document_id: string;
   titel: string | null;
   beteckning: string | null;
@@ -39,7 +38,10 @@ export const fetchCachedDocumentData = async (limit = 100): Promise<CachedDocume
     throw new Error(`Failed to fetch cached document data: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id) // Convert to string
+  })) || [];
 };
 
 export const fetchDocumentsByType = async (documentType: string): Promise<CachedDocumentData[]> => {
@@ -56,7 +58,10 @@ export const fetchDocumentsByType = async (documentType: string): Promise<Cached
     throw new Error(`Failed to fetch documents by type: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id) // Convert to string
+  })) || [];
 };
 
 export const fetchDocumentsByParty = async (party: string): Promise<CachedDocumentData[]> => {
@@ -73,7 +78,10 @@ export const fetchDocumentsByParty = async (party: string): Promise<CachedDocume
     throw new Error(`Failed to fetch documents by party: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id) // Convert to string
+  })) || [];
 };
 
 export const fetchDocumentsByOrgan = async (organ: string): Promise<CachedDocumentData[]> => {
@@ -90,7 +98,10 @@ export const fetchDocumentsByOrgan = async (organ: string): Promise<CachedDocume
     throw new Error(`Failed to fetch documents by organ: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id) // Convert to string
+  })) || [];
 };
 
 export const searchDocuments = async (query: string): Promise<CachedDocumentData[]> => {
@@ -107,7 +118,10 @@ export const searchDocuments = async (query: string): Promise<CachedDocumentData
     throw new Error(`Failed to search documents: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id) // Convert to string
+  })) || [];
 };
 
 export const getDocumentDataFreshness = async (): Promise<{ lastUpdated: string | null; isStale: boolean }> => {
