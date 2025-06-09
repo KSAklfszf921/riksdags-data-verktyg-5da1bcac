@@ -119,10 +119,7 @@ export interface RiksdagVote {
   rm?: string;
   avser?: string;
   punkt?: number | string;
-  rost: string | Array<{
-    ledamot_id: string;
-    rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
-  }>;
+  rost: string;
 }
 
 export interface RiksdagVoteResponse {
@@ -132,7 +129,7 @@ export interface RiksdagVoteResponse {
 }
 
 export interface DocumentSearchParams {
-  doktyp?: 'mot' | 'prop' | 'bet' | 'sou' | 'ip' | 'sfs';
+  doktyp?: string;
   sok?: string;
   searchTerm?: string;
   rm?: string;

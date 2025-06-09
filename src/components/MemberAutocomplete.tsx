@@ -49,9 +49,9 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
     }
   };
 
-  const handleSelectMember = (member: RiksdagMember) => {
+  const handleSelectMember = (member: any) => {
     setSelectedMember(member);
-    // Convert the member to ensure it has all required properties
+    // Convert the member from useMembers format to RiksdagMember format
     const convertedMember: RiksdagMember = {
       id: member.intressent_id,
       intressent_id: member.intressent_id,
@@ -62,8 +62,7 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
       parti: member.parti,
       valkrets: member.valkrets,
       fodd_ar: member.fodd_ar,
-      kon: member.kon,
-      status: member.status
+      kon: member.kon
     };
     
     const displayName = convertedMember.fnamn && convertedMember.enamn 
