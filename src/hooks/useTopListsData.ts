@@ -41,7 +41,7 @@ interface CacheEntry {
 const fetchAllMemberSpeeches = async (memberId: string, retries = 2): Promise<any[]> => {
   try {
     console.log(`Fetching speeches for member: ${memberId}`);
-    const speeches = await fetchMemberSpeeches(memberId, 1, 1000);
+    const speeches = await fetchMemberSpeeches(memberId);
     console.log(`Found ${speeches.length} speeches for member ${memberId}`);
     return speeches;
   } catch (error) {
@@ -59,7 +59,7 @@ const fetchAllMemberSpeeches = async (memberId: string, retries = 2): Promise<an
 const fetchAllMemberDocuments = async (memberId: string, retries = 2): Promise<any[]> => {
   try {
     console.log(`Fetching documents for member: ${memberId}`);
-    const documents = await fetchMemberDocuments(memberId, 1, 1000);
+    const documents = await fetchMemberDocuments(memberId);
     console.log(`Found ${documents.length} documents for member ${memberId}`);
     return documents;
   } catch (error) {
@@ -153,7 +153,7 @@ export const useTopListsData = (riksdagsYear: string = '2024/25', topN: number =
       // Fetch all current members with error handling
       let membersResult;
       try {
-        membersResult = await fetchMembers(1, 100, 'current');
+        membersResult = await fetchMembers();
       } catch (error) {
         throw new Error('Kunde inte hämta ledamöter från riksdagen');
       }

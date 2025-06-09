@@ -98,7 +98,8 @@ const fetchProposalPoints = async (
       const points = [...new Set(
         result.votes
           .map(vote => vote.punkt)
-          .filter(punkt => punkt && punkt.trim() !== '')
+          .filter(punkt => punkt !== null && punkt !== undefined)
+          .map(punkt => String(punkt)) // Convert to string for consistency
       )].sort((a, b) => parseInt(a) - parseInt(b));
       
       proposalPoints[designation] = points;

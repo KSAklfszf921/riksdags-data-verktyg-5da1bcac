@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,7 +162,7 @@ const VoteSearch = () => {
   };
 
   const handleRmChange = (rm: string, checked: boolean) => {
-    const currentRm = searchParams.rm || [];
+    const currentRm = Array.isArray(searchParams.rm) ? searchParams.rm : (searchParams.rm ? [searchParams.rm] : []);
     if (checked) {
       setSearchParams({
         ...searchParams,
@@ -383,7 +384,7 @@ const VoteSearch = () => {
                       <div key={rm} className="flex items-center space-x-2">
                         <Checkbox
                           id={`rm-${rm}`}
-                          checked={searchParams.rm?.includes(rm) || false}
+                          checked={Array.isArray(searchParams.rm) ? searchParams.rm.includes(rm) : searchParams.rm === rm}
                           onCheckedChange={(checked) => handleRmChange(rm, checked as boolean)}
                         />
                         <Label htmlFor={`rm-${rm}`} className="text-sm">
