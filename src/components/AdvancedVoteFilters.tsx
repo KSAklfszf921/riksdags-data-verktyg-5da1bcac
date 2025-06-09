@@ -46,7 +46,7 @@ const AdvancedVoteFilters = ({ searchParams, onParamsChange, onClearFilters }: A
   ];
 
   const handleRmChange = (rm: string, checked: boolean) => {
-    const currentRm = searchParams.rm || [];
+    const currentRm = Array.isArray(searchParams.rm) ? searchParams.rm : (searchParams.rm ? [searchParams.rm] : []);
     if (checked) {
       onParamsChange({
         ...searchParams,
@@ -84,7 +84,7 @@ const AdvancedVoteFilters = ({ searchParams, onParamsChange, onClearFilters }: A
     searchParams.punkt,
     searchParams.valkrets,
     searchParams.rost,
-    searchParams.rm?.length,
+    Array.isArray(searchParams.rm) ? searchParams.rm.length : (searchParams.rm ? 1 : 0),
     searchParams.party?.length,
     searchParams.gruppering,
     dateFrom,
@@ -227,7 +227,7 @@ const AdvancedVoteFilters = ({ searchParams, onParamsChange, onClearFilters }: A
             <div key={rm} className="flex items-center space-x-2">
               <Checkbox
                 id={`rm-advanced-${rm}`}
-                checked={searchParams.rm?.includes(rm) || false}
+                checked={Array.isArray(searchParams.rm) ? searchParams.rm.includes(rm) : searchParams.rm === rm}
                 onCheckedChange={(checked) => handleRmChange(rm, checked as boolean)}
               />
               <Label htmlFor={`rm-advanced-${rm}`} className="text-sm">

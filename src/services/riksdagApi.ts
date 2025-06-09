@@ -1,4 +1,3 @@
-
 export interface RiksdagMember {
   id: string;
   fnamn: string;
@@ -28,10 +27,16 @@ export interface RiksdagPersonResponse {
 export interface RiksdagDocument {
   id: string;
   titel: string;
+  undertitel?: string;
   doktyp: string;
+  typ: string;
+  datum: string;
+  beteckning?: string;
   publicerad?: string;
   organ?: string;
   fil_url?: string;
+  dokument_url_html?: string;
+  dokument_url_text?: string;
 }
 
 export interface RiksdagDocumentResponse {
@@ -59,6 +64,10 @@ export interface RiksdagSpeechResponse {
 export interface RiksdagVote {
   id: string;
   datum: string;
+  beteckning?: string;
+  rm?: string;
+  avser?: string;
+  punkt?: number;
   rost: Array<{
     ledamot_id: string;
     rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
@@ -74,10 +83,15 @@ export interface RiksdagVoteResponse {
 export interface DocumentSearchParams {
   doktyp?: 'mot' | 'prop' | 'bet' | 'sou' | 'ip' | 'sfs';
   sok?: string;
+  searchTerm?: string;
   rm?: string;
   from?: string;
   tom?: string;
+  fromDate?: string;
+  toDate?: string;
   organ?: string;
+  org?: string;
+  bet?: string;
   p?: number;
   sort?: string;
   sortorder?: 'asc' | 'desc';
@@ -111,8 +125,14 @@ export interface SpeechSearchParams {
 }
 
 export interface VoteSearchParams {
-  rm?: string;
+  rm?: string[] | string;
   bet?: string;
+  beteckning?: string;
+  punkt?: string;
+  valkrets?: string;
+  rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
+  party?: string[];
+  gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet';
   p?: number;
   utformat?: 'json' | 'xml';
 }
