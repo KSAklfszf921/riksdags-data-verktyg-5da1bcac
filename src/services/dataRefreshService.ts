@@ -100,7 +100,7 @@ export class DataRefreshService {
       const { error } = await supabase
         .from(tableName)
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', 'dummy'); // This won't match anything, but demonstrates the pattern
+        .eq('id', 0); // This won't match anything, but demonstrates the pattern
 
       if (error && !error.message.includes('No rows found')) {
         throw error;
