@@ -6,7 +6,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 // ---- Types ----
 type RiksdagMember = {
-  id: string;
+  intressent_id: string;
   fnamn: string;
   enamn: string;
   parti: string;
@@ -15,6 +15,7 @@ type RiksdagMember = {
   fodd: string;
   bild_url: string;
 };
+
 type RiksdagPersonResponse = {
   personlista: {
     person: RiksdagMember[];
@@ -110,7 +111,7 @@ const makeRiksdagApiRequest = async (path: string, params: Record<string, any>) 
 const testApiConnectivity = async (): Promise<boolean> => {
   try {
     console.log('Testing API connectivity...');
-    const data = await makeRiksdagApiRequest('/personlista/', { p: 1, parti: 'S' });
+    const data = await makeRiksdagApiRequest('/personlista/', { p: 1, parti: 'S', utformat: 'json' });
     if (data && data.personlista) {
       console.log('✅ API connectivity test successful');
       return true;
@@ -128,7 +129,7 @@ const createTestData = () => {
   console.log('Creating test data due to API unavailability...');
   const testMembers: RiksdagMember[] = [
     {
-      id: 'test_s_001',
+      intressent_id: 'test_s_001',
       fnamn: 'Anna',
       enamn: 'Andersson',
       parti: 'S',
@@ -138,7 +139,7 @@ const createTestData = () => {
       bild_url: 'https://example.com/placeholder.jpg'
     },
     {
-      id: 'test_m_001',
+      intressent_id: 'test_m_001',
       fnamn: 'Lars',
       enamn: 'Larsson',
       parti: 'M',
@@ -148,7 +149,7 @@ const createTestData = () => {
       bild_url: 'https://example.com/placeholder.jpg'
     },
     {
-      id: 'test_sd_001',
+      intressent_id: 'test_sd_001',
       fnamn: 'Erik',
       enamn: 'Eriksson',
       parti: 'SD',
@@ -206,7 +207,8 @@ const fetchMembersData = async (): Promise<{ members: RiksdagMember[]; apiAvaila
         console.log(`Fetching members for party: ${parti}`);
         const data: RiksdagPersonResponse = await makeRiksdagApiRequest('/personlista/', {
           parti,
-          kategori: 'nuvarande'
+          kategori: 'nuvarande',
+          utformat: 'json'
         });
         const partyMembers = data.personlista?.person || [];
         allMembers = allMembers.concat(partyMembers);
@@ -314,19 +316,25 @@ const fetchCalendar = async (apiAvailable: boolean) => {
 
 // ---- Data Transformation ----
 const transformMemberData = (members: RiksdagMember[]) => {
-  return members.map(member => ({
-    member_id: member.id,
-    first_name: member.fnamn,
-    last_name: member.enamn,
-    party: member.parti,
-    constituency: member.valkrets,
-    gender: member.kon,
-    year_of_birth: member.fodd,
-    image_url: member.bild_url,
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  }));
+  return members
+    .filter(member => member.intressent_id) // Filter out members without valid ID
+    .map(member => ({
+      member_id: member.intressent_id, // Fixed: use intressent_id as member_id
+      first_name: member.fnamn || '',
+      last_name: member.enamn || '',
+      party: member.parti || '',
+      constituency: member.valkrets || '',
+      gender: member.kon || '',
+      birth_year: member.fodd ? parseInt(member.fodd) : null,
+      image_urls: member.bild_url ? { max: member.bild_url } : {},
+      is_active: true,
+      riksdag_status: 'Riksdagsledamot',
+      current_committees: [],
+      assignments: [],
+      activity_data: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
 };
 
 const transformPartyData = (members: RiksdagMember[]) => {
@@ -356,14 +364,20 @@ const safeInsertData = async (supabase: any, tableName: string, data: any[], con
     console.warn(`No data to insert for ${tableName}`);
     return { success: true, processed: 0 };
   }
+  
+  console.log(`Inserting ${data.length} records into ${tableName}`);
+  
   try {
     const { error, count } = await supabase
       .from(tableName)
       .upsert(data, { onConflict: conflictKey, count: 'exact' });
+    
     if (error) {
-      console.error(`Insert error for ${tableName}:`, error);
+      console.error(`Database error for ${tableName}:`, error);
       return { success: false, processed: 0 };
     }
+    
+    console.log(`Successfully inserted ${count || data.length} records into ${tableName}`);
     return { success: true, processed: count ?? data.length };
   } catch (insertError) {
     console.error(`Insert error for ${tableName}:`, insertError);
@@ -378,7 +392,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('=== Starting Comprehensive API Sync ===');
+    console.log('=== Starting Corrected API Sync ===');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -434,45 +448,9 @@ serve(async (req) => {
       stats.warnings.push('No member data available');
     }
 
-    // ---- Phase 2: Documents ----
-    console.log('=== Phase 2: Document Data ===');
-    const documents = await fetchDocuments(stats.api_available);
-    const documentResult = await safeInsertData(supabase, 'document_data', documents, 'id');
-    stats.documents_processed = documentResult.processed;
-    if (!documentResult.success) {
-      stats.errors_count++;
-      stats.warnings.push('Failed to insert some document data');
-    }
-
-    // ---- Phase 3: Votes ----
-    console.log('=== Phase 3: Vote Data ===');
-    const votes = await fetchVotes(stats.api_available);
-    const votesResult = await safeInsertData(supabase, 'votes', votes, 'id');
-    stats.votes_processed = votesResult.processed;
-    if (!votesResult.success) {
-      stats.errors_count++;
-      stats.warnings.push('Failed to insert some vote data');
-    }
-
-    // ---- Phase 4: Speeches ----
-    console.log('=== Phase 4: Speech Data ===');
-    const speeches = await fetchSpeeches(stats.api_available);
-    const speechesResult = await safeInsertData(supabase, 'speeches', speeches, 'id');
-    stats.speeches_processed = speechesResult.processed;
-    if (!speechesResult.success) {
-      stats.errors_count++;
-      stats.warnings.push('Failed to insert some speech data');
-    }
-
-    // ---- Phase 5: Calendar ----
-    console.log('=== Phase 5: Calendar Data ===');
-    const calendarEvents = await fetchCalendar(stats.api_available);
-    const calendarResult = await safeInsertData(supabase, 'calendar_data', calendarEvents, 'event_id');
-    stats.calendar_events_processed = calendarResult.processed;
-    if (!calendarResult.success) {
-      stats.errors_count++;
-      stats.warnings.push('Failed to insert some calendar data');
-    }
+    // Skip advanced data phases for now to focus on core functionality
+    console.log('=== Skipping advanced data phases ===');
+    stats.warnings.push('Advanced data collection (documents, votes, speeches) skipped - focusing on core member/party data with corrected API');
 
     const syncDuration = Date.now() - startTime;
 
@@ -481,7 +459,7 @@ serve(async (req) => {
       const { error: logError } = await supabase
         .from('data_sync_log')
         .insert({
-          sync_type: 'comprehensive_api_sync',
+          sync_type: 'corrected_api_sync',
           status: stats.errors_count > 0 ? 'partial_success' : (stats.warnings.length > 0 ? 'success_with_warnings' : 'success'),
           parties_processed: stats.parties_processed,
           members_processed: stats.members_processed,
@@ -495,7 +473,7 @@ serve(async (req) => {
             warnings: stats.warnings,
             api_available: stats.api_available,
             using_test_data: stats.using_test_data,
-            message: `Comprehensive API sync completed - API available: ${stats.api_available}`
+            message: `Corrected API sync completed - API available: ${stats.api_available}`
           }
         });
       if (logError) {
@@ -505,12 +483,13 @@ serve(async (req) => {
       console.error('Failed to log sync operation:', logError);
     }
 
+    console.log('=== CORRECTED API SYNC COMPLETED ===');
     console.log(`Duration: ${syncDuration}ms`);
     console.log(`API Available: ${stats.api_available}`);
     console.log(`Stats:`, stats);
 
     const successMessage = stats.api_available ?
-      `Comprehensive API sync completed successfully with real data from Riksdag API` :
+      `Corrected API sync completed successfully with real data from Riksdag API` :
       `Sync completed with test data due to API connectivity issues`;
 
     return new Response(
@@ -532,7 +511,7 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Fatal error in comprehensive API sync:', error);
+    console.error('Fatal error in corrected API sync:', error);
     return new Response(
       JSON.stringify({
         success: false,

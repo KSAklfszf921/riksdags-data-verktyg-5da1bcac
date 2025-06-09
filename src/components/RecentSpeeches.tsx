@@ -12,10 +12,13 @@ interface RecentSpeechesProps {
   memberName: string;
 }
 
-const RecentSpeeches = ({ speeches, memberName }: RecentSpeechesProps) => {
+const RecentSpeeches = ({ speeches = [], memberName }: RecentSpeechesProps) => {
   const [selectedSpeech, setSelectedSpeech] = useState<Speech | null>(null);
   const [speechContent, setSpeechContent] = useState<string>('');
   const [loadingSpeech, setLoadingSpeech] = useState(false);
+
+  // Säkerställ att speeches alltid är en array
+  const safeSpeeches = Array.isArray(speeches) ? speeches : [];
 
   const formatDate = (dateString: string) => {
     try {
@@ -100,14 +103,15 @@ const RecentSpeeches = ({ speeches, memberName }: RecentSpeechesProps) => {
     }
   };
 
-  const recentSpeeches = speeches.slice(0, 10);
+  const recentSpeeches = safeSpeeches.slice(0, 10);
+  const speechCount = safeSpeeches.length;
 
   return (
     <>
       <Dialog>
         <DialogTrigger asChild>
           <Button variant="ghost" className="p-0 h-auto font-bold text-purple-600 hover:text-purple-800">
-            {speeches.length}
+            {speechCount}
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
