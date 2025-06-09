@@ -409,6 +409,96 @@ export const fetchVote = async (voteId: string, party?: string): Promise<Riksdag
   }
 };
 
+// Add the missing functions that the document text fetchers need
+export const fetchDocumentText = async (documentId: string): Promise<string | null> => {
+  try {
+    console.log(`Fetching document text for: ${documentId}`);
+    const response = await fetch(`${BASE_URL}/dokument/${documentId}.txt`);
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch document text: ${response.status}`);
+      return null;
+    }
+    
+    const text = await response.text();
+    return text;
+  } catch (error) {
+    console.error(`Error fetching document text for ${documentId}:`, error);
+    return null;
+  }
+};
+
+export const fetchSpeechText = async (speechId: string): Promise<string | null> => {
+  try {
+    console.log(`Fetching speech text for: ${speechId}`);
+    const speech = await fetchSpeech(speechId);
+    return speech?.anforandetext || null;
+  } catch (error) {
+    console.error(`Error fetching speech text for ${speechId}:`, error);
+    return null;
+  }
+};
+
+export const fetchMemberContentForAnalysis = async (
+  memberId: string, 
+  limit: number = 15
+): Promise<{
+  speeches: Array<{ id: string; text: string; title: string; date: string }>;
+  documents: Array<{ id: string; text: string; title: string; date: string; type: string }>;
+}> => {
+  try {
+    console.log(`Fetching content for analysis: member ${memberId}, limit ${limit}`);
+    
+    // Fetch member details first
+    const member = await fetchMemberDetails(memberId);
+    if (!member) {
+      throw new Error(`Member not found: ${memberId}`);
+    }
+    
+    // Fetch recent speeches
+    const { speeches } = await searchSpeeches({
+      intressent_id: memberId,
+      pageSize: limit
+    });
+    
+    // Fetch recent documents
+    const { documents } = await searchDocuments({
+      iid: memberId,
+      sz: limit
+    });
+    
+    // Transform speeches
+    const speechData = speeches.map(speech => ({
+      id: speech.id,
+      text: speech.anforandetext || '',
+      title: speech.avsnittsrubrik || 'Anförande',
+      date: speech.datum
+    }));
+    
+    // Transform documents (note: documents don't have text directly, need to fetch separately)
+    const documentData = documents.map(doc => ({
+      id: doc.id,
+      text: '', // Will be filled by the text fetcher
+      title: doc.titel,
+      date: doc.datum,
+      type: doc.typ
+    }));
+    
+    console.log(`Content fetched for ${member.efternamn}: ${speechData.length} speeches, ${documentData.length} documents`);
+    
+    return {
+      speeches: speechData,
+      documents: documentData
+    };
+  } catch (error) {
+    console.error(`Error fetching member content for analysis:`, error);
+    return {
+      speeches: [],
+      documents: []
+    };
+  }
+};
+
 // Legacy compatibility functions
 export const fetchAllMembers = async (): Promise<RiksdagMember[]> => {
   const { members } = await fetchMembers({ kategori: 'nuvarande' });
@@ -429,7 +519,7 @@ export const fetchMemberSuggestions = async (query: string): Promise<RiksdagMemb
 // Utility functions for backward compatibility
 export const fetchMemberDocuments = async (memberId: string): Promise<RiksdagDocument[]> => {
   try {
-    const { documents } = await searchDocuments({ sok: memberId });
+    const { documents } = await searchDocuments({ iid: memberId });
     return documents;
   } catch (error) {
     console.error(`Error fetching documents for member ${memberId}:`, error);
@@ -439,10 +529,7 @@ export const fetchMemberDocuments = async (memberId: string): Promise<RiksdagDoc
 
 export const fetchMemberSpeeches = async (memberId: string): Promise<RiksdagSpeech[]> => {
   try {
-    const member = await fetchMemberDetails(memberId);
-    if (!member) return [];
-    
-    const { speeches } = await searchSpeeches({ talare: `${member.fnamn} ${member.enamn}` });
+    const { speeches } = await searchSpeeches({ intressent_id: memberId });
     return speeches;
   } catch (error) {
     console.error(`Error fetching speeches for member ${memberId}:`, error);
