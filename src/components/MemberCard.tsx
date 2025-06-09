@@ -17,12 +17,14 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
   const { isMobile, isTablet } = useResponsive();
   const party = partyInfo[member.party];
 
-  // Safe access to assignments with null check
+  // Safe access to assignments with null check and default values
   const assignments = member.assignments || [];
 
   // Improved active assignment filtering
   const currentDate = new Date();
   const activeAssignments = assignments.filter(assignment => {
+    if (!assignment) return false;
+    
     // Parse end date more carefully
     let endDate: Date | null = null;
     if (assignment.tom) {
@@ -56,19 +58,17 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
                                   assignment.typ === 'Riksdagsorgan' || 
                                   assignment.typ === 'Departement';
     
-    console.log(`Assignment ${assignment.organ_kod}: active=${isActive}, notChamber=${isNotChamber}, important=${isCommitteeOrImportant}`);
-    
     return isActive && isNotChamber && isCommitteeOrImportant;
   });
 
-  console.log(`MemberCard for ${member.firstName} ${member.lastName}: ${activeAssignments.length} active assignments`, activeAssignments);
-
   // Get priority role (prioritize committee leadership roles)
   const getPriorityRole = (assignment: any) => {
-    if (assignment.roll === 'Ordförande' || assignment.roll === 'ordförande') return 1;
-    if (assignment.roll === 'Vice ordförande' || assignment.roll === 'vice ordförande') return 2;
-    if (assignment.roll === 'Ledamot' || assignment.roll === 'ledamot') return 3;
-    if (assignment.roll === 'Suppleant' || assignment.roll === 'suppleant') return 4;
+    if (!assignment || !assignment.roll) return 5;
+    const roll = assignment.roll.toLowerCase();
+    if (roll.includes('ordförande')) return 1;
+    if (roll.includes('vice')) return 2;
+    if (roll.includes('ledamot')) return 3;
+    if (roll.includes('suppleant')) return 4;
     return 5;
   };
 
@@ -120,7 +120,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
               <span className="truncate">{member.constituency}</span>
             </div>
 
-            {displayAssignments.length > 0 && (
+            {displayAssignments.length > 0 && displayAssignments[0] && (
               <div className="flex items-start space-x-2 text-xs">
                 <Building2 className="w-3 h-3 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -128,7 +128,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
                     {displayAssignments[0].uppgift || getCommitteeName(displayAssignments[0].organ_kod)}
                   </span>
                   <span className="text-gray-600 capitalize">
-                    {displayAssignments[0].roll.toLowerCase()}
+                    {displayAssignments[0].roll?.toLowerCase() || ''}
                   </span>
                 </div>
               </div>
@@ -164,7 +164,7 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
     );
   }
 
-  // Tablet and desktop view (keep existing layout but with some optimizations)
+  // Tablet and desktop view
   return (
     <Card 
       className="hover:shadow-lg transition-shadow duration-200 cursor-pointer hover:border-blue-300"
@@ -201,19 +201,22 @@ const MemberCard = ({ member, onClick }: MemberCardProps) => {
           <span className="truncate">{member.constituency}</span>
         </div>
 
-        {displayAssignments.map((assignment, index) => (
-          <div key={index} className="flex items-center space-x-2 text-sm">
-            <Building2 className="w-4 h-4 text-blue-600" />
-            <div className="flex-1 min-w-0">
-              <span className="font-medium text-blue-800 truncate block">
-                {assignment.uppgift || getCommitteeName(assignment.organ_kod)}
-              </span>
-              <span className="text-xs text-gray-600 capitalize">
-                {assignment.roll.toLowerCase()}
-              </span>
+        {displayAssignments.map((assignment, index) => {
+          if (!assignment) return null;
+          return (
+            <div key={index} className="flex items-center space-x-2 text-sm">
+              <Building2 className="w-4 h-4 text-blue-600" />
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-blue-800 truncate block">
+                  {assignment.uppgift || getCommitteeName(assignment.organ_kod)}
+                </span>
+                <span className="text-xs text-gray-600 capitalize">
+                  {assignment.roll?.toLowerCase() || ''}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {activeAssignments.length > displayAssignments.length && (
           <div className="flex items-center space-x-2 text-sm text-gray-600">

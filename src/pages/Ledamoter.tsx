@@ -36,14 +36,17 @@ const Ledamoter = () => {
 
   const { isMobile } = useResponsive();
 
+  // Fix committee parameter to avoid undefined
+  const committeeParam = selectedCommittee === "all" ? undefined : selectedCommittee;
+
   const { data: membersData, isLoading: loading, error } = useMembers(
     currentPage, 
     20, 
     memberStatus, 
-    selectedCommittee === "all" ? undefined : selectedCommittee
+    committeeParam
   );
 
-  // Extract data from the query result
+  // Extract data from the query result with safe defaults
   const members = membersData?.members || [];
   const totalCount = membersData?.totalCount || 0;
   const hasMore = membersData?.hasMore || false;
@@ -51,7 +54,7 @@ const Ledamoter = () => {
   const { committees } = useCommittees();
 
   // Hämta unika valkretsar från riktig data
-  const constituencies = Array.from(new Set(members.map((member: any) => member.constituency))).sort();
+  const constituencies = Array.from(new Set(members.map((member: any) => member.constituency).filter(Boolean))).sort();
 
   // Hämta unika partier från riktig data (filtrera bort tomma strängar)
   const actualParties = Array.from(new Set(members.map((member: any) => member.party).filter((party: any) => party && party.trim() !== ""))).sort();
@@ -64,7 +67,7 @@ const Ledamoter = () => {
         return member.id === autocompleteFilter.intressent_id;
       }
 
-      const fullName = `${member.firstName} ${member.lastName}`.toLowerCase();
+      const fullName = `${member.firstName || ''} ${member.lastName || ''}`.toLowerCase();
       const matchesSearch = searchTerm === "" || fullName.includes(searchTerm.toLowerCase());
       const matchesParty = selectedParty === "all" || member.party === selectedParty;
       const matchesConstituency = selectedConstituency === "all" || member.constituency === selectedConstituency;
@@ -82,7 +85,7 @@ const Ledamoter = () => {
     .sort((a: any, b: any) => {
       switch (sortBy) {
         case "name":
-          return `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+          return `${a.firstName || ''} ${a.lastName || ''}`.localeCompare(`${b.firstName || ''} ${b.lastName || ''}`);
         case "party":
           return (a.party || '').localeCompare(b.party || '');
         case "constituency":

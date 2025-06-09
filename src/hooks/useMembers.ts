@@ -56,16 +56,16 @@ const fetchMembers = async (params: MemberSearchParams): Promise<{ members: any[
       isActive: member.is_active ?? true,
       committees: member.current_committees || [],
       assignments: member.assignments || [],
-      activityScore: 0, // Default value
-      speeches: [], // Add default empty array
-      votes: [], // Add default empty array
-      proposals: [], // Add default empty array
-      motions: 0, // Add default value
-      interpellations: 0, // Add default value
-      writtenQuestions: 0, // Add default value
-      birthYear: member.birth_year || new Date().getFullYear() - 40, // Default age
+      activityScore: 0,
+      speeches: [],
+      votes: [],
+      proposals: [],
+      motions: 0,
+      interpellations: 0,
+      writtenQuestions: 0,
+      birthYear: member.birth_year || new Date().getFullYear() - 40,
       email: generateEmail(member.first_name || '', member.last_name || ''),
-      profession: '' // Add default profession
+      profession: ''
     }));
 
     // Apply filtering based on params
@@ -144,9 +144,9 @@ const fetchMemberDetails = async (memberId: string) => {
       committees: member.current_committees || [],
       assignments: member.assignments || [],
       activityData: member.activity_data || {},
-      speeches: [], // Add default empty array
-      votes: [], // Add default empty array
-      proposals: [], // Add default empty array
+      speeches: [],
+      votes: [],
+      proposals: [],
       motions: 0,
       interpellations: 0,
       writtenQuestions: 0,
@@ -293,7 +293,8 @@ export const useMembers = (
         params.kategori = 'avslutade';
       }
 
-      if (committee) {
+      // Fix undefined committee parameter
+      if (committee && committee !== 'all') {
         params.organ = committee;
       }
 
