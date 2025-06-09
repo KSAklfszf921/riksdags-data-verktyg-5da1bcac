@@ -34,7 +34,7 @@ export const fetchCachedVoteData = async (limit: number = 100): Promise<CachedVo
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     vote_id: item.vote_id,
     dok_id: item.dok_id,
     rm: item.rm,
@@ -67,7 +67,7 @@ export const fetchVotesByDocument = async (dokId: string): Promise<CachedVoteDat
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     vote_id: item.vote_id,
     dok_id: item.dok_id,
     rm: item.rm,
@@ -100,7 +100,7 @@ export const searchVotes = async (query: string): Promise<CachedVoteData[]> => {
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     vote_id: item.vote_id,
     dok_id: item.dok_id,
     rm: item.rm,
@@ -135,7 +135,7 @@ export const fetchVoteById = async (voteId: string): Promise<CachedVoteData | nu
   if (!data) return null;
 
   return {
-    id: data.id,
+    id: String(data.id),
     vote_id: data.vote_id,
     dok_id: data.dok_id,
     rm: data.rm,
@@ -170,7 +170,7 @@ export const fetchVotesByParty = async (party: string): Promise<CachedVoteData[]
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     vote_id: item.vote_id,
     dok_id: item.dok_id,
     rm: item.rm,
@@ -206,7 +206,7 @@ export const fetchVotesByDateRange = async (fromDate: string, toDate: string): P
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     vote_id: item.vote_id,
     dok_id: item.dok_id,
     rm: item.rm,
@@ -243,7 +243,7 @@ export const fetchVoteDetails = async (voteId: string): Promise<CachedVoteData |
   if (!data) return null;
 
   return {
-    id: data.id,
+    id: String(data.id),
     vote_id: data.vote_id,
     dok_id: data.dok_id,
     rm: data.rm,

@@ -41,7 +41,7 @@ export const fetchCachedSpeechData = async (limit = 100): Promise<CachedSpeechDa
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     speech_id: item.speech_id,
     anforande_id: item.anforande_id,
     intressent_id: item.intressent_id,
@@ -81,7 +81,7 @@ export const fetchSpeechesByParty = async (party: string): Promise<CachedSpeechD
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     speech_id: item.speech_id,
     anforande_id: item.anforande_id,
     intressent_id: item.intressent_id,
@@ -121,7 +121,7 @@ export const fetchSpeechesByMember = async (intressentId: string): Promise<Cache
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     speech_id: item.speech_id,
     anforande_id: item.anforande_id,
     intressent_id: item.intressent_id,
@@ -161,7 +161,7 @@ export const fetchSpeechesByType = async (speechType: string): Promise<CachedSpe
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     speech_id: item.speech_id,
     anforande_id: item.anforande_id,
     intressent_id: item.intressent_id,
@@ -201,7 +201,7 @@ export const searchSpeeches = async (query: string): Promise<CachedSpeechData[]>
   }
 
   return data?.map(item => ({
-    id: item.id,
+    id: String(item.id),
     speech_id: item.speech_id,
     anforande_id: item.anforande_id,
     intressent_id: item.intressent_id,

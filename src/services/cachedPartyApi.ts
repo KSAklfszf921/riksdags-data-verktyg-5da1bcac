@@ -63,7 +63,10 @@ export const fetchCachedPartyData = async (): Promise<CachedPartyData[]> => {
     throw new Error(`Failed to fetch cached party data: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id)
+  })) || [];
 };
 
 export const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
@@ -79,7 +82,10 @@ export const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
     throw new Error(`Failed to fetch cached member data: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id)
+  })) || [];
 };
 
 export const fetchCachedMemberSuggestions = async (query: string): Promise<CachedMemberData[]> => {
@@ -96,7 +102,10 @@ export const fetchCachedMemberSuggestions = async (query: string): Promise<Cache
     throw new Error(`Failed to fetch member suggestions: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id)
+  })) || [];
 };
 
 export const fetchMembersByCommittee = async (committeeCode: string): Promise<CachedMemberData[]> => {
@@ -114,7 +123,10 @@ export const fetchMembersByCommittee = async (committeeCode: string): Promise<Ca
     throw new Error(`Failed to fetch committee members: ${error.message}`);
   }
 
-  return data || [];
+  return data?.map(item => ({
+    ...item,
+    id: String(item.id)
+  })) || [];
 };
 
 export const fetchPartyCommitteeBreakdown = async (partyCode: string): Promise<any> => {
@@ -170,7 +182,10 @@ export const getLastSyncInfo = async (): Promise<DataSyncLog | null> => {
     return null;
   }
 
-  return data;
+  return data ? {
+    ...data,
+    id: String(data.id)
+  } : null;
 };
 
 export const refreshPartyData = async (): Promise<void> => {
