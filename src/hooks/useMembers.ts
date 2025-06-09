@@ -1,16 +1,149 @@
 
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { SupabaseDataService } from '../services/supabaseDataService';
+
+export interface MemberSearchParams {
+  p?: number;
+  kategori?: string;
+  organ?: string;
+  parti?: string;
+  utformat?: string;
+}
+
+export interface MembersQueryResult {
+  members: any[];
+  totalCount: number;
+  hasMore: boolean;
+}
+
+export interface CachedMemberData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  party: string;
+  constituency: string;
+  imageUrl: string;
+  isActive: boolean;
+}
+
+export interface RiksdagMember {
+  intressent_id: string;
+  tilltalsnamn: string;
+  efternamn: string;
+  parti: string;
+  valkrets: string;
+  kon: string;
+  fodd_ar: string;
+}
+
+// Fetch members from Supabase
+const fetchMembers = async (params: MemberSearchParams): Promise<{ members: any[], totalCount: number }> => {
+  console.log('Fetching members with params:', params);
+  
+  try {
+    // Use SupabaseDataService to get member data
+    const supabaseMembers = await SupabaseDataService.getMemberData();
+    
+    // Transform Supabase data to expected format
+    const transformedMembers = supabaseMembers.map((member: any) => ({
+      id: member.member_id,
+      firstName: member.first_name,
+      lastName: member.last_name,
+      party: member.party,
+      constituency: member.constituency,
+      imageUrl: member.image_urls?.max || member.image_urls?.['192'] || member.image_urls?.['80'] || '',
+      isActive: member.is_active,
+      committees: member.current_committees || [],
+      activityScore: 0 // Default value
+    }));
+
+    // Apply filtering based on params
+    let filteredMembers = transformedMembers;
+    
+    if (params.kategori === 'nuvarande') {
+      filteredMembers = filteredMembers.filter(member => member.isActive);
+    } else if (params.kategori === 'avslutade') {
+      filteredMembers = filteredMembers.filter(member => !member.isActive);
+    }
+    
+    if (params.parti) {
+      filteredMembers = filteredMembers.filter(member => member.party === params.parti);
+    }
+    
+    if (params.organ) {
+      filteredMembers = filteredMembers.filter(member => 
+        member.committees?.includes(params.organ)
+      );
+    }
+
+    const totalCount = filteredMembers.length;
+    
+    return {
+      members: filteredMembers,
+      totalCount
+    };
+  } catch (error) {
+    console.error('Error fetching members:', error);
+    return {
+      members: [],
+      totalCount: 0
+    };
   }
-  return null;
 };
 
-// Helper function to extract committee assignments (renamed from extractCommitteeAssignments)
-const getMemberCommitteeAssignments = (member: any) => {
-  if (member.assignments && Array.isArray(member.assignments)) {
-    return member.assignments.filter((assignment: any) => 
-      assignment.typ === 'kammaruppdrag' || assignment.typ === 'kommittéuppdrag'
-    );
+// Fetch member details
+const fetchMemberDetails = async (memberId: string) => {
+  try {
+    const member = await SupabaseDataService.getMemberById(memberId);
+    if (!member) return null;
+    
+    return {
+      id: member.member_id,
+      firstName: member.first_name,
+      lastName: member.last_name,
+      party: member.party,
+      constituency: member.constituency,
+      imageUrl: member.image_urls?.max || member.image_urls?.['192'] || member.image_urls?.['80'] || '',
+      isActive: member.is_active,
+      committees: member.current_committees || [],
+      assignments: member.assignments || [],
+      activityData: member.activity_data || {}
+    };
+  } catch (error) {
+    console.error('Error fetching member details:', error);
+    return null;
   }
-  return [];
+};
+
+// Fetch member suggestions for autocomplete
+const fetchMemberSuggestions = async (searchTerm: string): Promise<RiksdagMember[]> => {
+  if (!searchTerm || searchTerm.length < 2) return [];
+  
+  try {
+    const members = await SupabaseDataService.getMemberData();
+    
+    const filtered = members
+      .filter(member => {
+        const fullName = `${member.first_name} ${member.last_name}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      })
+      .slice(0, 10)
+      .map(member => ({
+        intressent_id: member.member_id,
+        tilltalsnamn: member.first_name,
+        efternamn: member.last_name,
+        parti: member.party,
+        valkrets: member.constituency,
+        kon: member.gender || '',
+        fodd_ar: member.birth_year?.toString() || ''
+      }));
+    
+    return filtered;
+  } catch (error) {
+    console.error('Error fetching member suggestions:', error);
+    return [];
+  }
 };
 
 // Mock committees data
@@ -44,17 +177,6 @@ const committeeCodeMap: Record<string, string> = {
   'Utbildningsutskottet': 'UbU',
   'Utrikesutskottet': 'UU'
 };
-
-// Mock implementation for missing functions
-const fetchMembersWithCommittees = async () => {
-  return [];
-};
-
-const fetchCachedMemberData = async (): Promise<CachedMemberData[]> => {
-  return [];
-};
-
-
 
 // Export committee helper functions
 export const getCommitteeName = (code: string): string => {
@@ -114,6 +236,8 @@ export const useMembers = (
   return useQuery({
     queryKey: ['members', currentPage, pageSize, memberStatus, committee],
     queryFn: async (): Promise<MembersQueryResult> => {
+      console.log('useMembers queryFn called with:', { currentPage, pageSize, memberStatus, committee });
+      
       const params: MemberSearchParams = {
         p: currentPage,
         utformat: 'json'
@@ -130,15 +254,26 @@ export const useMembers = (
       }
 
       const { members, totalCount } = await fetchMembers(params);
-      const hasMore = totalCount > currentPage * pageSize;
+      
+      // Implement pagination
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginatedMembers = members.slice(startIndex, endIndex);
+      const hasMore = endIndex < totalCount;
+
+      console.log('Query result:', { 
+        totalMembers: members.length, 
+        paginatedMembers: paginatedMembers.length, 
+        totalCount, 
+        hasMore 
+      });
 
       return {
-        members,
+        members: paginatedMembers,
         totalCount,
         hasMore
       };
     },
-    keepPreviousData: true,
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -159,19 +294,18 @@ export const useMembersByParty = (party: string) => {
     queryKey: ['members', 'party', party],
     queryFn: async () => {
       if (!party) return [];
-      const { members } = await fetchMembers({ parti: party, kategori: 'nuvarande', utformat: 'json' });
-      return members;
+      const members = await SupabaseDataService.getMembersByParty(party);
+      return members.map((member: any) => ({
+        id: member.member_id,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        party: member.party,
+        constituency: member.constituency,
+        imageUrl: member.image_urls?.max || '',
+        isActive: member.is_active
+      }));
     },
     enabled: !!party,
-  });
-};
-
-
-      }
-      return fetchMemberSuggestions(searchTerm);
-    },
-    enabled: !!searchTerm && searchTerm.length >= 2,
-    staleTime: 2 * 60 * 1000,
   });
 };
 

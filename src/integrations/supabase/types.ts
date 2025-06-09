@@ -17,7 +17,7 @@ export type Database = {
           description: string | null
           end_time: string | null
           event_id: string
-          id: string
+          id: number
           location: string | null
           metadata: Json | null
           organ: string | null
@@ -34,7 +34,7 @@ export type Database = {
           description?: string | null
           end_time?: string | null
           event_id: string
-          id?: string
+          id?: never
           location?: string | null
           metadata?: Json | null
           organ?: string | null
@@ -51,7 +51,7 @@ export type Database = {
           description?: string | null
           end_time?: string | null
           event_id?: string
-          id?: string
+          id?: never
           location?: string | null
           metadata?: Json | null
           organ?: string | null
@@ -70,7 +70,7 @@ export type Database = {
           documents_processed: number | null
           error_details: Json | null
           errors_count: number | null
-          id: string
+          id: number
           members_processed: number | null
           parties_processed: number | null
           speeches_processed: number | null
@@ -85,7 +85,7 @@ export type Database = {
           documents_processed?: number | null
           error_details?: Json | null
           errors_count?: number | null
-          id?: string
+          id?: never
           members_processed?: number | null
           parties_processed?: number | null
           speeches_processed?: number | null
@@ -100,7 +100,7 @@ export type Database = {
           documents_processed?: number | null
           error_details?: Json | null
           errors_count?: number | null
-          id?: string
+          id?: never
           members_processed?: number | null
           parties_processed?: number | null
           speeches_processed?: number | null
@@ -122,7 +122,7 @@ export type Database = {
           document_url_text: string | null
           dokumentstatus: string | null
           hangar_id: string | null
-          id: string
+          id: number
           intressent_id: string | null
           metadata: Json | null
           organ: string | null
@@ -144,7 +144,7 @@ export type Database = {
           document_url_text?: string | null
           dokumentstatus?: string | null
           hangar_id?: string | null
-          id?: string
+          id?: never
           intressent_id?: string | null
           metadata?: Json | null
           organ?: string | null
@@ -166,7 +166,7 @@ export type Database = {
           document_url_text?: string | null
           dokumentstatus?: string | null
           hangar_id?: string | null
-          id?: string
+          id?: never
           intressent_id?: string | null
           metadata?: Json | null
           organ?: string | null
@@ -191,7 +191,7 @@ export type Database = {
           current_committees: string[] | null
           first_name: string
           gender: string | null
-          id: string
+          id: number
           image_urls: Json | null
           is_active: boolean | null
           last_name: string
@@ -210,7 +210,7 @@ export type Database = {
           current_committees?: string[] | null
           first_name: string
           gender?: string | null
-          id?: string
+          id?: never
           image_urls?: Json | null
           is_active?: boolean | null
           last_name: string
@@ -229,7 +229,7 @@ export type Database = {
           current_committees?: string[] | null
           first_name?: string
           gender?: string | null
-          id?: string
+          id?: never
           image_urls?: Json | null
           is_active?: boolean | null
           last_name?: string
@@ -249,7 +249,7 @@ export type Database = {
           committee_members: Json | null
           created_at: string
           gender_distribution: Json | null
-          id: string
+          id: number
           member_list: Json | null
           party_code: string
           party_name: string
@@ -264,7 +264,7 @@ export type Database = {
           committee_members?: Json | null
           created_at?: string
           gender_distribution?: Json | null
-          id?: string
+          id?: never
           member_list?: Json | null
           party_code: string
           party_name: string
@@ -279,7 +279,7 @@ export type Database = {
           committee_members?: Json | null
           created_at?: string
           gender_distribution?: Json | null
-          id?: string
+          id?: never
           member_list?: Json | null
           party_code?: string
           party_name?: string
@@ -299,7 +299,7 @@ export type Database = {
           anforandetyp: string | null
           content_summary: string | null
           created_at: string
-          id: string
+          id: number
           intressent_id: string | null
           kammaraktivitet: string | null
           metadata: Json | null
@@ -323,7 +323,7 @@ export type Database = {
           anforandetyp?: string | null
           content_summary?: string | null
           created_at?: string
-          id?: string
+          id?: never
           intressent_id?: string | null
           kammaraktivitet?: string | null
           metadata?: Json | null
@@ -347,7 +347,7 @@ export type Database = {
           anforandetyp?: string | null
           content_summary?: string | null
           created_at?: string
-          id?: string
+          id?: never
           intressent_id?: string | null
           kammaraktivitet?: string | null
           metadata?: Json | null
@@ -371,7 +371,7 @@ export type Database = {
           created_at: string
           dok_id: string | null
           hangar_id: string | null
-          id: string
+          id: number
           metadata: Json | null
           party_breakdown: Json | null
           punkt: number | null
@@ -389,7 +389,7 @@ export type Database = {
           created_at?: string
           dok_id?: string | null
           hangar_id?: string | null
-          id?: string
+          id?: never
           metadata?: Json | null
           party_breakdown?: Json | null
           punkt?: number | null
@@ -407,7 +407,7 @@ export type Database = {
           created_at?: string
           dok_id?: string | null
           hangar_id?: string | null
-          id?: string
+          id?: never
           metadata?: Json | null
           party_breakdown?: Json | null
           punkt?: number | null
@@ -420,35 +420,15 @@ export type Database = {
         }
         Relationships: []
       }
-      ,
-      api_rate_limits: {
-        Row: {
-          key: string
-          count: number
-          reset_time: number
-        }
-        Insert: {
-          key: string
-          count?: number
-          reset_time?: number
-        }
-        Update: {
-          key?: string
-          count?: number
-          reset_time?: number
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       has_role: {
-        Args: {
-          _user_id: string
-          _role: Database["public"]["Enums"]["app_role"]
-        }
+        Args:
+          | { _user_id: string; _role: Database["public"]["Enums"]["app_role"] }
+          | { user_id: number; role_name: string }
         Returns: boolean
       }
       is_admin: {

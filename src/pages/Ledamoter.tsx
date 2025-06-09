@@ -1,5 +1,9 @@
 
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Users, Loader2, AlertCircle } from "lucide-react";
 import { partyInfo } from "../data/mockMembers";
 import MemberProfile from "../components/MemberProfile";
 import { PageHeader } from "../components/PageHeader";
@@ -184,3 +188,34 @@ const Ledamoter = () => {
 
         {/* Member grid */}
         <div className={`max-w-7xl mx-auto ${isMobile ? 'px-4' : 'px-4 sm:px-6 lg:px-8'}`}>
+          <MemberGrid
+            members={filteredAndSortedMembers}
+            totalCount={totalCount}
+            memberStatus={memberStatus}
+            selectedCommittee={selectedCommittee}
+            hasMore={hasMore}
+            loading={loading}
+            error={error}
+            autocompleteFilter={autocompleteFilter}
+            onMemberClick={handleMemberClick}
+            onLoadMore={handleLoadMore}
+            onClearAllFilters={clearAllFilters}
+          />
+        </div>
+      </div>
+
+      {/* Member profile modal */}
+      {selectedMemberId && (
+        <MemberProfile
+          memberId={selectedMemberId}
+          onClose={() => {
+            setSelectedMemberId(null);
+            navigate('/ledamoter');
+          }}
+        />
+      )}
+    </>
+  );
+};
+
+export default Ledamoter;
