@@ -1,20 +1,49 @@
+
 export interface RiksdagMember {
   id: string;
+  intressent_id: string;
   fnamn: string;
   enamn: string;
+  tilltalsnamn: string;
+  efternamn: string;
   parti: string;
   valkrets: string;
   kon: string;
   fodd?: string;
+  fodd_ar?: string;
   bild_url?: string;
+  bild_url_80?: string;
+  bild_url_192?: string;
+  bild_url_max?: string;
   uppdrag?: Array<{
     roll: string;
     organ: string;
+  }>;
+  assignments?: Array<{
+    roll: string;
+    organ: string;
+    status: string;
+    from: string;
+    tom: string;
+    typ: string;
+    ordning?: string;
+    uppgift: string;
   }>;
 }
 
 export interface RiksdagMemberDetails extends RiksdagMember {
   email: string;
+  fodd_ar?: string;
+  assignments?: Array<{
+    roll: string;
+    organ: string;
+    status: string;
+    from: string;
+    tom: string;
+    typ: string;
+    ordning?: string;
+    uppgift: string;
+  }>;
 }
 
 export interface RiksdagPersonResponse {
@@ -49,10 +78,25 @@ export interface RiksdagDocumentResponse {
 
 export interface RiksdagSpeech {
   id: string;
+  anforande_id?: string;
+  intressent_id?: string;
+  rel_dok_id?: string;
   talare: string;
+  namn?: string;
   parti: string;
   anforandetext: string;
   datum: string;
+  anforandedatum?: string;
+  anforande_nummer?: number;
+  anforande_url_html?: string;
+  dok_id?: string;
+  avsnittsrubrik?: string;
+  anforandetyp?: string;
+  kammaraktivitet?: string;
+  rel_dok_titel?: string;
+  rel_dok_beteckning?: string;
+  replik?: string;
+  protokoll_url_www?: string;
 }
 
 export interface RiksdagSpeechResponse {
@@ -63,12 +107,17 @@ export interface RiksdagSpeechResponse {
 
 export interface RiksdagVote {
   id: string;
+  votering_id?: string;
+  intressent_id?: string;
+  namn?: string;
+  parti?: string;
+  valkrets?: string;
   datum: string;
   beteckning?: string;
   rm?: string;
   avser?: string;
-  punkt?: number;
-  rost: Array<{
+  punkt?: number | string;
+  rost: string | Array<{
     ledamot_id: string;
     rost: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
   }>;
@@ -119,7 +168,14 @@ export interface SpeechSearchParams {
   sok?: string;
   parti?: 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP';
   anforandetyp?: string;
+  anfttyp?: string;
+  anftyp?: string;
   talare?: string;
+  intressent_id?: string;
+  intressentId?: string;
+  date?: string;
+  systemDate?: string;
+  pageSize?: number;
   p?: number;
   utformat?: 'json' | 'xml';
 }

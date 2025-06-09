@@ -51,7 +51,10 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
 
   const handleSelectMember = (member: RiksdagMember) => {
     setSelectedMember(member);
-    setQuery(`${member.tilltalsnamn} ${member.efternamn} (${member.parti})`);
+    const displayName = member.fnamn && member.enamn 
+      ? `${member.fnamn} ${member.enamn} (${member.parti})`
+      : `${member.tilltalsnamn || ''} ${member.efternamn || ''} (${member.parti})`;
+    setQuery(displayName);
     setIsOpen(false);
     onSelectMember(member);
   };
@@ -92,14 +95,16 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
           <CardContent className="p-0">
             {suggestions.map((member) => (
               <div
-                key={member.intressent_id}
+                key={member.intressent_id || member.id}
                 className="flex items-center space-x-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                 onClick={() => handleSelectMember(member)}
               >
                 <User className="w-4 h-4 text-gray-400" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">
-                    {member.tilltalsnamn} {member.efternamn}
+                    {member.fnamn && member.enamn 
+                      ? `${member.fnamn} ${member.enamn}`
+                      : `${member.tilltalsnamn || ''} ${member.efternamn || ''}`}
                   </div>
                   <div className="text-xs text-gray-500">
                     {member.parti} • {member.valkrets}

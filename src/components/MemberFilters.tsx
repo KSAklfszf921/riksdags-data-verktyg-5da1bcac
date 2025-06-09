@@ -189,7 +189,11 @@ const MemberFilters = ({
         {autocompleteFilter && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
             <span className="text-sm text-blue-700">
-              Visar resultat för: <strong>{autocompleteFilter.tilltalsnamn} {autocompleteFilter.efternamn}</strong>
+              Visar resultat för: <strong>
+                {autocompleteFilter.fnamn && autocompleteFilter.enamn 
+                  ? `${autocompleteFilter.fnamn} ${autocompleteFilter.enamn}`
+                  : `${autocompleteFilter.tilltalsnamn || ''} ${autocompleteFilter.efternamn || ''}`}
+              </strong>
             </span>
             <Button 
               variant="ghost" 

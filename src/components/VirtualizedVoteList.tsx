@@ -91,6 +91,9 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
             // Improved key generation for better performance
             const voteKey = `${vote.votering_id || 'no-voting'}-${vote.intressent_id || 'no-member'}-${actualIndex}`;
             
+            // Handle rost property which can be string or array
+            const rostValue = typeof vote.rost === 'string' ? vote.rost : 'Okänd';
+            
             return (
               <div
                 key={voteKey}
@@ -123,11 +126,11 @@ const VirtualizedVoteList = ({ votes, maxHeight = 400 }: VirtualizedVoteListProp
                     </Badge>
                   )}
                   <Badge 
-                    variant={getRostVariant(vote.rost || '')}
-                    style={getRostBadgeStyle(vote.rost || '')}
+                    variant={getRostVariant(rostValue)}
+                    style={getRostBadgeStyle(rostValue)}
                     className="min-w-[60px] text-center"
                   >
-                    {vote.rost || 'Okänd'}
+                    {rostValue}
                   </Badge>
                 </div>
               </div>
