@@ -52,7 +52,7 @@ const fetchMembers = async (params: MemberSearchParams): Promise<{ members: any[
       lastName: member.last_name,
       party: member.party,
       constituency: member.constituency,
-      imageUrl: member.image_urls?.max || member.image_urls?.['192'] || member.image_urls?.['80'] || '',
+      imageUrl: getImageUrl(member.image_urls),
       isActive: member.is_active,
       committees: member.current_committees || [],
       activityScore: 0 // Default value
@@ -92,6 +92,15 @@ const fetchMembers = async (params: MemberSearchParams): Promise<{ members: any[
   }
 };
 
+// Helper function to safely extract image URL
+const getImageUrl = (imageUrls: any): string => {
+  if (!imageUrls || typeof imageUrls !== 'object') return '';
+  
+  if (typeof imageUrls === 'string') return imageUrls;
+  
+  return imageUrls.max || imageUrls['192'] || imageUrls['80'] || '';
+};
+
 // Fetch member details
 const fetchMemberDetails = async (memberId: string) => {
   try {
@@ -104,7 +113,7 @@ const fetchMemberDetails = async (memberId: string) => {
       lastName: member.last_name,
       party: member.party,
       constituency: member.constituency,
-      imageUrl: member.image_urls?.max || member.image_urls?.['192'] || member.image_urls?.['80'] || '',
+      imageUrl: getImageUrl(member.image_urls),
       isActive: member.is_active,
       committees: member.current_committees || [],
       assignments: member.assignments || [],

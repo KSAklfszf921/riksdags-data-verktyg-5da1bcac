@@ -60,7 +60,13 @@ const MemberProfile = ({ memberId, onClose }: MemberProfileProps) => {
         return;
       }
 
-      setMember(data);
+      // Convert the data to match our interface
+      const convertedData: MemberData = {
+        ...data,
+        id: String(data.id) // Convert number to string
+      };
+
+      setMember(convertedData);
     } catch (err) {
       console.error('Error in loadMemberData:', err);
       setError('Ett fel uppstod vid hämtning av data');

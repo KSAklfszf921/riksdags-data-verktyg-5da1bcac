@@ -82,8 +82,8 @@ const PartyAnalysis = () => {
       
       // Calculate age
       const currentYear = new Date().getFullYear();
-      const birthYear = parseInt(member.fodd_ar);
-      if (!isNaN(birthYear)) {
+      const birthYear = parseInt(member.fodd_ar || '0');
+      if (!isNaN(birthYear) && birthYear > 0) {
         partyData.totalAge += (currentYear - birthYear);
       }
 
@@ -95,12 +95,15 @@ const PartyAnalysis = () => {
       }
 
       // Count committee assignments
-      member.assignments.forEach(assignment => {
-        if (!partyData.committees.has(assignment.organ_kod)) {
-          partyData.committees.set(assignment.organ_kod, new Set());
-        }
-        partyData.committees.get(assignment.organ_kod)!.add(assignment.roll);
-      });
+      if (member.assignments) {
+        member.assignments.forEach(assignment => {
+          const organCode = assignment.organ_kod || assignment.organ;
+          if (!partyData.committees.has(organCode)) {
+            partyData.committees.set(organCode, new Set());
+          }
+          partyData.committees.get(organCode)!.add(assignment.roll);
+        });
+      }
     });
 
     // Convert to stats array
@@ -113,7 +116,7 @@ const PartyAnalysis = () => {
       const committees: { [code: string]: { count: number; roles: string[] } } = {};
       data.committees.forEach((roles, code) => {
         committees[code] = {
-          count: data.members.filter(m => m.assignments.some(a => a.organ_kod === code)).length,
+          count: data.members.filter(m => m.assignments?.some(a => (a.organ_kod || a.organ) === code)).length,
           roles: Array.from(roles)
         };
       });
@@ -163,12 +166,15 @@ const PartyAnalysis = () => {
 
     const currentYear = new Date().getFullYear();
     filteredMembers.forEach(member => {
-      const age = currentYear - parseInt(member.fodd_ar);
-      if (age <= 30) ageGroups['20-30']++;
-      else if (age <= 40) ageGroups['31-40']++;
-      else if (age <= 50) ageGroups['41-50']++;
-      else if (age <= 60) ageGroups['51-60']++;
-      else ageGroups['61+']++;
+      const birthYear = parseInt(member.fodd_ar || '0');
+      if (birthYear > 0) {
+        const age = currentYear - birthYear;
+        if (age <= 30) ageGroups['20-30']++;
+        else if (age <= 40) ageGroups['31-40']++;
+        else if (age <= 50) ageGroups['41-50']++;
+        else if (age <= 60) ageGroups['51-60']++;
+        else ageGroups['61+']++;
+      }
     });
 
     return Object.entries(ageGroups).map(([label, value]) => ({ label, value }));

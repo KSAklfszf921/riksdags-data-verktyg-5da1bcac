@@ -51,12 +51,20 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
 
   const handleSelectMember = (member: RiksdagMember) => {
     setSelectedMember(member);
-    const displayName = member.fnamn && member.enamn 
-      ? `${member.fnamn} ${member.enamn} (${member.parti})`
+    // Convert the member to match the expected interface
+    const convertedMember: RiksdagMember = {
+      ...member,
+      id: member.intressent_id,
+      fnamn: member.tilltalsnamn || '',
+      enamn: member.efternamn || ''
+    };
+    
+    const displayName = convertedMember.fnamn && convertedMember.enamn 
+      ? `${convertedMember.fnamn} ${convertedMember.enamn} (${convertedMember.parti})`
       : `${member.tilltalsnamn || ''} ${member.efternamn || ''} (${member.parti})`;
     setQuery(displayName);
     setIsOpen(false);
-    onSelectMember(member);
+    onSelectMember(convertedMember);
   };
 
   const clearSelection = () => {
@@ -95,16 +103,14 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
           <CardContent className="p-0">
             {suggestions.map((member) => (
               <div
-                key={member.intressent_id || member.id}
+                key={member.intressent_id}
                 className="flex items-center space-x-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                 onClick={() => handleSelectMember(member)}
               >
                 <User className="w-4 h-4 text-gray-400" />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">
-                    {member.fnamn && member.enamn 
-                      ? `${member.fnamn} ${member.enamn}`
-                      : `${member.tilltalsnamn || ''} ${member.efternamn || ''}`}
+                    {member.tilltalsnamn || ''} {member.efternamn || ''}
                   </div>
                   <div className="text-xs text-gray-500">
                     {member.parti} • {member.valkrets}

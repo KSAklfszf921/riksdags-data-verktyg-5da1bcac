@@ -1,4 +1,3 @@
-
 export interface RiksdagMember {
   id: string;
   intressent_id: string;
@@ -22,6 +21,7 @@ export interface RiksdagMember {
   assignments?: Array<{
     roll: string;
     organ: string;
+    organ_kod?: string;
     status: string;
     from: string;
     tom: string;
@@ -37,6 +37,7 @@ export interface RiksdagMemberDetails extends RiksdagMember {
   assignments?: Array<{
     roll: string;
     organ: string;
+    organ_kod?: string;
     status: string;
     from: string;
     tom: string;
@@ -113,6 +114,7 @@ export interface RiksdagVote {
   parti?: string;
   valkrets?: string;
   datum: string;
+  systemdatum?: string;
   beteckning?: string;
   rm?: string;
   avser?: string;
@@ -167,6 +169,7 @@ export interface SpeechSearchParams {
   rm?: string;
   sok?: string;
   parti?: 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP';
+  party?: 'S' | 'M' | 'SD' | 'C' | 'V' | 'KD' | 'L' | 'MP';
   anforandetyp?: string;
   anfttyp?: string;
   anftyp?: string;
@@ -188,8 +191,12 @@ export interface VoteSearchParams {
   valkrets?: string;
   rost?: 'Ja' | 'Nej' | 'Avstår' | 'Frånvarande';
   party?: string[];
+  parti?: string;
   gruppering?: 'iid' | 'namn' | 'parti' | 'valkrets' | 'rm' | 'votering_id' | 'bet';
   p?: number;
+  page?: number;
+  pageSize?: number;
+  sort?: string[] | string;
   utformat?: 'json' | 'xml';
 }
 
@@ -473,4 +480,36 @@ export const isValidGender = (gender: string): gender is 'K' | 'M' => {
 
 export const isValidCommitteeCode = (code: string): boolean => {
   return VALID_COMMITTEE_CODES.includes(code);
+};
+
+// Add the missing fetchMembersWithCommittees function
+export const fetchMembersWithCommittees = async (
+  page: number = 1, 
+  pageSize: number = 100, 
+  status: string = 'current'
+): Promise<{ members: RiksdagMemberDetails[]; totalCount: number }> => {
+  try {
+    const params: MemberSearchParams = {
+      p: page,
+      utformat: 'json'
+    };
+
+    if (status === 'current') {
+      params.kategori = 'nuvarande';
+    }
+
+    const { members, totalCount } = await fetchMembers(params);
+    
+    // Transform to RiksdagMemberDetails
+    const detailedMembers: RiksdagMemberDetails[] = members.map(member => ({
+      ...member,
+      email: generateEmail(member.fnamn, member.enamn),
+      assignments: member.assignments || []
+    }));
+
+    return { members: detailedMembers, totalCount };
+  } catch (error) {
+    console.error('Error fetching members with committees:', error);
+    return { members: [], totalCount: 0 };
+  }
 };

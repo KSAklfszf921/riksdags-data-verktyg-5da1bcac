@@ -33,6 +33,19 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
   const [expandedPoints, setExpandedPoints] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState("grouped");
 
+  // Helper function to safely get string value from punkt
+  const getPunktAsString = (punkt: string | number | undefined): string => {
+    if (punkt === undefined || punkt === null) return 'Ingen punkt angiven';
+    return String(punkt).trim();
+  };
+
+  // Helper function to safely get rost as string
+  const getRostAsString = (rost: string | Array<{ledamot_id: string; rost: string}> | undefined): string => {
+    if (!rost) return '';
+    if (typeof rost === 'string') return rost;
+    return ''; // For array type, we'll handle differently
+  };
+
   // Memoize grouped votes calculation for performance
   const groupedVotes = useMemo(() => {
     console.log('Processing votes for grouping:', votes.length);
@@ -55,12 +68,14 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
       groups[groupKey].votes.push(vote);
       
       // Add proposal point to the set if it exists
-      if (vote.punkt && vote.punkt.trim()) {
-        groups[groupKey].proposalPoints.add(vote.punkt.trim());
+      const punktStr = getPunktAsString(vote.punkt);
+      if (punktStr && punktStr !== 'Ingen punkt angiven') {
+        groups[groupKey].proposalPoints.add(punktStr);
       }
       
       // Update vote statistics
-      const rostLower = (vote.rost || '').toLowerCase();
+      const rostStr = getRostAsString(vote.rost);
+      const rostLower = rostStr.toLowerCase();
       switch (rostLower) {
         case 'ja':
           groups[groupKey].voteStats.ja++;
@@ -147,7 +162,7 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
               
               // Group votes by proposal point for better display - memoized per group
               const votesByPoint = group.votes.reduce((acc, vote) => {
-                const punkt = vote.punkt?.trim() || 'Ingen punkt angiven';
+                const punkt = getPunktAsString(vote.punkt);
                 if (!acc[punkt]) {
                   acc[punkt] = [];
                 }
@@ -226,24 +241,25 @@ const GroupedVoteResults = ({ votes, totalCount }: GroupedVoteResultsProps) => {
                             const isPointExpanded = expandedPoints.has(pointKey);
                             
                             // Calculate vote stats for this point - memoized
-                              const pointStats = punktVotes.reduce((stats, vote) => {
-                                const rostLower = (vote.rost || '').toLowerCase();
-                                switch (rostLower) {
-                                  case 'ja':
-                                    stats.ja++;
-                                    break;
-                                  case 'nej':
-                                    stats.nej++;
-                                    break;
-                                  case 'avstår':
-                                    stats.avstar++;
-                                    break;
-                                  case 'frånvarande':
-                                    stats.franvarande++;
-                                    break;
-                                }
-                                return stats;
-                              }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
+                            const pointStats = punktVotes.reduce((stats, vote) => {
+                              const rostStr = getRostAsString(vote.rost);
+                              const rostLower = rostStr.toLowerCase();
+                              switch (rostLower) {
+                                case 'ja':
+                                  stats.ja++;
+                                  break;
+                                case 'nej':
+                                  stats.nej++;
+                                  break;
+                                case 'avstår':
+                                  stats.avstar++;
+                                  break;
+                                case 'frånvarande':
+                                  stats.franvarande++;
+                                  break;
+                              }
+                              return stats;
+                            }, { ja: 0, nej: 0, avstar: 0, franvarande: 0 });
                             
                             return (
                               <div key={pointKey}>
