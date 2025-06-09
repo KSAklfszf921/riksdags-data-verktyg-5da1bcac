@@ -51,12 +51,19 @@ const MemberAutocomplete = ({ onSelectMember, placeholder = "Sök ledamot...", c
 
   const handleSelectMember = (member: RiksdagMember) => {
     setSelectedMember(member);
-    // Convert the member to match the expected interface
+    // Convert the member to ensure it has all required properties
     const convertedMember: RiksdagMember = {
-      ...member,
       id: member.intressent_id,
+      intressent_id: member.intressent_id,
       fnamn: member.tilltalsnamn || '',
-      enamn: member.efternamn || ''
+      enamn: member.efternamn || '',
+      tilltalsnamn: member.tilltalsnamn || '',
+      efternamn: member.efternamn || '',
+      parti: member.parti,
+      valkrets: member.valkrets,
+      fodd_ar: member.fodd_ar,
+      kon: member.kon,
+      status: member.status
     };
     
     const displayName = convertedMember.fnamn && convertedMember.enamn 
